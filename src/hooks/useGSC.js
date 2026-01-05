@@ -203,9 +203,9 @@ export function useGSC(dateRange = null) {
     window.location.href = `/api/gsc/connect?store_id=${STORE_ID}`
   }
 
-  // Sync GSC data function
+  // Sync GSC data function - käyttää Vercel serverless API:a
   const syncGSC = async (startDate, endDate) => {
-    const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/gsc-sync`, {
+    const response = await fetch('/api/gsc/sync', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
