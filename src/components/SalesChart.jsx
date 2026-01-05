@@ -1,6 +1,5 @@
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import {
-  AreaChart,
   Area,
   XAxis,
   YAxis,
@@ -8,16 +7,36 @@ import {
   Tooltip,
   ResponsiveContainer,
   BarChart,
-  Bar
+  Bar,
+  Line,
+  ComposedChart,
+  Legend
 } from 'recharts'
 
-export function DailySalesChart({ data }) {
+export function DailySalesChart({ data, previousData = null, compare = false }) {
   // Reverse to show oldest first
-  const chartData = [...data].reverse().map(d => ({
-    date: new Date(d.sale_date).toLocaleDateString('sv-SE', { month: 'short', day: 'numeric' }),
-    revenue: d.total_revenue,
-    orders: d.order_count
-  }))
+  const currentData = [...data].reverse()
+
+  // If comparing, merge previous data with current
+  let chartData
+  if (compare && previousData && previousData.length > 0) {
+    const prevReversed = [...previousData].reverse()
+    chartData = currentData.map((d, i) => ({
+      date: new Date(d.sale_date).toLocaleDateString('sv-SE', { month: 'short', day: 'numeric' }),
+      revenue: d.total_revenue,
+      orders: d.order_count,
+      previousRevenue: prevReversed[i]?.total_revenue || null,
+      previousDate: prevReversed[i] ? new Date(prevReversed[i].sale_date).toLocaleDateString('sv-SE', { month: 'short', day: 'numeric' }) : null
+    }))
+  } else {
+    chartData = currentData.map(d => ({
+      date: new Date(d.sale_date).toLocaleDateString('sv-SE', { month: 'short', day: 'numeric' }),
+      revenue: d.total_revenue,
+      orders: d.order_count
+    }))
+  }
+
+  const showComparison = compare && previousData && previousData.length > 0
 
   return (
     <Card className="bg-slate-800/50 border-slate-700">
@@ -27,7 +46,7 @@ export function DailySalesChart({ data }) {
       <CardContent>
         <div className="h-64">
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={chartData}>
+            <ComposedChart data={chartData}>
               <defs>
                 <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.3}/>
@@ -40,8 +59,18 @@ export function DailySalesChart({ data }) {
               <Tooltip
                 contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '8px' }}
                 labelStyle={{ color: '#f8fafc' }}
-                formatter={(value) => [`${value.toLocaleString()} SEK`, 'Försäljning']}
+                formatter={(value, name) => {
+                  if (name === 'revenue') return [`${value?.toLocaleString()} SEK`, 'Nuvarande']
+                  if (name === 'previousRevenue') return [`${value?.toLocaleString()} SEK`, 'Föregående']
+                  return [value, name]
+                }}
               />
+              {showComparison && (
+                <Legend
+                  wrapperStyle={{ paddingTop: '10px' }}
+                  formatter={(value) => value === 'revenue' ? 'Nuvarande period' : 'Föregående period'}
+                />
+              )}
               <Area
                 type="monotone"
                 dataKey="revenue"
@@ -50,7 +79,17 @@ export function DailySalesChart({ data }) {
                 fillOpacity={1}
                 fill="url(#colorRevenue)"
               />
-            </AreaChart>
+              {showComparison && (
+                <Line
+                  type="monotone"
+                  dataKey="previousRevenue"
+                  stroke="#64748b"
+                  strokeWidth={2}
+                  strokeDasharray="5 5"
+                  dot={false}
+                />
+              )}
+            </ComposedChart>
           </ResponsiveContainer>
         </div>
       </CardContent>

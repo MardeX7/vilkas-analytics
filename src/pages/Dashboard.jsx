@@ -22,6 +22,7 @@ export function Dashboard() {
 
   const {
     dailySales,
+    previousDailySales,
     topProducts,
     paymentMethods,
     shippingMethods,
@@ -159,7 +160,11 @@ export function Dashboard() {
 
         {/* Charts Row 1 */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-          <DailySalesChart data={dailySales} />
+          <DailySalesChart
+            data={dailySales}
+            previousData={previousDailySales}
+            compare={dateRange.compare}
+          />
           <TopProducts products={topProducts} />
         </div>
 

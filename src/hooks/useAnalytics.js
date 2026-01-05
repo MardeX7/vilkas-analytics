@@ -34,6 +34,7 @@ export function useAnalytics(dateRange = null) {
   const [error, setError] = useState(null)
   const [data, setData] = useState({
     dailySales: [],
+    previousDailySales: [],
     weeklySales: [],
     monthlySales: [],
     topProducts: [],
@@ -65,6 +66,15 @@ export function useAnalytics(dateRange = null) {
       if (startDate) dailyQuery = dailyQuery.gte('sale_date', startDate)
       if (endDate) dailyQuery = dailyQuery.lte('sale_date', endDate)
       dailyQuery = dailyQuery.order('sale_date', { ascending: false })
+
+      // Fetch previous period daily sales for comparison
+      let previousDailyQuery = null
+      if (compare && previousStartDate && previousEndDate) {
+        previousDailyQuery = supabase.from('v_daily_sales').select('*').eq('store_id', STORE_ID)
+          .gte('sale_date', previousStartDate)
+          .lte('sale_date', previousEndDate)
+          .order('sale_date', { ascending: false })
+      }
 
       // For other data, we need to query orders directly with date filter
       // Top products in date range
@@ -115,7 +125,8 @@ export function useAnalytics(dateRange = null) {
         weekdayRes,
         hourlyRes,
         currentSummary,
-        previousSummary
+        previousSummary,
+        previousDailyRes
       ] = await Promise.all([
         dailyQuery,
         supabase.from('v_weekly_sales').select('*').eq('store_id', STORE_ID).order('week_start', { ascending: false }).limit(12),
@@ -126,7 +137,8 @@ export function useAnalytics(dateRange = null) {
         supabase.from('v_weekday_analysis').select('*').eq('store_id', STORE_ID),
         supabase.from('v_hourly_analysis').select('*').eq('store_id', STORE_ID),
         fetchPeriodSummary(startDate, endDate),
-        compare && previousStartDate ? fetchPeriodSummary(previousStartDate, previousEndDate) : Promise.resolve(null)
+        compare && previousStartDate ? fetchPeriodSummary(previousStartDate, previousEndDate) : Promise.resolve(null),
+        previousDailyQuery || Promise.resolve({ data: null })
       ])
 
       // Aggregate top products from orders
@@ -204,6 +216,7 @@ export function useAnalytics(dateRange = null) {
 
       setData({
         dailySales: dailyRes.data || [],
+        previousDailySales: previousDailyRes?.data || [],
         weeklySales: weeklyRes.data || [],
         monthlySales: monthlyRes.data || [],
         topProducts,
