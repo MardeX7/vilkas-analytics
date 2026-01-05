@@ -28,6 +28,7 @@ export function Dashboard() {
     weekdayAnalysis,
     hourlyAnalysis,
     summary,
+    comparison,
     loading,
     error,
     refresh
@@ -105,22 +106,30 @@ export function Dashboard() {
             value={summary?.totalRevenue || 0}
             currency="SEK"
             icon={DollarSign}
+            change={comparison?.revenue}
+            changeLabel={dateRange.compare ? 'vs förra' : undefined}
           />
           <KPICard
             title="Antal ordrar"
             value={summary?.orderCount || 0}
             icon={ShoppingCart}
+            change={comparison?.orders}
+            changeLabel={dateRange.compare ? 'vs förra' : undefined}
           />
           <KPICard
             title="Snittordervärde"
             value={Math.round(summary?.avgOrderValue || 0)}
             currency="SEK"
             icon={TrendingUp}
+            change={comparison?.aov}
+            changeLabel={dateRange.compare ? 'vs förra' : undefined}
           />
           <KPICard
             title="Unika kunder"
             value={summary?.uniqueCustomers || 0}
             icon={Users}
+            change={comparison?.customers}
+            changeLabel={dateRange.compare ? 'vs förra' : undefined}
           />
         </div>
 

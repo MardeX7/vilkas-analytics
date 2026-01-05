@@ -58,6 +58,23 @@ function getDateRange(preset) {
   return { startDate, endDate }
 }
 
+// Get previous period of same length
+function getPreviousPeriod(startDate, endDate) {
+  const start = new Date(startDate)
+  const end = new Date(endDate)
+  const diffDays = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1
+
+  const prevEnd = new Date(start)
+  prevEnd.setDate(prevEnd.getDate() - 1)
+  prevEnd.setHours(23, 59, 59, 999)
+
+  const prevStart = new Date(prevEnd)
+  prevStart.setDate(prevStart.getDate() - diffDays + 1)
+  prevStart.setHours(0, 0, 0, 0)
+
+  return { startDate: prevStart, endDate: prevEnd }
+}
+
 function formatDate(date) {
   return date.toLocaleDateString('sv-SE', {
     year: 'numeric',
@@ -70,9 +87,10 @@ function formatDateISO(date) {
   return date.toISOString().split('T')[0]
 }
 
-export function DateRangePicker({ value, onChange }) {
+export function DateRangePicker({ value, onChange, compareEnabled, onCompareChange }) {
   const [isOpen, setIsOpen] = useState(false)
   const [selectedPreset, setSelectedPreset] = useState(value || 'last30')
+  const [compare, setCompare] = useState(compareEnabled || false)
   const dropdownRef = useRef(null)
 
   // Close on click outside
@@ -94,13 +112,39 @@ export function DateRangePicker({ value, onChange }) {
     setIsOpen(false)
 
     const range = getDateRange(preset)
+    const prevRange = compare ? getPreviousPeriod(range.startDate, range.endDate) : null
+
     onChange?.({
       preset,
       startDate: formatDateISO(range.startDate),
       endDate: formatDateISO(range.endDate),
-      label: PRESETS.find(p => p.value === preset)?.label
+      label: PRESETS.find(p => p.value === preset)?.label,
+      compare,
+      previousStartDate: prevRange ? formatDateISO(prevRange.startDate) : null,
+      previousEndDate: prevRange ? formatDateISO(prevRange.endDate) : null
     })
   }
+
+  function handleCompareChange(checked) {
+    setCompare(checked)
+    onCompareChange?.(checked)
+
+    // Re-emit the current selection with compare info
+    const range = getDateRange(selectedPreset)
+    const prevRange = checked ? getPreviousPeriod(range.startDate, range.endDate) : null
+
+    onChange?.({
+      preset: selectedPreset,
+      startDate: formatDateISO(range.startDate),
+      endDate: formatDateISO(range.endDate),
+      label: PRESETS.find(p => p.value === selectedPreset)?.label,
+      compare: checked,
+      previousStartDate: prevRange ? formatDateISO(prevRange.startDate) : null,
+      previousEndDate: prevRange ? formatDateISO(prevRange.endDate) : null
+    })
+  }
+
+  const prevPeriod = compare ? getPreviousPeriod(currentRange.startDate, currentRange.endDate) : null
 
   return (
     <div className="relative" ref={dropdownRef}>
@@ -119,7 +163,7 @@ export function DateRangePicker({ value, onChange }) {
 
       {/* Dropdown */}
       {isOpen && (
-        <div className="absolute top-full left-0 mt-2 w-72 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-50 overflow-hidden">
+        <div className="absolute top-full right-0 mt-2 w-80 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-50 overflow-hidden">
           {/* Presets list */}
           <div className="p-2">
             <p className="text-xs text-slate-500 uppercase tracking-wider px-2 py-1 mb-1">Snabbval</p>
@@ -149,17 +193,22 @@ export function DateRangePicker({ value, onChange }) {
             })}
           </div>
 
-          {/* Comparison toggle (like GA) */}
+          {/* Comparison toggle */}
           <div className="border-t border-slate-700 p-3">
-            <label className="flex items-center gap-2 text-sm text-slate-400 cursor-pointer">
+            <label className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer">
               <input
                 type="checkbox"
+                checked={compare}
+                onChange={(e) => handleCompareChange(e.target.checked)}
                 className="rounded border-slate-600 bg-slate-700 text-cyan-500 focus:ring-cyan-500 focus:ring-offset-0"
-                disabled
               />
               <span>Jämför med föregående period</span>
-              <span className="text-xs text-slate-600">(kommer snart)</span>
             </label>
+            {compare && prevPeriod && (
+              <p className="text-xs text-slate-500 mt-2 ml-6">
+                vs. {formatDate(prevPeriod.startDate)} – {formatDate(prevPeriod.endDate)}
+              </p>
+            )}
           </div>
         </div>
       )}
@@ -167,5 +216,5 @@ export function DateRangePicker({ value, onChange }) {
   )
 }
 
-// Export helper for use in hooks
-export { getDateRange, formatDateISO }
+// Export helpers for use in hooks
+export { getDateRange, formatDateISO, getPreviousPeriod }

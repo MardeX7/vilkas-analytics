@@ -4,6 +4,31 @@ import { supabase } from '@/lib/supabase'
 // Kovakoodattu store_id (billackering)
 const STORE_ID = 'a28836f6-9487-4b67-9194-e907eaf94b69'
 
+// Helper to fetch summary for a period
+async function fetchPeriodSummary(startDate, endDate) {
+  let query = supabase
+    .from('orders')
+    .select('grand_total, billing_email, creation_date')
+    .eq('store_id', STORE_ID)
+    .neq('status', 'cancelled')
+
+  if (startDate) query = query.gte('creation_date', startDate)
+  if (endDate) query = query.lte('creation_date', endDate + 'T23:59:59')
+
+  const { data: orders } = await query
+
+  if (!orders || orders.length === 0) {
+    return { totalRevenue: 0, orderCount: 0, uniqueCustomers: 0, avgOrderValue: 0 }
+  }
+
+  const totalRevenue = orders.reduce((sum, o) => sum + (o.grand_total || 0), 0)
+  const orderCount = orders.length
+  const uniqueCustomers = new Set(orders.map(o => o.billing_email).filter(Boolean)).size
+  const avgOrderValue = orderCount > 0 ? totalRevenue / orderCount : 0
+
+  return { totalRevenue, orderCount, uniqueCustomers, avgOrderValue }
+}
+
 export function useAnalytics(dateRange = null) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -18,7 +43,9 @@ export function useAnalytics(dateRange = null) {
     weekdayAnalysis: [],
     hourlyAnalysis: [],
     avgBasket: null,
-    summary: null
+    summary: null,
+    previousSummary: null,
+    comparison: null
   })
 
   const fetchAllData = useCallback(async () => {
@@ -29,6 +56,9 @@ export function useAnalytics(dateRange = null) {
       // Build date filter
       const startDate = dateRange?.startDate
       const endDate = dateRange?.endDate
+      const compare = dateRange?.compare
+      const previousStartDate = dateRange?.previousStartDate
+      const previousEndDate = dateRange?.previousEndDate
 
       // Fetch daily sales with date filter
       let dailyQuery = supabase.from('v_daily_sales').select('*').eq('store_id', STORE_ID)
@@ -75,16 +105,6 @@ export function useAnalytics(dateRange = null) {
       if (startDate) shippingQuery = shippingQuery.gte('creation_date', startDate)
       if (endDate) shippingQuery = shippingQuery.lte('creation_date', endDate + 'T23:59:59')
 
-      // Summary stats for the period
-      let summaryQuery = supabase
-        .from('orders')
-        .select('grand_total, billing_email, creation_date')
-        .eq('store_id', STORE_ID)
-        .neq('status', 'cancelled')
-
-      if (startDate) summaryQuery = summaryQuery.gte('creation_date', startDate)
-      if (endDate) summaryQuery = summaryQuery.lte('creation_date', endDate + 'T23:59:59')
-
       const [
         dailyRes,
         weeklyRes,
@@ -92,9 +112,10 @@ export function useAnalytics(dateRange = null) {
         ordersForProducts,
         ordersForPayment,
         ordersForShipping,
-        ordersForSummary,
         weekdayRes,
-        hourlyRes
+        hourlyRes,
+        currentSummary,
+        previousSummary
       ] = await Promise.all([
         dailyQuery,
         supabase.from('v_weekly_sales').select('*').eq('store_id', STORE_ID).order('week_start', { ascending: false }).limit(12),
@@ -102,9 +123,10 @@ export function useAnalytics(dateRange = null) {
         productsQuery,
         paymentQuery,
         shippingQuery,
-        summaryQuery,
         supabase.from('v_weekday_analysis').select('*').eq('store_id', STORE_ID),
-        supabase.from('v_hourly_analysis').select('*').eq('store_id', STORE_ID)
+        supabase.from('v_hourly_analysis').select('*').eq('store_id', STORE_ID),
+        fetchPeriodSummary(startDate, endDate),
+        compare && previousStartDate ? fetchPeriodSummary(previousStartDate, previousEndDate) : Promise.resolve(null)
       ])
 
       // Aggregate top products from orders
@@ -163,12 +185,22 @@ export function useAnalytics(dateRange = null) {
         .map(sm => ({ ...sm, percentage: ((sm.order_count / totalShippingOrders) * 100).toFixed(1) }))
         .sort((a, b) => b.order_count - a.order_count)
 
-      // Calculate summary
-      const orders = ordersForSummary.data || []
-      const totalRevenue = orders.reduce((sum, o) => sum + (o.grand_total || 0), 0)
-      const orderCount = orders.length
-      const uniqueCustomers = new Set(orders.map(o => o.billing_email).filter(Boolean)).size
-      const avgOrderValue = orderCount > 0 ? totalRevenue / orderCount : 0
+      // Calculate comparison percentages
+      let comparison = null
+      if (compare && previousSummary && previousSummary.totalRevenue > 0) {
+        comparison = {
+          revenue: ((currentSummary.totalRevenue - previousSummary.totalRevenue) / previousSummary.totalRevenue) * 100,
+          orders: previousSummary.orderCount > 0
+            ? ((currentSummary.orderCount - previousSummary.orderCount) / previousSummary.orderCount) * 100
+            : 0,
+          customers: previousSummary.uniqueCustomers > 0
+            ? ((currentSummary.uniqueCustomers - previousSummary.uniqueCustomers) / previousSummary.uniqueCustomers) * 100
+            : 0,
+          aov: previousSummary.avgOrderValue > 0
+            ? ((currentSummary.avgOrderValue - previousSummary.avgOrderValue) / previousSummary.avgOrderValue) * 100
+            : 0
+        }
+      }
 
       setData({
         dailySales: dailyRes.data || [],
@@ -182,19 +214,18 @@ export function useAnalytics(dateRange = null) {
         hourlyAnalysis: hourlyRes.data || [],
         avgBasket: null,
         summary: {
-          totalRevenue,
-          orderCount,
-          uniqueCustomers,
-          avgOrderValue,
+          ...currentSummary,
           currency: 'SEK'
-        }
+        },
+        previousSummary: previousSummary ? { ...previousSummary, currency: 'SEK' } : null,
+        comparison
       })
     } catch (err) {
       setError(err.message)
     } finally {
       setLoading(false)
     }
-  }, [dateRange?.startDate, dateRange?.endDate])
+  }, [dateRange?.startDate, dateRange?.endDate, dateRange?.compare, dateRange?.previousStartDate, dateRange?.previousEndDate])
 
   useEffect(() => {
     fetchAllData()
