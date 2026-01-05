@@ -198,10 +198,9 @@ export function useGSC(dateRange = null) {
     fetchGSCData()
   }, [fetchGSCData])
 
-  // Connect GSC function
+  // Connect GSC function - käyttää Vercel serverless API:a
   const connectGSC = () => {
-    const authUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/gsc-auth?action=authorize&store_id=${STORE_ID}`
-    window.open(authUrl, '_blank', 'width=600,height=700')
+    window.location.href = `/api/gsc/connect?store_id=${STORE_ID}`
   }
 
   // Sync GSC data function
