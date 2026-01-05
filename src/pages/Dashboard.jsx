@@ -1,11 +1,20 @@
 import { useState } from 'react'
 import { useAnalytics } from '@/hooks/useAnalytics'
+import { useGSC } from '@/hooks/useGSC'
 import { KPICard } from '@/components/KPICard'
 import { DailySalesChart, WeekdayChart, HourlyChart } from '@/components/SalesChart'
 import { TopProducts } from '@/components/TopProducts'
 import { PaymentMethodsChart, ShippingMethodsChart } from '@/components/PaymentMethods'
 import { DateRangePicker, getDateRange, formatDateISO } from '@/components/DateRangePicker'
-import { DollarSign, ShoppingCart, Users, TrendingUp, RefreshCw } from 'lucide-react'
+import {
+  GSCConnectCard,
+  GSCDailyChart,
+  GSCTopQueries,
+  GSCTopPages,
+  GSCDeviceChart,
+  GSCCountryChart
+} from '@/components/GSCCharts'
+import { DollarSign, ShoppingCart, Users, TrendingUp, RefreshCw, Search, MousePointer, Eye, Target } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 // Default to last 30 days
@@ -32,6 +41,19 @@ export function Dashboard() {
     error,
     refresh
   } = useAnalytics(dateRange)
+
+  // Google Search Console data
+  const {
+    dailySummary: gscDaily,
+    topQueries,
+    topPages,
+    deviceBreakdown,
+    countryBreakdown,
+    summary: gscSummary,
+    connected: gscConnected,
+    connectGSC,
+    loading: gscLoading
+  } = useGSC(dateRange)
 
   if (loading) {
     return (
@@ -162,6 +184,77 @@ export function Dashboard() {
           <PaymentMethodsChart data={paymentMethods} />
           <ShippingMethodsChart data={shippingMethods} />
         </div>
+
+        {/* ============================================ */}
+        {/* GOOGLE SEARCH CONSOLE SECTION */}
+        {/* ============================================ */}
+        <div className="mt-12 mb-8">
+          <h2 className="text-xl font-bold text-white mb-2 flex items-center gap-2">
+            <Search className="w-5 h-5 text-cyan-400" />
+            Google Search Console
+          </h2>
+          <p className="text-slate-400 text-sm">Organisk söktrafik och sökordsprestanda</p>
+        </div>
+
+        {!gscConnected ? (
+          <GSCConnectCard onConnect={connectGSC} />
+        ) : gscLoading ? (
+          <div className="text-center py-12">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-400 mx-auto mb-4"></div>
+            <p className="text-slate-400 text-sm">Laddar Search Console data...</p>
+          </div>
+        ) : (
+          <>
+            {/* GSC KPI Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+              <KPICard
+                title="Klick"
+                value={gscSummary?.totalClicks || 0}
+                icon={MousePointer}
+              />
+              <KPICard
+                title="Visningar"
+                value={gscSummary?.totalImpressions || 0}
+                icon={Eye}
+              />
+              <KPICard
+                title="Snitt CTR"
+                value={`${((gscSummary?.avgCtr || 0) * 100).toFixed(1)}%`}
+                icon={Target}
+              />
+              <KPICard
+                title="Snittposition"
+                value={(gscSummary?.avgPosition || 0).toFixed(1)}
+                icon={Search}
+              />
+            </div>
+
+            {/* GSC Charts */}
+            {gscDaily.length > 0 && (
+              <>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                  <GSCDailyChart data={gscDaily} />
+                  <GSCTopQueries queries={topQueries} />
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                  <GSCTopPages pages={topPages} />
+                  <div className="grid grid-cols-1 gap-6">
+                    <GSCDeviceChart devices={deviceBreakdown} />
+                    <GSCCountryChart countries={countryBreakdown} />
+                  </div>
+                </div>
+              </>
+            )}
+
+            {gscDaily.length === 0 && (
+              <div className="bg-slate-800/30 rounded-lg p-8 text-center border border-slate-700/50">
+                <p className="text-slate-400">Ingen Search Console data hittades för vald period.</p>
+                <p className="text-slate-500 text-sm mt-2">Data synkroniseras automatiskt varje dag.</p>
+              </div>
+            )}
+          </>
+        )}
 
         {/* Footer */}
         <footer className="text-center text-sm text-slate-500 pt-8 pb-4 border-t border-slate-800">
