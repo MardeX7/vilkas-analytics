@@ -1,13 +1,25 @@
-import { useAnalytics, useKPISummary } from '@/hooks/useAnalytics'
+import { useState } from 'react'
+import { useAnalytics } from '@/hooks/useAnalytics'
 import { KPICard } from '@/components/KPICard'
 import { DailySalesChart, WeekdayChart, HourlyChart } from '@/components/SalesChart'
 import { TopProducts } from '@/components/TopProducts'
 import { PaymentMethodsChart, ShippingMethodsChart } from '@/components/PaymentMethods'
+import { DateRangePicker, getDateRange, formatDateISO } from '@/components/DateRangePicker'
 import { DollarSign, ShoppingCart, Users, TrendingUp, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
+// Default to last 30 days
+const defaultRange = getDateRange('last30')
+const defaultDateRange = {
+  preset: 'last30',
+  startDate: formatDateISO(defaultRange.startDate),
+  endDate: formatDateISO(defaultRange.endDate),
+  label: 'Senaste 30 dagarna'
+}
+
 export function Dashboard() {
-  const { kpi, loading: kpiLoading } = useKPISummary()
+  const [dateRange, setDateRange] = useState(defaultDateRange)
+
   const {
     dailySales,
     topProducts,
@@ -15,12 +27,13 @@ export function Dashboard() {
     shippingMethods,
     weekdayAnalysis,
     hourlyAnalysis,
+    summary,
     loading,
     error,
     refresh
-  } = useAnalytics()
+  } = useAnalytics(dateRange)
 
-  if (loading || kpiLoading) {
+  if (loading) {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center">
         <div className="text-center">
@@ -42,15 +55,6 @@ export function Dashboard() {
     )
   }
 
-  // Calculate MoM change
-  const revenueChange = kpi?.lastMonth?.revenue
-    ? ((kpi.thisMonth.revenue - kpi.lastMonth.revenue) / kpi.lastMonth.revenue * 100)
-    : 0
-
-  const ordersChange = kpi?.lastMonth?.orders
-    ? ((kpi.thisMonth.orders - kpi.lastMonth.orders) / kpi.lastMonth.orders * 100)
-    : 0
-
   return (
     <div className="min-h-screen bg-slate-900">
       {/* Header */}
@@ -60,65 +64,86 @@ export function Dashboard() {
             <h1 className="text-2xl font-bold text-white">Vilkas Analytics</h1>
             <p className="text-slate-400 text-sm">Billackering.eu - Realtidsanalytik</p>
           </div>
-          <Button
-            onClick={refresh}
-            variant="outline"
-            size="sm"
-            className="bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700"
-          >
-            <RefreshCw className="w-4 h-4 mr-2" />
-            Uppdatera
-          </Button>
+          <div className="flex items-center gap-3">
+            <DateRangePicker
+              value={dateRange.preset}
+              onChange={setDateRange}
+            />
+            <Button
+              onClick={refresh}
+              variant="outline"
+              size="sm"
+              className="bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700"
+            >
+              <RefreshCw className="w-4 h-4" />
+            </Button>
+          </div>
         </div>
       </header>
 
       <main className="max-w-7xl mx-auto px-6 py-8">
         {/* Period indicator */}
-        <div className="mb-6">
-          <span className="inline-flex items-center px-3 py-1 rounded-full bg-cyan-500/20 text-cyan-400 text-sm">
-            📅 {kpi?.thisMonth?.label || '-'}
+        <div className="mb-6 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <span className="text-slate-400 text-sm">Visar data för:</span>
+            <span className="inline-flex items-center px-3 py-1 rounded-full bg-cyan-500/20 text-cyan-400 text-sm font-medium">
+              {dateRange.label}
+            </span>
+          </div>
+          <span className="text-xs text-slate-500">
+            {dateRange.startDate} → {dateRange.endDate}
           </span>
         </div>
 
         {/* KPI Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <KPICard
-            title="Månadens försäljning"
-            value={kpi?.thisMonth?.revenue || 0}
+            title="Försäljning"
+            value={summary?.totalRevenue || 0}
             currency="SEK"
-            change={revenueChange}
-            changeLabel="vs förra månaden"
             icon={DollarSign}
           />
           <KPICard
             title="Antal ordrar"
-            value={kpi?.thisMonth?.orders || 0}
-            change={ordersChange}
-            changeLabel="vs förra månaden"
+            value={summary?.orderCount || 0}
             icon={ShoppingCart}
           />
           <KPICard
             title="Snittordervärde"
-            value={kpi?.thisMonth?.aov || 0}
+            value={Math.round(summary?.avgOrderValue || 0)}
             currency="SEK"
             icon={TrendingUp}
           />
           <KPICard
             title="Unika kunder"
-            value={kpi?.thisMonth?.customers || 0}
+            value={summary?.uniqueCustomers || 0}
             icon={Users}
           />
         </div>
 
-        {/* Last month comparison */}
-        <div className="bg-slate-800/30 rounded-lg p-4 mb-8 border border-slate-700/50">
-          <p className="text-sm text-slate-400">
-            <span className="font-medium text-white">{kpi?.lastMonth?.label}</span>: {' '}
-            {kpi?.lastMonth?.revenue?.toLocaleString('sv-SE')} SEK försäljning, {' '}
-            {kpi?.lastMonth?.orders} ordrar, {' '}
-            AOV {kpi?.lastMonth?.aov} SEK
-          </p>
-        </div>
+        {/* Quick stats */}
+        {dailySales.length > 0 && (
+          <div className="bg-slate-800/30 rounded-lg p-4 mb-8 border border-slate-700/50">
+            <div className="flex flex-wrap gap-6 text-sm">
+              <div>
+                <span className="text-slate-400">Dagar med data:</span>
+                <span className="text-white ml-2 font-medium">{dailySales.length}</span>
+              </div>
+              <div>
+                <span className="text-slate-400">Snitt/dag:</span>
+                <span className="text-white ml-2 font-medium">
+                  {Math.round((summary?.totalRevenue || 0) / Math.max(dailySales.length, 1)).toLocaleString('sv-SE')} SEK
+                </span>
+              </div>
+              <div>
+                <span className="text-slate-400">Ordrar/dag:</span>
+                <span className="text-white ml-2 font-medium">
+                  {((summary?.orderCount || 0) / Math.max(dailySales.length, 1)).toFixed(1)}
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Charts Row 1 */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
