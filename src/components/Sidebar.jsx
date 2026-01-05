@@ -1,9 +1,10 @@
 import { NavLink } from 'react-router-dom'
-import { BarChart3, Search, TrendingUp, Settings } from 'lucide-react'
+import { BarChart3, Search, TrendingUp, Target, Settings } from 'lucide-react'
 
 const navItems = [
   { to: '/', icon: BarChart3, label: 'Dashboard' },
   { to: '/search-console', icon: Search, label: 'Search Console' },
+  { to: '/indicators', icon: Target, label: 'Indikatorer' },
   { to: '/insights', icon: TrendingUp, label: 'Analyysit' },
 ]
 
