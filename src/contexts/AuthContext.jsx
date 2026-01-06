@@ -54,20 +54,36 @@ export function AuthProvider({ children }) {
 
   // Initialize auth state
   useEffect(() => {
+    let mounted = true
+
     const initAuth = async () => {
+      console.log('🔐 AuthContext: initAuth starting...')
       try {
-        const { data: { session } } = await supabase.auth.getSession()
+        const { data: { session }, error } = await supabase.auth.getSession()
+
+        if (!mounted) return
+
+        console.log('🔐 AuthContext: getSession result:', {
+          hasSession: !!session,
+          error: error?.message
+        })
 
         setSession(session)
         setUser(session?.user ?? null)
 
         if (session?.user) {
+          console.log('🔐 AuthContext: User found, fetching shops...')
           await fetchUserShops()
+        } else {
+          console.log('🔐 AuthContext: No session')
         }
       } catch (err) {
         console.error('Auth init error:', err)
       } finally {
-        setLoading(false)
+        if (mounted) {
+          console.log('🔐 AuthContext: Setting loading=false')
+          setLoading(false)
+        }
       }
     }
 
@@ -76,6 +92,10 @@ export function AuthProvider({ children }) {
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        console.log('🔐 AuthContext: onAuthStateChange', event)
+
+        if (!mounted) return
+
         setSession(session)
         setUser(session?.user ?? null)
 
@@ -97,8 +117,11 @@ export function AuthProvider({ children }) {
       }
     )
 
-    return () => subscription.unsubscribe()
-  }, [fetchUserShops])
+    return () => {
+      mounted = false
+      subscription.unsubscribe()
+    }
+  }, []) // Empty dependency - run only once on mount
 
   // Save current shop to localStorage
   useEffect(() => {
