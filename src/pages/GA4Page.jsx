@@ -59,8 +59,6 @@ export function GA4Page() {
   const [syncing, setSyncing] = useState(false)
   const [comparisonMode, setComparisonMode] = useState('mom')
 
-  console.log('🔶 GA4Page render, dateRange:', dateRange)
-
   const {
     dailySummary = [],
     trafficSources = [],
@@ -76,8 +74,6 @@ export function GA4Page() {
     error,
     refresh
   } = useGA4(dateRange, comparisonMode)
-
-  console.log('🔶 GA4Page hook result:', { loading, connected, error, trafficSourcesCount: trafficSources?.length })
 
   // Calculate change percentages
   const getChangePercent = (current, previous) => {
@@ -110,7 +106,6 @@ export function GA4Page() {
 
   // Show error if any
   if (error) {
-    console.error('🔶 GA4Page error:', error)
     return (
       <div className="min-h-screen bg-slate-950 p-6">
         <div className="max-w-md mx-auto mt-20">

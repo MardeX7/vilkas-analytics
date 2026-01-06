@@ -24,8 +24,6 @@ export function AuthProvider({ children }) {
   // Fetch user's shops with timeout
   const fetchUserShops = useCallback(async () => {
     try {
-      console.log('📦 fetchUserShops: calling RPC...')
-
       // Add timeout to prevent infinite hang
       const timeoutPromise = new Promise((_, reject) =>
         setTimeout(() => reject(new Error('RPC timeout after 10s')), 10000)
@@ -35,26 +33,19 @@ export function AuthProvider({ children }) {
 
       const { data, error } = await Promise.race([rpcPromise, timeoutPromise])
 
-      if (error) {
-        console.log('❌ fetchUserShops error:', error.message)
-        throw error
-      }
+      if (error) throw error
 
-      console.log('✅ fetchUserShops: got', data?.length, 'shops')
       setShops(data || [])
 
       // Auto-select first shop if none selected
       if (data && data.length > 0 && !currentShop) {
-        // Check localStorage for previously selected shop
         const savedShopId = localStorage.getItem('vilkas-analytics-current-shop')
         const savedShop = data.find(s => s.shop_id === savedShopId)
         setCurrentShop(savedShop || data[0])
-        console.log('📦 Selected shop:', (savedShop || data[0])?.shop_name)
       }
 
       return data
     } catch (err) {
-      console.error('❌ fetchUserShops catch:', err)
       setError(err.message)
       return []
     }
@@ -65,31 +56,21 @@ export function AuthProvider({ children }) {
     let mounted = true
 
     const initAuth = async () => {
-      console.log('🔐 AuthContext: initAuth starting...')
       try {
-        const { data: { session }, error } = await supabase.auth.getSession()
+        const { data: { session } } = await supabase.auth.getSession()
 
         if (!mounted) return
-
-        console.log('🔐 AuthContext: getSession result:', {
-          hasSession: !!session,
-          error: error?.message
-        })
 
         setSession(session)
         setUser(session?.user ?? null)
 
         if (session?.user) {
-          console.log('🔐 AuthContext: User found, fetching shops...')
           await fetchUserShops()
-        } else {
-          console.log('🔐 AuthContext: No session')
         }
       } catch (err) {
         console.error('Auth init error:', err)
       } finally {
         if (mounted) {
-          console.log('🔐 AuthContext: Setting loading=false')
           setLoading(false)
         }
       }
@@ -100,8 +81,6 @@ export function AuthProvider({ children }) {
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        console.log('🔐 AuthContext: onAuthStateChange', event)
-
         if (!mounted) return
 
         setSession(session)
