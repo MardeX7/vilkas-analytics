@@ -16,6 +16,7 @@ import { MiniSparkline } from '@/components/IndicatorTrendChart'
 
 export function IndicatorsPage() {
   const [period, setPeriod] = useState('30d')
+  const [comparisonMode, setComparisonMode] = useState('mom') // 'mom' or 'yoy'
   const [alertsPanelOpen, setAlertsPanelOpen] = useState(false)
   const [healthScoreModalOpen, setHealthScoreModalOpen] = useState(false)
   const { t } = useTranslation()
@@ -27,7 +28,7 @@ export function IndicatorsPage() {
     isLoading,
     error,
     refresh
-  } = useIndicators({ period })
+  } = useIndicators({ period, comparisonMode })
 
   const { summary } = useIndicatorsSummary({ period })
 
@@ -89,6 +90,32 @@ export function IndicatorsPage() {
                   {t(`periods.${p}`)}
                 </button>
               ))}
+            </div>
+
+            {/* MoM/YoY Toggle */}
+            <div className="flex bg-slate-900 rounded-xl p-1">
+              <button
+                onClick={() => setComparisonMode('mom')}
+                className={`px-3 py-2 text-sm font-medium rounded-lg transition-all ${
+                  comparisonMode === 'mom'
+                    ? 'bg-cyan-600 text-white shadow-sm'
+                    : 'text-slate-500 hover:text-slate-300'
+                }`}
+                title={t('comparison.momFull')}
+              >
+                MoM
+              </button>
+              <button
+                onClick={() => setComparisonMode('yoy')}
+                className={`px-3 py-2 text-sm font-medium rounded-lg transition-all ${
+                  comparisonMode === 'yoy'
+                    ? 'bg-cyan-600 text-white shadow-sm'
+                    : 'text-slate-500 hover:text-slate-300'
+                }`}
+                title={t('comparison.yoyFull')}
+              >
+                YoY
+              </button>
             </div>
 
             {/* Refresh */}
@@ -247,7 +274,15 @@ function Section({ title, subtitle, children }) {
 function MetricCard({ indicator, onClick, t, period, size = 'default' }) {
   if (!indicator) return null
 
-  const { indicator_id, numeric_value, direction, change_percent, alert_triggered } = indicator
+  const {
+    indicator_id,
+    numeric_value,
+    display_direction,
+    display_change_percent,
+    comparison_mode,
+    yoy_loading,
+    alert_triggered
+  } = indicator
 
   // Format value
   const formatValue = (id, val) => {
@@ -320,20 +355,38 @@ function MetricCard({ indicator, onClick, t, period, size = 'default' }) {
         <span className="text-slate-600 text-lg">{getUnit(indicator_id)}</span>
       </div>
 
-      {/* Change indicator with MoM badge */}
-      {change_percent !== null && change_percent !== undefined && (
+      {/* Change indicator with comparison mode badge */}
+      {display_change_percent !== null && display_change_percent !== undefined && (
         <div className="flex items-center gap-2 mb-4">
           <span className="text-cyan-400 text-xs font-semibold bg-cyan-500/10 px-1.5 py-0.5 rounded">
-            MoM
+            {comparison_mode === 'yoy' ? 'YoY' : 'MoM'}
           </span>
           <span className={`text-sm font-medium ${
-            direction === 'up' ? 'text-emerald-400' :
-            direction === 'down' ? 'text-red-400' : 'text-slate-500'
+            display_direction === 'up' ? 'text-emerald-400' :
+            display_direction === 'down' ? 'text-red-400' : 'text-slate-500'
           }`}>
-            {direction === 'up' ? '↗' : direction === 'down' ? '↘' : '→'}
+            {display_direction === 'up' ? '↗' : display_direction === 'down' ? '↘' : '→'}
             {' '}
-            {change_percent > 0 && '+'}{change_percent.toFixed(1)}%
+            {display_change_percent > 0 && '+'}{display_change_percent.toFixed(1)}%
           </span>
+        </div>
+      )}
+      {/* Loading state for YoY */}
+      {yoy_loading && (
+        <div className="flex items-center gap-2 mb-4">
+          <span className="text-cyan-400 text-xs font-semibold bg-cyan-500/10 px-1.5 py-0.5 rounded">
+            YoY
+          </span>
+          <div className="w-4 h-4 animate-spin rounded-full border-2 border-slate-600 border-t-cyan-400" />
+        </div>
+      )}
+      {/* No YoY data available */}
+      {!yoy_loading && comparison_mode === 'yoy' && display_change_percent === null && (
+        <div className="flex items-center gap-2 mb-4">
+          <span className="text-cyan-400 text-xs font-semibold bg-cyan-500/10 px-1.5 py-0.5 rounded">
+            YoY
+          </span>
+          <span className="text-slate-500 text-xs">—</span>
         </div>
       )}
 

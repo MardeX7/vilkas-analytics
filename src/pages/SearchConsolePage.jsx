@@ -24,6 +24,7 @@ const defaultDateRange = {
 export function SearchConsolePage() {
   const [dateRange, setDateRange] = useState(defaultDateRange)
   const [syncing, setSyncing] = useState(false)
+  const [comparisonMode, setComparisonMode] = useState('mom') // 'mom' or 'yoy'
 
   const {
     dailySummary,
@@ -32,12 +33,35 @@ export function SearchConsolePage() {
     deviceBreakdown,
     countryBreakdown,
     summary,
+    previousDailySummary,
+    previousSummary,
+    comparisonEnabled,
     connected,
     connectGSC,
     syncGSC,
     loading,
     refresh
-  } = useGSC(dateRange)
+  } = useGSC(dateRange, comparisonMode)
+
+  // Calculate change percentages for comparison
+  const getChangePercent = (current, previous) => {
+    if (!previous || previous === 0) return null
+    return ((current - previous) / previous) * 100
+  }
+
+  const clicksChange = comparisonEnabled && previousSummary
+    ? getChangePercent(summary?.totalClicks, previousSummary.totalClicks)
+    : null
+  const impressionsChange = comparisonEnabled && previousSummary
+    ? getChangePercent(summary?.totalImpressions, previousSummary.totalImpressions)
+    : null
+  const ctrChange = comparisonEnabled && previousSummary
+    ? getChangePercent(summary?.avgCtr, previousSummary.avgCtr)
+    : null
+  // For position, lower is better, so invert the comparison
+  const positionChange = comparisonEnabled && previousSummary
+    ? getChangePercent(previousSummary.avgPosition, summary?.avgPosition)
+    : null
 
   const handleSync = async () => {
     setSyncing(true)
@@ -68,6 +92,31 @@ export function SearchConsolePage() {
               value={dateRange.preset}
               onChange={setDateRange}
             />
+            {/* MoM/YoY Toggle */}
+            <div className="flex bg-slate-800 rounded-lg p-1">
+              <button
+                onClick={() => setComparisonMode('mom')}
+                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
+                  comparisonMode === 'mom'
+                    ? 'bg-cyan-600 text-white shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+                title="Månad för månad"
+              >
+                MoM
+              </button>
+              <button
+                onClick={() => setComparisonMode('yoy')}
+                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
+                  comparisonMode === 'yoy'
+                    ? 'bg-cyan-600 text-white shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+                title="År för år"
+              >
+                YoY
+              </button>
+            </div>
             {connected && (
               <Button
                 onClick={handleSync}
@@ -108,21 +157,34 @@ export function SearchConsolePage() {
                 title="Klick"
                 value={summary?.totalClicks || 0}
                 icon={MousePointer}
+                change={clicksChange}
+                previousValue={previousSummary?.totalClicks}
+                comparisonMode={comparisonEnabled ? comparisonMode : null}
               />
               <KPICard
                 title="Visningar"
                 value={summary?.totalImpressions || 0}
                 icon={Eye}
+                change={impressionsChange}
+                previousValue={previousSummary?.totalImpressions}
+                comparisonMode={comparisonEnabled ? comparisonMode : null}
               />
               <KPICard
                 title="Snitt CTR"
                 value={`${((summary?.avgCtr || 0) * 100).toFixed(1)}%`}
                 icon={Target}
+                change={ctrChange}
+                comparisonMode={comparisonEnabled ? comparisonMode : null}
+                previousValue={previousSummary ? `${(previousSummary.avgCtr * 100).toFixed(1)}%` : null}
               />
               <KPICard
                 title="Snittposition"
                 value={(summary?.avgPosition || 0).toFixed(1)}
                 icon={Search}
+                change={positionChange}
+                previousValue={previousSummary?.avgPosition?.toFixed(1)}
+                invertColor={true}
+                comparisonMode={comparisonEnabled ? comparisonMode : null}
               />
             </div>
 
@@ -130,7 +192,11 @@ export function SearchConsolePage() {
               <>
                 {/* Daily chart full width */}
                 <div className="mb-6">
-                  <GSCDailyChart data={dailySummary} />
+                  <GSCDailyChart
+                    data={dailySummary}
+                    previousData={previousDailySummary}
+                    comparisonEnabled={comparisonEnabled}
+                  />
                 </div>
 
                 {/* Queries and Pages */}

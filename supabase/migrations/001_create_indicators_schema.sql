@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS shops (
   updated_at TIMESTAMPTZ DEFAULT now()
 );
 
-CREATE INDEX idx_shops_store_id ON shops(store_id);
+CREATE INDEX IF NOT EXISTS idx_shops_store_id ON shops(store_id);
 
 -- =====================================================
 -- INDICATORS TABLE (calculated indicators)
@@ -56,9 +56,9 @@ CREATE TABLE IF NOT EXISTS indicators (
   UNIQUE(shop_id, indicator_id, period_label, period_end)
 );
 
-CREATE INDEX idx_indicators_shop_date ON indicators(shop_id, period_end DESC);
-CREATE INDEX idx_indicators_category ON indicators(shop_id, indicator_category);
-CREATE INDEX idx_indicators_alerts ON indicators(shop_id, alert_triggered) WHERE alert_triggered = true;
+CREATE INDEX IF NOT EXISTS idx_indicators_shop_date ON indicators(shop_id, period_end DESC);
+CREATE INDEX IF NOT EXISTS idx_indicators_category ON indicators(shop_id, indicator_category);
+CREATE INDEX IF NOT EXISTS idx_indicators_alerts ON indicators(shop_id, alert_triggered) WHERE alert_triggered = true;
 
 -- =====================================================
 -- INDICATOR HISTORY (for trending)
@@ -76,7 +76,7 @@ CREATE TABLE IF NOT EXISTS indicator_history (
   UNIQUE(shop_id, indicator_id, date)
 );
 
-CREATE INDEX idx_indicator_history ON indicator_history(shop_id, indicator_id, date DESC);
+CREATE INDEX IF NOT EXISTS idx_indicator_history ON indicator_history(shop_id, indicator_id, date DESC);
 
 -- =====================================================
 -- ALERTS TABLE
@@ -101,8 +101,8 @@ CREATE TABLE IF NOT EXISTS alerts (
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
-CREATE INDEX idx_alerts_shop ON alerts(shop_id, created_at DESC);
-CREATE INDEX idx_alerts_unack ON alerts(shop_id, acknowledged) WHERE acknowledged = false;
+CREATE INDEX IF NOT EXISTS idx_alerts_shop ON alerts(shop_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_alerts_unack ON alerts(shop_id, acknowledged) WHERE acknowledged = false;
 
 -- =====================================================
 -- HELPER FUNCTION: Update timestamp
@@ -115,6 +115,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS shops_updated_at ON shops;
 CREATE TRIGGER shops_updated_at
   BEFORE UPDATE ON shops
   FOR EACH ROW

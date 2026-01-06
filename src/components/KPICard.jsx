@@ -1,10 +1,23 @@
 import { Card, CardContent } from '@/components/ui/card'
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react'
 
-export function KPICard({ title, value, change, changeLabel, icon: Icon, currency = '' }) {
+export function KPICard({
+  title,
+  value,
+  change,
+  changeLabel,
+  icon: Icon,
+  currency = '',
+  previousValue,
+  invertColor = false,
+  comparisonMode = null
+}) {
   const changeValue = parseFloat(change) || 0
-  const isPositive = changeValue > 0
-  const isNegative = changeValue < 0
+  const hasChange = change !== undefined && change !== null
+
+  // For metrics like position where lower is better, invert the color logic
+  const isPositive = invertColor ? changeValue < 0 : changeValue > 0
+  const isNegative = invertColor ? changeValue > 0 : changeValue < 0
 
   return (
     <Card className="bg-slate-800/50 border-slate-700">
@@ -18,16 +31,28 @@ export function KPICard({ title, value, change, changeLabel, icon: Icon, currenc
                 : value}
               {currency && <span className="text-lg ml-1 text-slate-400">{currency}</span>}
             </p>
-            {change !== undefined && (
-              <div className="flex items-center mt-2 gap-1">
+            {hasChange && (
+              <div className="flex items-center mt-2 gap-1.5">
+                {comparisonMode && (
+                  <span className="text-cyan-400 text-xs font-semibold bg-cyan-500/10 px-1.5 py-0.5 rounded">
+                    {comparisonMode === 'yoy' ? 'YoY' : 'MoM'}
+                  </span>
+                )}
                 {isPositive && <TrendingUp className="w-4 h-4 text-green-400" />}
                 {isNegative && <TrendingDown className="w-4 h-4 text-red-400" />}
                 {!isPositive && !isNegative && <Minus className="w-4 h-4 text-slate-400" />}
                 <span className={`text-sm ${isPositive ? 'text-green-400' : isNegative ? 'text-red-400' : 'text-slate-400'}`}>
-                  {isPositive && '+'}{changeValue.toFixed(1)}%
+                  {changeValue > 0 && '+'}{changeValue.toFixed(1)}%
                 </span>
                 {changeLabel && <span className="text-xs text-slate-500 ml-1">{changeLabel}</span>}
               </div>
+            )}
+            {previousValue !== undefined && previousValue !== null && (
+              <p className="text-xs text-slate-500 mt-1">
+                Föreg: {typeof previousValue === 'number'
+                  ? previousValue.toLocaleString('sv-SE', { maximumFractionDigits: 0 })
+                  : previousValue}
+              </p>
             )}
           </div>
           {Icon && (

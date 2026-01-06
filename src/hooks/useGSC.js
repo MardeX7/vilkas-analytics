@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabase'
 // Kovakoodattu store_id (billackering)
 const STORE_ID = 'a28836f6-9487-4b67-9194-e907eaf94b69'
 
-export function useGSC(dateRange = null) {
+export function useGSC(dateRange = null, comparisonMode = 'mom') {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [connected, setConnected] = useState(false)
@@ -14,7 +14,12 @@ export function useGSC(dateRange = null) {
     topPages: [],
     deviceBreakdown: [],
     countryBreakdown: [],
-    summary: null
+    summary: null,
+    // Comparison data
+    previousDailySummary: [],
+    previousSummary: null,
+    comparisonEnabled: false,
+    comparisonMode: 'mom'
   })
 
   const fetchGSCData = useCallback(async () => {
@@ -173,6 +178,63 @@ export function useGSC(dateRange = null) {
       const avgCtr = totalImpressions > 0 ? totalClicks / totalImpressions : 0
       const avgPosition = dailySummary.reduce((sum, d) => sum + (d.avg_position || 0), 0) / Math.max(dailySummary.length, 1)
 
+      // Fetch comparison data based on comparisonMode (MoM or YoY)
+      let previousDailySummary = []
+      let previousSummary = null
+      let comparisonEnabled = false
+
+      // Calculate comparison date range based on mode
+      if (startDate && endDate) {
+        const start = new Date(startDate)
+        const end = new Date(endDate)
+        const daysDiff = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1
+
+        let prevStartDate, prevEndDate
+
+        if (comparisonMode === 'yoy') {
+          // Year over Year: same period last year
+          prevStartDate = new Date(start)
+          prevStartDate.setFullYear(prevStartDate.getFullYear() - 1)
+          prevEndDate = new Date(end)
+          prevEndDate.setFullYear(prevEndDate.getFullYear() - 1)
+        } else {
+          // Month over Month: previous period of same length
+          prevEndDate = new Date(start)
+          prevEndDate.setDate(prevEndDate.getDate() - 1)
+          prevStartDate = new Date(prevEndDate)
+          prevStartDate.setDate(prevStartDate.getDate() - daysDiff + 1)
+        }
+
+        const prevStart = prevStartDate.toISOString().split('T')[0]
+        const prevEnd = prevEndDate.toISOString().split('T')[0]
+
+        const prevDailyQuery = await supabase
+          .from('v_gsc_daily_summary')
+          .select('*')
+          .eq('store_id', STORE_ID)
+          .gte('date', prevStart)
+          .lte('date', prevEnd)
+          .order('date', { ascending: false })
+          .limit(90)
+
+        previousDailySummary = prevDailyQuery.data || []
+        comparisonEnabled = previousDailySummary.length > 0
+
+        if (comparisonEnabled) {
+          const prevTotalClicks = previousDailySummary.reduce((sum, d) => sum + (d.total_clicks || 0), 0)
+          const prevTotalImpressions = previousDailySummary.reduce((sum, d) => sum + (d.total_impressions || 0), 0)
+          const prevAvgCtr = prevTotalImpressions > 0 ? prevTotalClicks / prevTotalImpressions : 0
+          const prevAvgPosition = previousDailySummary.reduce((sum, d) => sum + (d.avg_position || 0), 0) / Math.max(previousDailySummary.length, 1)
+
+          previousSummary = {
+            totalClicks: prevTotalClicks,
+            totalImpressions: prevTotalImpressions,
+            avgCtr: prevAvgCtr,
+            avgPosition: prevAvgPosition
+          }
+        }
+      }
+
       setData({
         dailySummary,
         topQueries,
@@ -184,7 +246,11 @@ export function useGSC(dateRange = null) {
           totalImpressions,
           avgCtr,
           avgPosition
-        }
+        },
+        previousDailySummary,
+        previousSummary,
+        comparisonEnabled,
+        comparisonMode
       })
 
     } catch (err) {
@@ -192,7 +258,7 @@ export function useGSC(dateRange = null) {
     } finally {
       setLoading(false)
     }
-  }, [dateRange?.startDate, dateRange?.endDate])
+  }, [dateRange?.startDate, dateRange?.endDate, comparisonMode])
 
   useEffect(() => {
     fetchGSCData()

@@ -11,6 +11,54 @@
     "no": "Nej",
     "settings": "Inställningar"
   },
+  "auth": {
+    "login": "Logga in",
+    "logout": "Logga ut",
+    "email": "E-post",
+    "password": "Lösenord",
+    "loginButton": "Logga in",
+    "loginSubtitle": "Din webbutiks analys",
+    "forgotPassword": "Glömt lösenord?",
+    "noAccount": "Inget konto än?",
+    "contactAdmin": "Kontakta administratören",
+    "withPassword": "Med lösenord",
+    "withMagicLink": "Med länk",
+    "sendMagicLink": "Skicka inloggningslänk",
+    "checkEmail": "Kolla din e-post",
+    "magicLinkSent": "Vi har skickat en inloggningslänk till {{email}}",
+    "tryAgain": "Försök igen",
+    "verifying": "Verifierar...",
+    "pleaseWait": "Vänta en stund",
+    "loginSuccess": "Inloggning lyckades!",
+    "redirecting": "Omdirigerar...",
+    "loginError": "Inloggning misslyckades",
+    "somethingWentWrong": "Något gick fel",
+    "backToLogin": "Tillbaka till inloggning",
+    "noAccess": "Ingen åtkomst",
+    "noShopAccess": "Du har inte åtkomst till någon butik.",
+    "contactAdminForAccess": "Be administratören att bjuda in dig.",
+    "adminRequired": "Administratörsrättigheter krävs",
+    "adminRequiredDescription": "Denna funktion kräver administratörsrättigheter."
+  },
+  "settings": {
+    "title": "Inställningar",
+    "description": "Hantera användare och kontoinställningar",
+    "users": "Användare",
+    "inviteUser": "Bjud in användare",
+    "inviteDescription": "Skicka inbjudningslänk via e-post. Användaren får en inloggningslänk.",
+    "role": "Roll",
+    "admin": "Administratör",
+    "viewer": "Läsare",
+    "sendInvite": "Skicka inbjudan",
+    "inviteSent": "Inbjudan skickad!",
+    "pending": "Väntar",
+    "pendingInvitations": "Väntande inbjudningar",
+    "removeUser": "Ta bort användare",
+    "confirmRemove": "Vill du verkligen ta bort användaren {{email}}?",
+    "currentShop": "Nuvarande butik",
+    "account": "Konto",
+    "yourAccount": "Inloggad"
+  },
   "nav": {
     "dashboard": "Dashboard",
     "searchConsole": "Search Console",
@@ -124,7 +172,14 @@
     "dataSource": "Datakälla",
     "calculatedAt": "Beräknad",
     "relatedAlerts": "Relaterade varningar",
-    "howToRead": "Så här läser du detta tal"
+    "howToRead": "Så här läser du detta tal",
+    "noYoyData": "Ingen jämförelsedata från förra året"
+  },
+  "comparison": {
+    "mom": "MoM",
+    "yoy": "YoY",
+    "momFull": "Månad för månad",
+    "yoyFull": "År för år"
   },
   "guide": {
     "sales_trend": {

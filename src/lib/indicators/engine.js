@@ -43,12 +43,27 @@ export async function calculateAllIndicators({
   }
 
   console.log(`\n🔧 Calculating indicators for store ${storeId}`)
-  console.log(`   Period: ${periodLabel}, End: ${periodEnd.toISOString().split('T')[0]}`)
 
   try {
+    // First, determine the effective period end based on available GSC data
+    // GSC data has 2-3 day delay, so we use the latest GSC date as the reference
+    const { data: latestGscDate } = await supabase
+      .from('gsc_search_analytics')
+      .select('date')
+      .eq('store_id', storeId)
+      .order('date', { ascending: false })
+      .limit(1)
+
+    // Use GSC date as effective end for consistency across all indicators
+    const effectivePeriodEnd = latestGscDate?.[0]?.date
+      ? new Date(latestGscDate[0].date + 'T23:59:59.999Z')
+      : periodEnd
+
+    console.log(`   Period: ${periodLabel}, End: ${effectivePeriodEnd.toISOString().split('T')[0]} (GSC-synced)`)
+
     // 1. Fetch orders data
     const periodDays = periodLabel === '7d' ? 7 : periodLabel === '30d' ? 30 : 90
-    const startDate = new Date(periodEnd)
+    const startDate = new Date(effectivePeriodEnd)
     startDate.setDate(startDate.getDate() - (periodDays * 2)) // Fetch 2x period for comparison
 
     const { data: orders, error: ordersError } = await supabase
@@ -69,7 +84,7 @@ export async function calculateAllIndicators({
       `)
       .eq('store_id', storeId)
       .gte('creation_date', startDate.toISOString())
-      .lte('creation_date', periodEnd.toISOString())
+      .lte('creation_date', effectivePeriodEnd.toISOString())
       .order('creation_date', { ascending: false })
 
     if (ordersError) {
@@ -103,7 +118,7 @@ export async function calculateAllIndicators({
     try {
       const salesTrend = calculateSalesTrend({
         orders: ordersWithLineItems,
-        periodEnd,
+        periodEnd: effectivePeriodEnd,
         periodLabel
       })
 
@@ -119,7 +134,7 @@ export async function calculateAllIndicators({
     try {
       const aov = calculateAOV({
         orders: ordersWithLineItems,
-        periodEnd,
+        periodEnd: effectivePeriodEnd,
         periodLabel
       })
 
@@ -137,7 +152,7 @@ export async function calculateAllIndicators({
         const grossMargin = calculateGrossMargin({
           orders: ordersWithLineItems,
           products: products || [],
-          periodEnd,
+          periodEnd: effectivePeriodEnd,
           periodLabel
         })
 
@@ -155,26 +170,54 @@ export async function calculateAllIndicators({
 
     // 4. Fetch GSC data for SEO indicators
     // ========================================
-    const { data: gscData, error: gscError } = await supabase
-      .from('gsc_search_analytics')
-      .select('*')
+
+    // Use effectivePeriodEnd (already synced to GSC data) for GSC queries
+    const gscStartDate = new Date(effectivePeriodEnd)
+    gscStartDate.setDate(gscStartDate.getDate() - (periodDays * 2))
+
+    // Fetch aggregated daily GSC data (much fewer rows than raw data)
+    const { data: dailyGsc, error: dailyGscError } = await supabase
+      .from('v_gsc_daily_summary')
+      .select('date, total_clicks, total_impressions, avg_position')
       .eq('store_id', storeId)
-      .gte('date', startDate.toISOString().split('T')[0])
-      .lte('date', periodEnd.toISOString().split('T')[0])
+      .gte('date', gscStartDate.toISOString().split('T')[0])
+      .lte('date', effectivePeriodEnd.toISOString().split('T')[0])
       .order('date', { ascending: false })
+
+    // Transform daily summary to match expected format
+    const gscData = (dailyGsc || []).map(d => ({
+      date: d.date,
+      clicks: d.total_clicks,
+      impressions: d.total_impressions,
+      position: d.avg_position
+    }))
+    const gscError = dailyGscError
 
     if (gscError) {
       console.warn(`   ⚠️ Failed to fetch GSC data: ${gscError.message}`)
     } else {
-      console.log(`   📊 Fetched ${gscData?.length || 0} GSC rows`)
+      console.log(`   📊 Fetched ${gscData?.length || 0} GSC daily rows`)
     }
+
+    // Also fetch query-level data for brand analysis (need query field)
+    const { data: queryData } = await supabase
+      .from('gsc_search_analytics')
+      .select('query, clicks, impressions, date')
+      .eq('store_id', storeId)
+      .not('query', 'is', null)
+      .gte('date', gscStartDate.toISOString().split('T')[0])
+      .lte('date', effectivePeriodEnd.toISOString().split('T')[0])
+      .order('clicks', { ascending: false })
+      .limit(10000)
+
+    console.log(`   📊 Fetched ${queryData?.length || 0} GSC query rows`)
 
     // 4a. Position Change
     if (gscData && gscData.length > 0) {
       try {
         const positionChange = calculatePositionChange({
           gscData,
-          periodEnd,
+          periodEnd: effectivePeriodEnd,
           periodLabel
         })
 
@@ -186,11 +229,11 @@ export async function calculateAllIndicators({
         console.error(`   ❌ position_change: ${err.message}`)
       }
 
-      // 4b. Brand vs Non-Brand
+      // 4b. Brand vs Non-Brand (uses query-level data)
       try {
         const brandVsNonBrand = calculateBrandVsNonBrand({
-          gscData,
-          periodEnd,
+          gscData: queryData || gscData, // Prefer query data for brand analysis
+          periodEnd: effectivePeriodEnd,
           periodLabel
         })
 
@@ -207,7 +250,7 @@ export async function calculateAllIndicators({
         const organicCR = calculateOrganicConversionRate({
           gscData,
           orders: ordersWithLineItems,
-          periodEnd,
+          periodEnd: effectivePeriodEnd,
           periodLabel
         })
 
@@ -226,7 +269,7 @@ export async function calculateAllIndicators({
             products,
             gscData,
             orders: ordersWithLineItems,
-            periodEnd,
+            periodEnd: effectivePeriodEnd,
             periodLabel
           })
 

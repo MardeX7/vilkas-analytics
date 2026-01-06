@@ -150,31 +150,67 @@ export const DEFAULT_THRESHOLDS = {
     warning_low: -10,
     critical_low: -20
   },
-  position_change: {
-    critical_high: 10,  // Position dropped by 10+
+  gross_margin: {
+    critical_high: 10,   // Margin increased by 10pp+
     warning_high: 5,
-    warning_low: -5,    // Position improved by 5+
+    warning_low: -5,     // Margin dropped by 5pp
+    critical_low: -10    // Margin dropped by 10pp+
+  },
+  position_change: {
+    critical_high: 10,   // Position dropped by 10+
+    warning_high: 5,
+    warning_low: -5,     // Position improved by 5+
     critical_low: -10
   },
-  conversion_rate: {
+  organic_conversion_rate: {
     critical_high: 50,
     warning_high: 25,
     warning_low: -25,
     critical_low: -50
+  },
+  stock_availability_risk: {
+    critical_high: 5000,  // €5000+ at risk
+    warning_high: 2000,   // €2000+ at risk
+    warning_low: 0,
+    critical_low: 0
+  },
+  brand_vs_nonbrand: {
+    critical_high: 80,    // 80%+ brand dependent
+    warning_high: 70,
+    warning_low: 20,      // Too little brand (weak brand)
+    critical_low: 10
   }
 }
 
 /**
- * Indicator IDs for MVP
+ * Indicator IDs for MVP (7 core indicators)
  */
 export const MVP_INDICATORS = [
+  // Sales indicators (ePages)
   'sales_trend',
   'aov',
-  'revenue_concentration',
+  'gross_margin',
+
+  // SEO indicators (GSC)
   'position_change',
+  'brand_vs_nonbrand',
+
+  // Combined indicators (GSC + ePages)
+  'organic_conversion_rate',
+  'stock_availability_risk'
+]
+
+/**
+ * All indicator IDs
+ */
+export const ALL_INDICATORS = [
+  ...MVP_INDICATORS,
+  // Future indicators
+  'revenue_concentration',
   'ctr_performance',
   'low_hanging_fruit',
-  'organic_conversion_rate',
   'query_revenue',
-  'seo_sales_gap'
+  'seo_sales_gap',
+  'new_vs_returning',
+  'customer_lifetime'
 ]

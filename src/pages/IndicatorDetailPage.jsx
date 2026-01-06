@@ -80,7 +80,10 @@ export function IndicatorDetailPage() {
   // Calculate days for chart based on period
   const chartDays = period === '7d' ? 7 : period === '90d' ? 90 : 30
 
-  const { indicators, alerts, isLoading, error } = useIndicators({ period })
+  const { indicators, alerts, isLoading, error } = useIndicators({
+    period,
+    comparisonMode: comparisonType
+  })
 
   // Find the specific indicator
   const indicator = indicators.find(i => i.indicator_id === indicatorId)
@@ -233,21 +236,35 @@ export function IndicatorDetailPage() {
                 <p className="text-4xl font-bold text-white">
                   {formatValue(indicator.numeric_value ?? indicator.value?.value)}
                 </p>
-                {indicator.change_percent !== null && (
+                {/* Use display_change_percent for comparison mode aware change */}
+                {indicator.display_change_percent !== null && indicator.display_change_percent !== undefined && (
                   <div className="flex items-center gap-2 mt-2">
-                    {indicator.direction === 'up' ? (
+                    {indicator.display_direction === 'up' ? (
                       <TrendingUp className="w-5 h-5 text-green-400" />
-                    ) : indicator.direction === 'down' ? (
+                    ) : indicator.display_direction === 'down' ? (
                       <TrendingDown className="w-5 h-5 text-red-400" />
                     ) : (
                       <Minus className="w-5 h-5 text-slate-400" />
                     )}
                     <span className={`text-lg font-medium ${
-                      indicator.change_percent > 0 ? 'text-green-400' :
-                      indicator.change_percent < 0 ? 'text-red-400' : 'text-slate-400'
+                      indicator.display_change_percent > 0 ? 'text-green-400' :
+                      indicator.display_change_percent < 0 ? 'text-red-400' : 'text-slate-400'
                     }`}>
-                      {indicator.change_percent > 0 && '+'}{indicator.change_percent?.toFixed(1)}%
+                      {indicator.display_change_percent > 0 && '+'}{indicator.display_change_percent?.toFixed(1)}%
                     </span>
+                  </div>
+                )}
+                {/* Show loading state for YoY when history is loading */}
+                {indicator.yoy_loading && comparisonType === 'yoy' && (
+                  <div className="flex items-center gap-2 mt-2">
+                    <div className="w-5 h-5 animate-spin rounded-full border-2 border-slate-600 border-t-cyan-400" />
+                    <span className="text-slate-500 text-sm">{t('common.loading')}</span>
+                  </div>
+                )}
+                {/* Show "no data" for YoY if no historical data available */}
+                {!indicator.yoy_loading && comparisonType === 'yoy' && indicator.display_change_percent === null && (
+                  <div className="flex items-center gap-2 mt-2">
+                    <span className="text-slate-500 text-sm">{t('detail.noYoyData')}</span>
                   </div>
                 )}
                 {/* Comparison badge - shows MoM or YoY */}

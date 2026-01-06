@@ -51,13 +51,24 @@ export function GSCConnectCard({ onConnect }) {
 }
 
 // Daily Clicks & Impressions Chart
-export function GSCDailyChart({ data }) {
-  const chartData = [...data].reverse().map(d => ({
-    date: new Date(d.date).toLocaleDateString('sv-SE', { month: 'short', day: 'numeric' }),
-    clicks: d.total_clicks,
-    impressions: d.total_impressions,
-    position: d.avg_position
-  }))
+export function GSCDailyChart({ data, previousData = [], comparisonEnabled = false }) {
+  // Combine current and previous data if comparison is enabled
+  const chartData = [...data].reverse().map((d, index) => {
+    const prevItem = previousData && previousData.length > 0
+      ? [...previousData].reverse()[index]
+      : null
+
+    return {
+      date: new Date(d.date).toLocaleDateString('sv-SE', { month: 'short', day: 'numeric' }),
+      clicks: d.total_clicks,
+      impressions: d.total_impressions,
+      position: d.avg_position,
+      prevClicks: prevItem?.total_clicks || null,
+      prevImpressions: prevItem?.total_impressions || null
+    }
+  })
+
+  const showComparison = comparisonEnabled && previousData && previousData.length > 0
 
   return (
     <Card className="bg-slate-800/50 border-slate-700">
@@ -88,6 +99,32 @@ export function GSCDailyChart({ data }) {
                 contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '8px' }}
                 labelStyle={{ color: '#f8fafc' }}
               />
+              {/* Previous period data (dashed lines) */}
+              {showComparison && (
+                <>
+                  <Area
+                    type="monotone"
+                    dataKey="prevClicks"
+                    name="Klick (föreg.)"
+                    stroke="#06b6d4"
+                    strokeWidth={1.5}
+                    strokeDasharray="5 5"
+                    fillOpacity={0}
+                    dot={false}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="prevImpressions"
+                    name="Visningar (föreg.)"
+                    stroke="#8b5cf6"
+                    strokeWidth={1.5}
+                    strokeDasharray="5 5"
+                    fillOpacity={0}
+                    dot={false}
+                  />
+                </>
+              )}
+              {/* Current period data */}
               <Area
                 type="monotone"
                 dataKey="clicks"
@@ -118,6 +155,12 @@ export function GSCDailyChart({ data }) {
             <div className="w-3 h-3 rounded-full bg-violet-500"></div>
             <span className="text-slate-400">Visningar</span>
           </div>
+          {showComparison && (
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-0 border border-dashed border-slate-400"></div>
+              <span className="text-slate-500">Föreg. period</span>
+            </div>
+          )}
         </div>
       </CardContent>
     </Card>

@@ -11,6 +11,54 @@
     "no": "Ei",
     "settings": "Asetukset"
   },
+  "auth": {
+    "login": "Kirjaudu sisään",
+    "logout": "Kirjaudu ulos",
+    "email": "Sähköposti",
+    "password": "Salasana",
+    "loginButton": "Kirjaudu",
+    "loginSubtitle": "Verkkokauppasi analytiikka",
+    "forgotPassword": "Unohditko salasanan?",
+    "noAccount": "Ei vielä tunnusta?",
+    "contactAdmin": "Ota yhteyttä ylläpitäjään",
+    "withPassword": "Salasanalla",
+    "withMagicLink": "Linkillä",
+    "sendMagicLink": "Lähetä kirjautumislinkki",
+    "checkEmail": "Tarkista sähköpostisi",
+    "magicLinkSent": "Lähetimme kirjautumislinkin osoitteeseen {{email}}",
+    "tryAgain": "Yritä uudelleen",
+    "verifying": "Vahvistetaan...",
+    "pleaseWait": "Odota hetki",
+    "loginSuccess": "Kirjautuminen onnistui!",
+    "redirecting": "Ohjataan...",
+    "loginError": "Kirjautuminen epäonnistui",
+    "somethingWentWrong": "Jotain meni pieleen",
+    "backToLogin": "Takaisin kirjautumiseen",
+    "noAccess": "Ei käyttöoikeutta",
+    "noShopAccess": "Sinulla ei ole pääsyä mihinkään kauppaan.",
+    "contactAdminForAccess": "Pyydä ylläpitäjää kutsumaan sinut.",
+    "adminRequired": "Ylläpitäjän oikeudet vaaditaan",
+    "adminRequiredDescription": "Tämä toiminto vaatii ylläpitäjän oikeudet."
+  },
+  "settings": {
+    "title": "Asetukset",
+    "description": "Hallitse käyttäjiä ja tiliasetuksia",
+    "users": "Käyttäjät",
+    "inviteUser": "Kutsu käyttäjä",
+    "inviteDescription": "Lähetä kutsulinkki sähköpostilla. Käyttäjä saa kirjautumislinkin.",
+    "role": "Rooli",
+    "admin": "Ylläpitäjä",
+    "viewer": "Katselija",
+    "sendInvite": "Lähetä kutsu",
+    "inviteSent": "Kutsu lähetetty!",
+    "pending": "Odottaa",
+    "pendingInvitations": "Odottavat kutsut",
+    "removeUser": "Poista käyttäjä",
+    "confirmRemove": "Haluatko varmasti poistaa käyttäjän {{email}}?",
+    "currentShop": "Nykyinen kauppa",
+    "account": "Tili",
+    "yourAccount": "Kirjautuneena"
+  },
   "nav": {
     "dashboard": "Kojelauta",
     "searchConsole": "Search Console",
@@ -124,7 +172,14 @@
     "dataSource": "Datalähde",
     "calculatedAt": "Laskettu",
     "relatedAlerts": "Liittyvät hälytykset",
-    "howToRead": "Näin luet tätä lukua"
+    "howToRead": "Näin luet tätä lukua",
+    "noYoyData": "Ei vertailudataa viime vuodelta"
+  },
+  "comparison": {
+    "mom": "MoM",
+    "yoy": "YoY",
+    "momFull": "Kuukausi kuukaudelta",
+    "yoyFull": "Vuosi vuodelta"
   },
   "guide": {
     "sales_trend": {
