@@ -1,0 +1,178 @@
+{
+  "common": {
+    "loading": "Laddar...",
+    "error": "Fel",
+    "refresh": "Uppdatera",
+    "back": "Tillbaka",
+    "close": "Stäng",
+    "save": "Spara",
+    "cancel": "Avbryt",
+    "yes": "Ja",
+    "no": "Nej",
+    "settings": "Inställningar"
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "searchConsole": "Search Console",
+    "indicators": "Indikatorer",
+    "insights": "Analyser",
+    "settings": "Inställningar"
+  },
+  "periods": {
+    "7d": "7 dagar",
+    "30d": "30 dagar",
+    "90d": "90 dagar"
+  },
+  "indicators": {
+    "title": "Indikatorer",
+    "subtitle": "7 nyckeltal beräknade från din ePages + GSC data",
+    "noData": "Inga indikatorer beräknade ännu.",
+    "runCommand": "Kör:",
+    "requiresAttention": "Kräver uppmärksamhet",
+    "sales": {
+      "title": "Försäljning (ePages)",
+      "noData": "Inga försäljningsindikatorer tillgängliga"
+    },
+    "seo": {
+      "title": "SEO (Google Search Console)",
+      "noData": "Inga SEO-indikatorer tillgängliga. Koppla GSC."
+    },
+    "combined": {
+      "title": "Kombinerade (ePages + GSC)",
+      "noData": "Inga kombinerade indikatorer tillgängliga"
+    },
+    "types": {
+      "sales_trend": {
+        "title": "Försäljningstrend",
+        "description": "Försäljningens utvecklingsriktning"
+      },
+      "aov": {
+        "title": "Genomsnittsorder",
+        "description": "Genomsnittligt ordervärde"
+      },
+      "gross_margin": {
+        "title": "Bruttomarginal",
+        "description": "Total bruttomarginal"
+      },
+      "position_change": {
+        "title": "SEO-positioner",
+        "description": "Genomsnittlig positionsförändring"
+      },
+      "brand_vs_nonbrand": {
+        "title": "Non-brand %",
+        "description": "Andel generiska sökningar"
+      },
+      "organic_conversion_rate": {
+        "title": "Organisk CR",
+        "description": "Organisk trafikkonvertering"
+      },
+      "stock_availability_risk": {
+        "title": "Lagerrisk",
+        "description": "Risk för SEO-produkter"
+      }
+    }
+  },
+  "summary": {
+    "indicators": "Indikatorer",
+    "up": "Uppåt",
+    "down": "Nedåt",
+    "healthScore": "Hälsopoäng",
+    "alerts": "Varningar"
+  },
+  "alerts": {
+    "title": "Varningar",
+    "noAlerts": "Inga aktiva varningar",
+    "count": "{{count}} varningar",
+    "countOne": "1 varning",
+    "acknowledge": "Bekräfta",
+    "acknowledgeAll": "Bekräfta alla",
+    "severity": {
+      "critical": "Kritisk",
+      "warning": "Varning",
+      "info": "Info"
+    },
+    "types": {
+      "threshold_breach": "Tröskelvärde överskridet",
+      "anomaly": "Avvikelse upptäckt",
+      "trend_change": "Trendförändring"
+    }
+  },
+  "healthScore": {
+    "title": "Hälsopoäng",
+    "subtitle": "Helhetsbedömning av din verksamhet",
+    "score": "Poäng",
+    "breakdown": "Uppdelning",
+    "positive": "Positiva faktorer",
+    "negative": "Negativa faktorer",
+    "recommendations": "Rekommendationer",
+    "levels": {
+      "excellent": "Utmärkt",
+      "good": "Bra",
+      "fair": "Acceptabel",
+      "poor": "Dålig"
+    }
+  },
+  "detail": {
+    "title": "Indikatordetaljer",
+    "trend": "Trend",
+    "history": "Historik",
+    "comparison": "Jämförelse",
+    "currentPeriod": "Nuvarande period",
+    "previousPeriod": "Föregående period",
+    "lastYear": "förra året",
+    "change": "Förändring",
+    "dataSource": "Datakälla",
+    "calculatedAt": "Beräknad",
+    "relatedAlerts": "Relaterade varningar",
+    "howToRead": "Så här läser du detta tal"
+  },
+  "guide": {
+    "sales_trend": {
+      "whatIs": "Försäljningstrend visar om din butiks försäljning har ökat eller minskat jämfört med föregående period.",
+      "goodValue": "Ett positivt tal (+5% eller mer) betyder tillväxt.",
+      "badValue": "Ett negativt tal (-5% eller mindre) betyder nedgång.",
+      "action": "Om trenden är nedåtgående: kontrollera marknadsföring, prissättning och produktsortiment."
+    },
+    "aov": {
+      "whatIs": "Genomsnittsorder visar hur mycket kunder i genomsnitt köper vid varje beställning.",
+      "goodValue": "Hög genomsnittsorder (över branschgenomsnittet) är ett gott tecken.",
+      "badValue": "Sjunkande genomsnittsorder kan betyda att kunder köper mindre mängder.",
+      "action": "Öka genomsnittsorder: erbjud paketrabatter, fri frakt över en viss summa."
+    },
+    "gross_margin": {
+      "whatIs": "Bruttomarginal visar hur stor del av försäljningen som blir vinst efter produkternas inköpspriser.",
+      "goodValue": "Bra marginal är över 40%. Utmärkt är över 50%.",
+      "badValue": "Under 30% marginal är oroande - kontrollera prissättningen.",
+      "action": "Förbättra marginalen: förhandla inköpspriser, kontrollera rabatter, höj priserna."
+    },
+    "position_change": {
+      "whatIs": "SEO-position visar var din butik syns i Googles sökresultat. Position 1 = först, 10 = längst ner på sidan.",
+      "goodValue": "Negativ förändring (t.ex. -2) är BRA: du stiger uppåt i sökresultaten!",
+      "badValue": "Positiv förändring (t.ex. +3) är DÅLIGT: du har fallit nedåt i sökresultaten.",
+      "action": "Förbättra positioner: lägg till produktbeskrivningar, blogginlägg, kontrollera sidans hastighet."
+    },
+    "brand_vs_nonbrand": {
+      "whatIs": "Non-brand % visar hur stor andel av besökarna som hittar dig via generella sökord (t.ex. 'billack') vs. varumärkessökningar (t.ex. 'Billackering').",
+      "goodValue": "Hög non-brand % (över 50%) är bra - du hittar nya kunder.",
+      "badValue": "Låg non-brand % (under 30%) betyder beroende av varumärkessökningar.",
+      "action": "Öka non-brand andelen: skapa kategorisidor, produktbeskrivningar, bloggartiklar."
+    },
+    "organic_conversion_rate": {
+      "whatIs": "Organisk konvertering visar hur många besökare från Google-sök som köper något.",
+      "goodValue": "Bra organisk konvertering är 2-4%. Utmärkt är över 5%.",
+      "badValue": "Under 1% konvertering betyder att besökare inte hittar vad de söker.",
+      "action": "Förbättra konvertering: tydliga produktsidor, enkel köpprocess, snabb webbplats."
+    },
+    "stock_availability_risk": {
+      "whatIs": "Lagerrisk visar hur mycket försäljning du riskerar att förlora när populära produkter är slut i lager.",
+      "goodValue": "Låg risk (under 5%) betyder bra lagerhantering.",
+      "badValue": "Hög risk (över 20%) betyder betydande förlorad försäljning.",
+      "action": "Minska risken: beställ populära produkter, ställ in varningar för låga lagernivåer."
+    }
+  },
+  "language": {
+    "title": "Språk",
+    "fi": "Finska",
+    "sv": "Svenska"
+  }
+}

@@ -1,0 +1,178 @@
+{
+  "common": {
+    "loading": "Ladataan...",
+    "error": "Virhe",
+    "refresh": "Päivitä",
+    "back": "Takaisin",
+    "close": "Sulje",
+    "save": "Tallenna",
+    "cancel": "Peruuta",
+    "yes": "Kyllä",
+    "no": "Ei",
+    "settings": "Asetukset"
+  },
+  "nav": {
+    "dashboard": "Kojelauta",
+    "searchConsole": "Search Console",
+    "indicators": "Indikaattorit",
+    "insights": "Analyysit",
+    "settings": "Asetukset"
+  },
+  "periods": {
+    "7d": "7 päivää",
+    "30d": "30 päivää",
+    "90d": "90 päivää"
+  },
+  "indicators": {
+    "title": "Indikaattorit",
+    "subtitle": "7 avainlukua laskettuna ePages + GSC datasta",
+    "noData": "Ei indikaattoreita laskettu vielä.",
+    "runCommand": "Aja:",
+    "requiresAttention": "Vaatii huomiota",
+    "sales": {
+      "title": "Myynti (ePages)",
+      "noData": "Ei myynti-indikaattoreita saatavilla"
+    },
+    "seo": {
+      "title": "SEO (Google Search Console)",
+      "noData": "Ei SEO-indikaattoreita saatavilla. Yhdistä GSC."
+    },
+    "combined": {
+      "title": "Yhdistetyt (ePages + GSC)",
+      "noData": "Ei yhdistettyjä indikaattoreita saatavilla"
+    },
+    "types": {
+      "sales_trend": {
+        "title": "Myyntitrendi",
+        "description": "Myynnin kehityssuunta"
+      },
+      "aov": {
+        "title": "Keskiostos",
+        "description": "Keskimääräinen tilauksen arvo"
+      },
+      "gross_margin": {
+        "title": "Myyntikate",
+        "description": "Kokonaiskatemarginaali"
+      },
+      "position_change": {
+        "title": "SEO-positiot",
+        "description": "Keskimääräinen positiomuutos"
+      },
+      "brand_vs_nonbrand": {
+        "title": "Non-brand %",
+        "description": "Geneeristen hakujen osuus"
+      },
+      "organic_conversion_rate": {
+        "title": "Orgaaninen CR",
+        "description": "Orgaanisen liikenteen konversio"
+      },
+      "stock_availability_risk": {
+        "title": "Varastoriski",
+        "description": "SEO-tuotteiden riski"
+      }
+    }
+  },
+  "summary": {
+    "indicators": "Indikaattorit",
+    "up": "Nousussa",
+    "down": "Laskussa",
+    "healthScore": "Terveyspisteet",
+    "alerts": "Hälytykset"
+  },
+  "alerts": {
+    "title": "Hälytykset",
+    "noAlerts": "Ei aktiivisia hälytyksiä",
+    "count": "{{count}} hälytystä",
+    "countOne": "1 hälytys",
+    "acknowledge": "Kuittaa",
+    "acknowledgeAll": "Kuittaa kaikki",
+    "severity": {
+      "critical": "Kriittinen",
+      "warning": "Varoitus",
+      "info": "Info"
+    },
+    "types": {
+      "threshold_breach": "Raja-arvo ylitetty",
+      "anomaly": "Poikkeama havaittu",
+      "trend_change": "Trendimuutos"
+    }
+  },
+  "healthScore": {
+    "title": "Terveyspisteet",
+    "subtitle": "Kokonaisarvio liiketoimintasi tilasta",
+    "score": "Pisteet",
+    "breakdown": "Erittely",
+    "positive": "Positiiviset tekijät",
+    "negative": "Negatiiviset tekijät",
+    "recommendations": "Suositukset",
+    "levels": {
+      "excellent": "Erinomainen",
+      "good": "Hyvä",
+      "fair": "Kohtalainen",
+      "poor": "Heikko"
+    }
+  },
+  "detail": {
+    "title": "Indikaattorin tiedot",
+    "trend": "Trendi",
+    "history": "Historia",
+    "comparison": "Vertailu",
+    "currentPeriod": "Nykyinen jakso",
+    "previousPeriod": "edellinen jakso",
+    "lastYear": "viime vuosi",
+    "change": "Muutos",
+    "dataSource": "Datalähde",
+    "calculatedAt": "Laskettu",
+    "relatedAlerts": "Liittyvät hälytykset",
+    "howToRead": "Näin luet tätä lukua"
+  },
+  "guide": {
+    "sales_trend": {
+      "whatIs": "Myyntitrendi kertoo onko kauppasi myynti kasvanut vai laskenut verrattuna edelliseen jaksoon.",
+      "goodValue": "Positiivinen luku (+5% tai enemmän) tarkoittaa kasvua.",
+      "badValue": "Negatiivinen luku (-5% tai alle) tarkoittaa laskua.",
+      "action": "Jos trendi on laskeva: tarkista markkinointi, hinnoittelu ja tuotevalikoima."
+    },
+    "aov": {
+      "whatIs": "Keskiostos kertoo kuinka paljon asiakkaat keskimäärin ostavat yhdellä tilauksella.",
+      "goodValue": "Korkea keskiostos (yli toimialan keskiarvon) on hyvä merkki.",
+      "badValue": "Laskeva keskiostos voi tarkoittaa, että asiakkaat ostavat pienempiä määriä.",
+      "action": "Kasvata keskiostosta: tarjoa pakettialennuksia, ilmainen toimitus tietyn summan jälkeen."
+    },
+    "gross_margin": {
+      "whatIs": "Myyntikate kertoo kuinka suuri osa myynnistä jää voitoksi tuotteiden ostohintojen jälkeen.",
+      "goodValue": "Hyvä kate on yli 40%. Erinomainen on yli 50%.",
+      "badValue": "Alle 30% kate on huolestuttava - tarkista hinnoittelu.",
+      "action": "Paranna katetta: neuvottele ostohinnat, tarkista alennukset, nosta hintoja."
+    },
+    "position_change": {
+      "whatIs": "SEO-positio kertoo missä kohtaa kauppasi näkyy Googlen hakutuloksissa. Positio 1 = ensimmäinen, 10 = sivun alareuna.",
+      "goodValue": "Negatiivinen muutos (esim. -2) on HYVÄ: nouset ylöspäin hakutuloksissa!",
+      "badValue": "Positiivinen muutos (esim. +3) on HUONO: tippunut alaspäin hakutuloksissa.",
+      "action": "Paranna positioita: lisää tuotekuvauksia, blogikirjoituksia, tarkista sivuston nopeus."
+    },
+    "brand_vs_nonbrand": {
+      "whatIs": "Non-brand % kertoo kuinka suuri osa kävijöistä löytää sinut yleisillä hakusanoilla (esim. 'automaali') vs. brändihauilla (esim. 'Billackering').",
+      "goodValue": "Korkea non-brand % (yli 50%) on hyvä - löydät uusia asiakkaita.",
+      "badValue": "Matala non-brand % (alle 30%) tarkoittaa riippuvuutta brändihauista.",
+      "action": "Kasvata non-brand osuutta: luo kategoriasivuja, tuotekuvauksia, blogiartikkeleita."
+    },
+    "organic_conversion_rate": {
+      "whatIs": "Orgaaninen konversio kertoo kuinka moni Google-hausta tullut kävijä ostaa jotain.",
+      "goodValue": "Hyvä orgaaninen konversio on 2-4%. Erinomainen on yli 5%.",
+      "badValue": "Alle 1% konversio tarkoittaa, että kävijät eivät löydä mitä etsivät.",
+      "action": "Paranna konversiota: selkeät tuotesivut, helppo ostoprosessi, nopea sivusto."
+    },
+    "stock_availability_risk": {
+      "whatIs": "Varastoriski kertoo kuinka paljon myyntiä olet vaarassa menettää, kun suosittuja tuotteita on loppu varastosta.",
+      "goodValue": "Alhainen riski (alle 5%) tarkoittaa hyvää varastonhallintaa.",
+      "badValue": "Korkea riski (yli 20%) tarkoittaa merkittäviä menetettyjä myyntejä.",
+      "action": "Pienennä riskiä: tilaa suosituimpia tuotteita, aseta hälytykset alhaisille varastotasoille."
+    }
+  },
+  "language": {
+    "title": "Kieli",
+    "fi": "Suomi",
+    "sv": "Ruotsi"
+  }
+}
