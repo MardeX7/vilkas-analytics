@@ -171,7 +171,7 @@ export function GA4Page() {
             </div>
             <div className="flex items-center gap-3">
               <DateRangePicker
-                value={dateRange}
+                value={dateRange?.preset || 'last30'}
                 onChange={setDateRange}
               />
               <Button
