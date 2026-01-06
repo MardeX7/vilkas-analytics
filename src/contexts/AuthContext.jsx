@@ -24,10 +24,15 @@ export function AuthProvider({ children }) {
   // Fetch user's shops
   const fetchUserShops = useCallback(async () => {
     try {
+      console.log('📦 fetchUserShops: calling RPC...')
       const { data, error } = await supabase.rpc('get_user_shops')
 
-      if (error) throw error
+      if (error) {
+        console.log('❌ fetchUserShops error:', error.message)
+        throw error
+      }
 
+      console.log('✅ fetchUserShops: got', data?.length, 'shops')
       setShops(data || [])
 
       // Auto-select first shop if none selected
@@ -36,11 +41,12 @@ export function AuthProvider({ children }) {
         const savedShopId = localStorage.getItem('vilkas-analytics-current-shop')
         const savedShop = data.find(s => s.shop_id === savedShopId)
         setCurrentShop(savedShop || data[0])
+        console.log('📦 Selected shop:', (savedShop || data[0])?.shop_name)
       }
 
       return data
     } catch (err) {
-      console.error('Error fetching user shops:', err)
+      console.error('❌ fetchUserShops catch:', err)
       setError(err.message)
       return []
     }
@@ -105,15 +111,28 @@ export function AuthProvider({ children }) {
   const login = async (email, password) => {
     try {
       setError(null)
+      console.log('🔐 Starting login...')
+
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password
       })
 
-      if (error) throw error
+      if (error) {
+        console.log('❌ Login error:', error.message)
+        throw error
+      }
+
+      console.log('✅ Login successful, user:', data.user?.email)
+
+      // Fetch shops immediately after login
+      console.log('📦 Fetching shops...')
+      await fetchUserShops()
+      console.log('✅ Shops fetched')
 
       return { data, error: null }
     } catch (err) {
+      console.log('❌ Login catch error:', err.message)
       setError(err.message)
       return { data: null, error: err }
     }

@@ -30,13 +30,22 @@ export function LoginPage() {
     setLoading(true)
     setError(null)
 
-    const { error } = await login(email, password)
+    try {
+      const { error } = await login(email, password)
 
-    if (error) {
-      setError(error.message)
+      if (error) {
+        setError(error.message)
+        setLoading(false)
+      } else {
+        // Small delay to ensure auth state is updated
+        setTimeout(() => {
+          navigate(from, { replace: true })
+        }, 100)
+      }
+    } catch (err) {
+      console.error('Login error:', err)
+      setError(err.message || 'Kirjautuminen epäonnistui')
       setLoading(false)
-    } else {
-      navigate(from, { replace: true })
     }
   }
 

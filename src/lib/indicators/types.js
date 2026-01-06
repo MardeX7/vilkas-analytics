@@ -179,11 +179,31 @@ export const DEFAULT_THRESHOLDS = {
     warning_high: 70,
     warning_low: 20,      // Too little brand (weak brand)
     critical_low: 10
+  },
+
+  // GA4 Behavioral indicators
+  bounce_rate_trend: {
+    critical_high: 80,    // 80%+ bounce rate is critical
+    warning_high: 65,     // 65%+ needs attention
+    warning_low: 20,      // Too low might indicate tracking issues
+    critical_low: 10
+  },
+  traffic_source_mix: {
+    critical_high: 80,    // 80%+ from single source = high risk
+    warning_high: 60,     // 60%+ concentration = warning
+    warning_low: null,
+    critical_low: null
+  },
+  landing_page_quality: {
+    critical_high: 75,    // 75%+ traffic on high-bounce pages
+    warning_high: 50,     // 50%+ needs attention
+    warning_low: null,
+    critical_low: null
   }
 }
 
 /**
- * Indicator IDs for MVP (7 core indicators)
+ * Indicator IDs for MVP (10 core indicators)
  */
 export const MVP_INDICATORS = [
   // Sales indicators (ePages)
@@ -197,7 +217,12 @@ export const MVP_INDICATORS = [
 
   // Combined indicators (GSC + ePages)
   'organic_conversion_rate',
-  'stock_availability_risk'
+  'stock_availability_risk',
+
+  // Behavioral indicators (GA4) - NEW
+  'bounce_rate_trend',
+  'traffic_source_mix',
+  'landing_page_quality'
 ]
 
 /**

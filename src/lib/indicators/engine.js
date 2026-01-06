@@ -12,6 +12,10 @@ import { calculatePositionChange } from './calculators/positionChange.js'
 import { calculateBrandVsNonBrand } from './calculators/brandVsNonBrand.js'
 import { calculateOrganicConversionRate } from './calculators/organicConversionRate.js'
 import { calculateStockAvailabilityRisk } from './calculators/stockAvailabilityRisk.js'
+// GA4 Behavioral indicators
+import { calculateBounceRateTrend } from './calculators/bounceRateTrend.js'
+import { calculateTrafficSourceMix } from './calculators/trafficSourceMix.js'
+import { calculateLandingPageQuality } from './calculators/landingPageQuality.js'
 import { MVP_INDICATORS } from './types.js'
 
 /**
@@ -290,6 +294,75 @@ export async function calculateAllIndicators({
       results.skipped.push('organic_conversion_rate')
       results.skipped.push('stock_availability_risk')
       console.log(`   ⏭️ SEO indicators: skipped (no GSC data)`)
+    }
+
+    // 5. Fetch GA4 data for behavioral indicators
+    // ========================================
+
+    const { data: ga4Data, error: ga4Error } = await supabase
+      .from('ga4_analytics')
+      .select('*')
+      .eq('store_id', storeId)
+      .gte('date', gscStartDate.toISOString().split('T')[0])
+      .lte('date', effectivePeriodEnd.toISOString().split('T')[0])
+      .order('date', { ascending: false })
+
+    if (ga4Error) {
+      console.warn(`   ⚠️ Failed to fetch GA4 data: ${ga4Error.message}`)
+    } else {
+      console.log(`   📊 Fetched ${ga4Data?.length || 0} GA4 rows`)
+    }
+
+    if (ga4Data && ga4Data.length > 0) {
+      // 5a. Bounce Rate Trend
+      try {
+        const bounceRateTrend = calculateBounceRateTrend({
+          ga4Data,
+          periodEnd: effectivePeriodEnd,
+          periodLabel
+        })
+        await saveIndicator(supabase, storeId, bounceRateTrend)
+        results.success.push('bounce_rate_trend')
+        console.log(`   ✅ bounce_rate_trend: ${bounceRateTrend.value}% (${bounceRateTrend.direction})`)
+      } catch (err) {
+        results.errors.push({ id: 'bounce_rate_trend', error: err.message })
+        console.error(`   ❌ bounce_rate_trend: ${err.message}`)
+      }
+
+      // 5b. Traffic Source Mix
+      try {
+        const trafficSourceMix = calculateTrafficSourceMix({
+          ga4Data,
+          periodEnd: effectivePeriodEnd,
+          periodLabel
+        })
+        await saveIndicator(supabase, storeId, trafficSourceMix)
+        results.success.push('traffic_source_mix')
+        console.log(`   ✅ traffic_source_mix: ${trafficSourceMix.metrics.top_channel} (${trafficSourceMix.value}%)`)
+      } catch (err) {
+        results.errors.push({ id: 'traffic_source_mix', error: err.message })
+        console.error(`   ❌ traffic_source_mix: ${err.message}`)
+      }
+
+      // 5c. Landing Page Quality
+      try {
+        const landingPageQuality = calculateLandingPageQuality({
+          ga4Data,
+          periodEnd: effectivePeriodEnd,
+          periodLabel
+        })
+        await saveIndicator(supabase, storeId, landingPageQuality)
+        results.success.push('landing_page_quality')
+        console.log(`   ✅ landing_page_quality: ${landingPageQuality.metrics.problem_pages_count} problem pages`)
+      } catch (err) {
+        results.errors.push({ id: 'landing_page_quality', error: err.message })
+        console.error(`   ❌ landing_page_quality: ${err.message}`)
+      }
+    } else {
+      results.skipped.push('bounce_rate_trend')
+      results.skipped.push('traffic_source_mix')
+      results.skipped.push('landing_page_quality')
+      console.log(`   ⏭️ GA4 indicators: skipped (no GA4 data)`)
     }
 
     console.log(`\n✅ Done! Success: ${results.success.length}, Errors: ${results.errors.length}, Skipped: ${results.skipped.length}`)
