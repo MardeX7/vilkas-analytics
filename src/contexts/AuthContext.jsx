@@ -48,17 +48,24 @@ export function AuthProvider({ children }) {
 
   // Initialize auth state
   useEffect(() => {
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session)
-      setUser(session?.user ?? null)
+    const initAuth = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
 
-      if (session?.user) {
-        fetchUserShops()
+        setSession(session)
+        setUser(session?.user ?? null)
+
+        if (session?.user) {
+          await fetchUserShops()
+        }
+      } catch (err) {
+        console.error('Auth init error:', err)
+      } finally {
+        setLoading(false)
       }
+    }
 
-      setLoading(false)
-    })
+    initAuth()
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -67,7 +74,11 @@ export function AuthProvider({ children }) {
         setUser(session?.user ?? null)
 
         if (event === 'SIGNED_IN' && session?.user) {
-          await fetchUserShops()
+          try {
+            await fetchUserShops()
+          } catch (err) {
+            console.error('Failed to fetch shops on sign in:', err)
+          }
         }
 
         if (event === 'SIGNED_OUT') {
