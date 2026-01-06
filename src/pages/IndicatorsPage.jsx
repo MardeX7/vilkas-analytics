@@ -1,361 +1,360 @@
-import { useState, useEffect } from 'react'
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import {
-  TrendingUp,
-  TrendingDown,
-  Minus,
-  AlertTriangle,
-  RefreshCw,
-  BarChart3,
-  Search,
-  DollarSign,
-  Target
-} from 'lucide-react'
-import { supabase } from '@/lib/supabase'
-import { calculateAllIndicators, getIndicatorSummary } from '@/lib/indicators'
+/**
+ * IndicatorsPage
+ *
+ * Clean, minimal dashboard for 7 MVP indicators.
+ * Inspired by modern dark analytics dashboards.
+ */
 
-// Store ID (will be dynamic later)
-const STORE_ID = 'a28836f6-9487-4b67-9194-e907eaf94b69'
+import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { RefreshCw } from 'lucide-react'
+import { useIndicators, useIndicatorsSummary } from '@/hooks/useIndicators'
+import { AlertsPanel } from '@/components/AlertsPanel'
+import { HealthScoreModal } from '@/components/HealthScoreModal'
+import { useTranslation } from '@/lib/i18n'
+import { MiniSparkline } from '@/components/IndicatorTrendChart'
 
 export function IndicatorsPage() {
-  const [indicators, setIndicators] = useState([])
-  const [summary, setSummary] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
+  const [period, setPeriod] = useState('30d')
+  const [alertsPanelOpen, setAlertsPanelOpen] = useState(false)
+  const [healthScoreModalOpen, setHealthScoreModalOpen] = useState(false)
+  const { t } = useTranslation()
+  const navigate = useNavigate()
 
-  async function fetchAndCalculate() {
-    setLoading(true)
-    setError(null)
+  const {
+    indicators,
+    alerts,
+    isLoading,
+    error,
+    refresh
+  } = useIndicators({ period })
 
-    try {
-      // Calculate date ranges
-      const now = new Date()
-      const periodEnd = new Date(now)
-      const periodStart = new Date(now)
-      periodStart.setDate(periodStart.getDate() - 30)
+  const { summary } = useIndicatorsSummary({ period })
 
-      const comparisonEnd = new Date(periodStart)
-      comparisonEnd.setDate(comparisonEnd.getDate() - 1)
-      const comparisonStart = new Date(comparisonEnd)
-      comparisonStart.setDate(comparisonStart.getDate() - 30)
+  // Fixed order for each category (prevents jumping between periods)
+  const SALES_ORDER = ['sales_trend', 'aov', 'gross_margin']
+  const SEO_ORDER = ['position_change', 'brand_vs_nonbrand']
+  const COMBINED_ORDER = ['organic_conversion_rate', 'stock_availability_risk']
 
-      // Fetch orders (ePages MASTER)
-      const { data: orders, error: ordersError } = await supabase
-        .from('orders')
-        .select('id, creation_date, grand_total, status, order_line_items(product_name, product_number, total_price)')
-        .eq('store_id', STORE_ID)
-        .neq('status', 'cancelled')
-        .gte('creation_date', comparisonStart.toISOString())
-        .order('creation_date', { ascending: false })
+  // Group by category with fixed order
+  const salesIndicators = SALES_ORDER
+    .map(id => indicators.find(i => i.indicator_id === id))
+    .filter(Boolean)
+  const seoIndicators = SEO_ORDER
+    .map(id => indicators.find(i => i.indicator_id === id))
+    .filter(Boolean)
+  const combinedIndicators = COMBINED_ORDER
+    .map(id => indicators.find(i => i.indicator_id === id))
+    .filter(Boolean)
 
-      if (ordersError) throw ordersError
-
-      // Fetch GSC data
-      const { data: gscData } = await supabase
-        .from('gsc_search_analytics')
-        .select('*')
-        .eq('store_id', STORE_ID)
-        .gte('date', periodStart.toISOString().split('T')[0])
-        .lte('date', periodEnd.toISOString().split('T')[0])
-
-      // Fetch previous GSC data
-      const { data: previousGscData } = await supabase
-        .from('gsc_search_analytics')
-        .select('*')
-        .eq('store_id', STORE_ID)
-        .gte('date', comparisonStart.toISOString().split('T')[0])
-        .lte('date', comparisonEnd.toISOString().split('T')[0])
-
-      // Calculate indicators
-      const calculatedIndicators = calculateAllIndicators({
-        orders: orders || [],
-        products: [],
-        gscData: gscData || [],
-        previousGscData: previousGscData || [],
-        periodStart,
-        periodEnd,
-        comparisonStart,
-        comparisonEnd,
-        periodLabel: '30d'
-      })
-
-      setIndicators(calculatedIndicators)
-      setSummary(getIndicatorSummary(calculatedIndicators))
-    } catch (err) {
-      console.error('Error calculating indicators:', err)
-      setError(err.message)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  useEffect(() => {
-    fetchAndCalculate()
-  }, [])
-
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-400 mx-auto mb-4"></div>
-          <p className="text-slate-400">Beräknar indikatorer...</p>
+        <div className="animate-pulse flex flex-col items-center gap-4">
+          <div className="w-16 h-16 rounded-full bg-slate-800" />
+          <div className="w-32 h-4 rounded bg-slate-800" />
         </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 p-8">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-            <Target className="w-6 h-6 text-cyan-400" />
-            Analyser & Indikatorer
-          </h1>
-          <p className="text-slate-400 text-sm mt-1">
-            Automatiska insikter baserade på din data
-          </p>
-        </div>
-        <Button
-          onClick={fetchAndCalculate}
-          variant="outline"
-          className="bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700"
-        >
-          <RefreshCw className="w-4 h-4 mr-2" />
-          Uppdatera
-        </Button>
-      </div>
+    <div className="min-h-screen bg-slate-950">
+      <div className="max-w-7xl mx-auto px-6 py-8">
 
-      {error && (
-        <div className="bg-red-500/20 border border-red-500/50 rounded-lg p-4 mb-6">
-          <p className="text-red-400">Fel: {error}</p>
-        </div>
-      )}
+        {/* Header - Minimal */}
+        <div className="flex items-center justify-between mb-10">
+          <div>
+            <h1 className="text-2xl font-semibold text-white">
+              {t('indicators.title')}
+            </h1>
+            <p className="text-slate-500 text-sm mt-1">
+              {t('indicators.subtitle')}
+            </p>
+          </div>
 
-      {/* Summary Cards */}
-      {summary && (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-          <SummaryCard
-            title="Indikatorer"
-            value={summary.total}
-            icon={BarChart3}
-            color="cyan"
-          />
-          <SummaryCard
-            title="Försäljning"
-            value={summary.by_category.sales || 0}
-            icon={DollarSign}
-            color="green"
-          />
-          <SummaryCard
-            title="SEO"
-            value={summary.by_category.seo || 0}
-            icon={Search}
-            color="purple"
-          />
-          <SummaryCard
-            title="Varningar"
-            value={summary.alerts.length}
-            icon={AlertTriangle}
-            color={summary.alerts.length > 0 ? 'red' : 'slate'}
-          />
-        </div>
-      )}
+          <div className="flex items-center gap-4">
+            {/* Period Pills */}
+            <div className="flex bg-slate-900 rounded-xl p-1">
+              {['7d', '30d', '90d'].map(p => (
+                <button
+                  key={p}
+                  onClick={() => setPeriod(p)}
+                  className={`px-4 py-2 text-sm font-medium rounded-lg transition-all ${
+                    period === p
+                      ? 'bg-slate-800 text-white shadow-sm'
+                      : 'text-slate-500 hover:text-slate-300'
+                  }`}
+                >
+                  {t(`periods.${p}`)}
+                </button>
+              ))}
+            </div>
 
-      {/* Alerts */}
-      {summary?.alerts.length > 0 && (
-        <div className="mb-8">
-          <h2 className="text-lg font-semibold text-white mb-4">Aktiva varningar</h2>
-          <div className="space-y-2">
-            {summary.alerts.map((alert, i) => (
-              <div
-                key={i}
-                className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4 flex items-center gap-3"
-              >
-                <AlertTriangle className="w-5 h-5 text-yellow-400 flex-shrink-0" />
-                <div>
-                  <p className="text-white font-medium">{alert.indicator_name}</p>
-                  <p className="text-slate-400 text-sm">{alert.message}</p>
-                </div>
+            {/* Refresh */}
+            <button
+              onClick={refresh}
+              className="p-2.5 rounded-xl bg-slate-900 text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+            >
+              <RefreshCw className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+
+        {error && (
+          <div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-4 mb-8">
+            <p className="text-red-400 text-sm">{error.message}</p>
+          </div>
+        )}
+
+        {/* Hero Section - Health Score + Key Stats */}
+        <div className="grid grid-cols-12 gap-6 mb-10">
+
+          {/* Health Score - Large */}
+          <div
+            className="col-span-12 lg:col-span-4 bg-gradient-to-br from-slate-900 to-slate-900/50 rounded-3xl p-8 cursor-pointer hover:from-slate-800/80 transition-all"
+            onClick={() => setHealthScoreModalOpen(true)}
+          >
+            <p className="text-slate-500 text-sm font-medium mb-4">{t('summary.healthScore')}</p>
+            <div className="flex items-end gap-4">
+              <span className={`text-7xl font-bold ${
+                (summary?.healthScore || 0) >= 60 ? 'text-emerald-400' :
+                (summary?.healthScore || 0) >= 40 ? 'text-amber-400' : 'text-red-400'
+              }`}>
+                {summary?.healthScore || 0}
+              </span>
+              <span className="text-3xl text-slate-600 mb-2">%</span>
+            </div>
+            <div className="mt-6 flex gap-8">
+              <div>
+                <span className="text-2xl font-semibold text-emerald-400">{summary?.up || 0}</span>
+                <p className="text-slate-600 text-xs mt-1">{t('summary.up')}</p>
               </div>
+              <div>
+                <span className="text-2xl font-semibold text-red-400">{summary?.down || 0}</span>
+                <p className="text-slate-600 text-xs mt-1">{t('summary.down')}</p>
+              </div>
+              <div>
+                <span className="text-2xl font-semibold text-slate-400">{alerts.length}</span>
+                <p className="text-slate-600 text-xs mt-1">{t('summary.alerts')}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Top 3 Key Metrics */}
+          <div className="col-span-12 lg:col-span-8 grid grid-cols-3 gap-4">
+            {salesIndicators.slice(0, 3).map(ind => (
+              <MetricCard
+                key={ind.indicator_id}
+                indicator={ind}
+                onClick={() => navigate(`/indicators/${ind.indicator_id}`)}
+                t={t}
+                period={period}
+              />
             ))}
           </div>
         </div>
-      )}
 
-      {/* Indicator Cards */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {indicators.map(indicator => (
-          <IndicatorCard key={indicator.id} indicator={indicator} />
-        ))}
-      </div>
+        {/* Indicator Sections */}
+        <div className="space-y-10">
 
-      {indicators.length === 0 && !loading && (
-        <div className="text-center py-12">
-          <Target className="w-12 h-12 text-slate-600 mx-auto mb-4" />
-          <p className="text-slate-400">
-            Inga indikatorer kunde beräknas. Kontrollera att du har data.
-          </p>
+          {/* SEO Section */}
+          <Section title="SEO" subtitle="Google Search Console">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {seoIndicators.map(ind => (
+                <MetricCard
+                  key={ind.indicator_id}
+                  indicator={ind}
+                  onClick={() => navigate(`/indicators/${ind.indicator_id}`)}
+                  t={t}
+                  period={period}
+                  size="large"
+                />
+              ))}
+            </div>
+          </Section>
+
+          {/* Combined Section */}
+          <Section title={t('indicators.combined.title')} subtitle="ePages + GSC">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {combinedIndicators.map(ind => (
+                <MetricCard
+                  key={ind.indicator_id}
+                  indicator={ind}
+                  onClick={() => navigate(`/indicators/${ind.indicator_id}`)}
+                  t={t}
+                  period={period}
+                  size="large"
+                />
+              ))}
+            </div>
+          </Section>
         </div>
-      )}
+
+        {/* No data state */}
+        {indicators.length === 0 && !isLoading && (
+          <div className="text-center py-20">
+            <div className="w-20 h-20 rounded-full bg-slate-900 mx-auto mb-6 flex items-center justify-center">
+              <span className="text-3xl">📊</span>
+            </div>
+            <p className="text-slate-400 mb-2">{t('indicators.noData')}</p>
+            <p className="text-slate-600 text-sm">
+              {t('indicators.runCommand')}
+            </p>
+          </div>
+        )}
+
+        {/* Modals */}
+        <AlertsPanel
+          isOpen={alertsPanelOpen}
+          onClose={() => setAlertsPanelOpen(false)}
+          alerts={alerts}
+          onViewIndicator={(indicatorId) => {
+            setAlertsPanelOpen(false)
+            navigate(`/indicators/${indicatorId}`)
+          }}
+        />
+
+        <HealthScoreModal
+          isOpen={healthScoreModalOpen}
+          onClose={() => setHealthScoreModalOpen(false)}
+          score={summary?.healthScore || 0}
+          indicators={indicators}
+        />
+      </div>
     </div>
   )
 }
 
-function SummaryCard({ title, value, icon: Icon, color }) {
-  const colorClasses = {
-    cyan: 'text-cyan-400 bg-cyan-500/20',
-    green: 'text-green-400 bg-green-500/20',
-    purple: 'text-purple-400 bg-purple-500/20',
-    red: 'text-red-400 bg-red-500/20',
-    slate: 'text-slate-400 bg-slate-500/20'
-  }
-
+/**
+ * Section wrapper with title
+ */
+function Section({ title, subtitle, children }) {
   return (
-    <Card className="bg-slate-800/50 border-slate-700">
-      <CardContent className="pt-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm text-slate-400">{title}</p>
-            <p className="text-2xl font-bold text-white">{value}</p>
-          </div>
-          <div className={`p-3 rounded-lg ${colorClasses[color]}`}>
-            <Icon className="w-6 h-6" />
-          </div>
-        </div>
-      </CardContent>
-    </Card>
+    <div>
+      <div className="mb-4">
+        <h2 className="text-lg font-semibold text-white">{title}</h2>
+        {subtitle && <p className="text-slate-600 text-sm">{subtitle}</p>}
+      </div>
+      {children}
+    </div>
   )
 }
 
-function IndicatorCard({ indicator }) {
-  const DirectionIcon = indicator.direction === 'up' ? TrendingUp
-    : indicator.direction === 'down' ? TrendingDown
-    : Minus
+/**
+ * MetricCard - Clean, large metric display with mini sparkline
+ */
+function MetricCard({ indicator, onClick, t, period, size = 'default' }) {
+  if (!indicator) return null
 
-  const directionColor = indicator.direction === 'up' ? 'text-green-400'
-    : indicator.direction === 'down' ? 'text-red-400'
-    : 'text-slate-400'
+  const { indicator_id, numeric_value, direction, change_percent, alert_triggered } = indicator
 
-  const priorityColors = {
-    critical: 'bg-red-500/20 text-red-400 border-red-500/50',
-    high: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/50',
-    medium: 'bg-blue-500/20 text-blue-400 border-blue-500/50',
-    low: 'bg-slate-500/20 text-slate-400 border-slate-500/50'
+  // Format value
+  const formatValue = (id, val) => {
+    if (val === null || val === undefined) return '—'
+
+    switch (id) {
+      case 'aov':
+      case 'stock_availability_risk':
+        return `${Math.round(val).toLocaleString('fi-FI')}`
+      case 'gross_margin':
+      case 'brand_vs_nonbrand':
+      case 'organic_conversion_rate':
+        return `${val.toFixed(1)}`
+      case 'position_change':
+        return val > 0 ? `+${val.toFixed(1)}` : val.toFixed(1)
+      case 'sales_trend':
+        return val > 0 ? `+${val.toFixed(1)}` : val.toFixed(1)
+      default:
+        return String(val)
+    }
   }
 
-  const categoryIcons = {
-    sales: DollarSign,
-    seo: Search,
-    combined: Target
+  // Get unit
+  const getUnit = (id) => {
+    switch (id) {
+      case 'aov':
+      case 'stock_availability_risk':
+        return 'SEK'
+      case 'gross_margin':
+      case 'brand_vs_nonbrand':
+      case 'organic_conversion_rate':
+        return '%'
+      case 'sales_trend':
+        return '%'
+      default:
+        return ''
+    }
   }
 
-  const CategoryIcon = categoryIcons[indicator.category] || BarChart3
+  const title = t(`indicators.types.${indicator_id}.title`) || indicator_id
+  const description = t(`indicators.types.${indicator_id}.shortDesc`) ||
+                     t(`indicators.types.${indicator_id}.description`) || ''
+
+  const isLarge = size === 'large'
 
   return (
-    <Card className="bg-slate-800/50 border-slate-700">
-      <CardHeader className="pb-2">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <CategoryIcon className="w-5 h-5 text-slate-400" />
-            <CardTitle className="text-white text-lg">{indicator.name}</CardTitle>
-          </div>
-          <span className={`px-2 py-1 rounded text-xs border ${priorityColors[indicator.priority]}`}>
-            {indicator.priority}
+    <div
+      onClick={onClick}
+      className={`
+        group relative overflow-hidden
+        bg-slate-900/50 hover:bg-slate-900
+        border border-slate-800/50 hover:border-slate-700
+        rounded-2xl cursor-pointer transition-all duration-200
+        ${isLarge ? 'p-6' : 'p-5'}
+      `}
+    >
+      {/* Alert indicator */}
+      {alert_triggered && (
+        <div className="absolute top-4 right-4 w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+      )}
+
+      {/* Title */}
+      <p className="text-slate-500 text-sm font-medium mb-3">{title}</p>
+
+      {/* Value + Unit */}
+      <div className="flex items-baseline gap-2 mb-2">
+        <span className={`font-bold text-white ${isLarge ? 'text-4xl' : 'text-3xl'}`}>
+          {formatValue(indicator_id, numeric_value)}
+        </span>
+        <span className="text-slate-600 text-lg">{getUnit(indicator_id)}</span>
+      </div>
+
+      {/* Change indicator with MoM badge */}
+      {change_percent !== null && change_percent !== undefined && (
+        <div className="flex items-center gap-2 mb-4">
+          <span className="text-cyan-400 text-xs font-semibold bg-cyan-500/10 px-1.5 py-0.5 rounded">
+            MoM
+          </span>
+          <span className={`text-sm font-medium ${
+            direction === 'up' ? 'text-emerald-400' :
+            direction === 'down' ? 'text-red-400' : 'text-slate-500'
+          }`}>
+            {direction === 'up' ? '↗' : direction === 'down' ? '↘' : '→'}
+            {' '}
+            {change_percent > 0 && '+'}{change_percent.toFixed(1)}%
           </span>
         </div>
-      </CardHeader>
-      <CardContent>
-        {/* Main value */}
-        <div className="flex items-baseline gap-3 mb-4">
-          <span className="text-3xl font-bold text-white">
-            {typeof indicator.value === 'number'
-              ? indicator.value.toLocaleString('sv-SE')
-              : indicator.value}
-          </span>
-          {indicator.unit && (
-            <span className="text-slate-400">{indicator.unit}</span>
-          )}
+      )}
 
-          {indicator.change_percent !== null && (
-            <div className={`flex items-center gap-1 ${directionColor}`}>
-              <DirectionIcon className="w-4 h-4" />
-              <span className="text-sm font-medium">
-                {indicator.change_percent > 0 ? '+' : ''}{indicator.change_percent}%
-              </span>
-            </div>
-          )}
-        </div>
+      {/* Mini sparkline */}
+      <div className="mt-auto pt-2">
+        <MiniSparkline
+          indicatorId={indicator_id}
+          days={period === '7d' ? 7 : period === '90d' ? 90 : 30}
+          width={isLarge ? 140 : 100}
+          height={32}
+        />
+      </div>
 
-        {/* Metrics */}
-        {indicator.metrics && (
-          <div className="grid grid-cols-2 gap-3 text-sm">
-            {Object.entries(indicator.metrics)
-              .filter(([key]) => !key.includes('significant') && !key.includes('distribution'))
-              .slice(0, 4)
-              .map(([key, value]) => (
-                <div key={key} className="bg-slate-900/50 rounded p-2">
-                  <p className="text-slate-500 text-xs">
-                    {formatMetricLabel(key)}
-                  </p>
-                  <p className="text-white font-medium">
-                    {typeof value === 'number' ? value.toLocaleString('sv-SE') : value}
-                  </p>
-                </div>
-              ))}
-          </div>
-        )}
-
-        {/* Alerts for this indicator */}
-        {indicator.alerts?.length > 0 && (
-          <div className="mt-4 space-y-2">
-            {indicator.alerts.map((alert, i) => (
-              <div
-                key={i}
-                className={`p-2 rounded text-sm ${
-                  alert.severity === 'critical'
-                    ? 'bg-red-500/20 text-red-300'
-                    : 'bg-yellow-500/20 text-yellow-300'
-                }`}
-              >
-                {alert.details}
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Confidence & freshness */}
-        <div className="mt-4 flex items-center justify-between text-xs text-slate-500">
-          <span>Konfidens: {indicator.confidence}</span>
-          <span>{indicator.data_freshness}</span>
-        </div>
-      </CardContent>
-    </Card>
+      {/* Description on hover */}
+      {description && (
+        <p className="text-slate-600 text-xs mt-3 line-clamp-2 group-hover:text-slate-500 transition-colors">
+          {description}
+        </p>
+      )}
+    </div>
   )
-}
-
-function formatMetricLabel(key) {
-  const labels = {
-    current_revenue: 'Nuvarande intäkt',
-    previous_revenue: 'Föregående intäkt',
-    revenue_change_percent: 'Intäktförändring',
-    current_orders: 'Ordrar',
-    previous_orders: 'Föreg. ordrar',
-    orders_change_percent: 'Orderförändring',
-    daily_average: 'Snitt/dag',
-    current_aov: 'Nuvarande AOV',
-    previous_aov: 'Föregående AOV',
-    median_order_value: 'Median ordervärde',
-    improved_queries: 'Förbättrade',
-    declined_queries: 'Försämrade',
-    total_clicks: 'Totala klick',
-    total_orders: 'Totala ordrar',
-    overall_conversion_rate: 'Konversionsgrad',
-    revenue_per_click: 'Intäkt/klick'
-  }
-  return labels[key] || key.replace(/_/g, ' ')
 }
 
 export default IndicatorsPage
