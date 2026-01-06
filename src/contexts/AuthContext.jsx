@@ -21,11 +21,19 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
-  // Fetch user's shops
+  // Fetch user's shops with timeout
   const fetchUserShops = useCallback(async () => {
     try {
       console.log('📦 fetchUserShops: calling RPC...')
-      const { data, error } = await supabase.rpc('get_user_shops')
+
+      // Add timeout to prevent infinite hang
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('RPC timeout after 10s')), 10000)
+      )
+
+      const rpcPromise = supabase.rpc('get_user_shops')
+
+      const { data, error } = await Promise.race([rpcPromise, timeoutPromise])
 
       if (error) {
         console.log('❌ fetchUserShops error:', error.message)
