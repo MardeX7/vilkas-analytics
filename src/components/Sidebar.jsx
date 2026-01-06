@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { BarChart3, Search, TrendingUp, Target, Settings, Globe, LogOut } from 'lucide-react'
+import { BarChart3, Search, TrendingUp, Target, Settings, Globe, LogOut, Activity } from 'lucide-react'
 import { useTranslation } from '@/lib/i18n'
 import { useAuth } from '@/contexts/AuthContext'
 
@@ -10,6 +10,7 @@ export function Sidebar() {
   const navItems = [
     { to: '/', icon: BarChart3, label: t('nav.dashboard') },
     { to: '/search-console', icon: Search, label: t('nav.searchConsole') },
+    { to: '/analytics', icon: Activity, label: 'Google Analytics' },
     { to: '/indicators', icon: Target, label: t('nav.indicators') },
     { to: '/insights', icon: TrendingUp, label: t('nav.insights') },
   ]

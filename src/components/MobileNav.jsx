@@ -12,7 +12,8 @@ import {
   TrendingUp,
   Target,
   Settings,
-  Globe
+  Globe,
+  Activity
 } from 'lucide-react'
 import { useTranslation } from '@/lib/i18n'
 
@@ -23,6 +24,7 @@ export function MobileNav() {
   const navItems = [
     { to: '/', icon: BarChart3, label: t('nav.dashboard') },
     { to: '/search-console', icon: Search, label: t('nav.searchConsole') },
+    { to: '/analytics', icon: Activity, label: 'Google Analytics' },
     { to: '/indicators', icon: Target, label: t('nav.indicators') },
     { to: '/insights', icon: TrendingUp, label: t('nav.insights') },
   ]

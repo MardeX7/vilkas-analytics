@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { Layout } from '@/components/Layout'
 import { Dashboard } from '@/pages/Dashboard'
 import { SearchConsolePage } from '@/pages/SearchConsolePage'
+import { GA4Page } from '@/pages/GA4Page'
 import { InsightsPage } from '@/pages/InsightsPage'
 import { IndicatorsPage } from '@/pages/IndicatorsPage'
 import { IndicatorDetailPage } from '@/pages/IndicatorDetailPage'
@@ -28,6 +29,7 @@ function App() {
         >
           <Route path="/" element={<Dashboard />} />
           <Route path="/search-console" element={<SearchConsolePage />} />
+          <Route path="/analytics" element={<GA4Page />} />
           <Route path="/insights" element={<InsightsPage />} />
           <Route path="/indicators" element={<IndicatorsPage />} />
           <Route path="/indicators/:indicatorId" element={<IndicatorDetailPage />} />
