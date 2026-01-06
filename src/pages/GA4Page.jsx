@@ -55,10 +55,12 @@ export function GA4Page() {
   const [syncing, setSyncing] = useState(false)
   const [comparisonMode, setComparisonMode] = useState('mom')
 
+  console.log('🔶 GA4Page render, dateRange:', dateRange)
+
   const {
-    dailySummary,
-    trafficSources,
-    landingPages,
+    dailySummary = [],
+    trafficSources = [],
+    landingPages = [],
     summary,
     previousSummary,
     comparisonEnabled,
@@ -67,8 +69,11 @@ export function GA4Page() {
     connectGA4,
     syncGA4,
     loading,
+    error,
     refresh
   } = useGA4(dateRange, comparisonMode)
+
+  console.log('🔶 GA4Page hook result:', { loading, connected, error, trafficSourcesCount: trafficSources?.length })
 
   // Calculate change percentages
   const getChangePercent = (current, previous) => {
@@ -99,6 +104,24 @@ export function GA4Page() {
     }
   }
 
+  // Show error if any
+  if (error) {
+    console.error('🔶 GA4Page error:', error)
+    return (
+      <div className="min-h-screen bg-slate-950 p-6">
+        <div className="max-w-md mx-auto mt-20">
+          <div className="bg-red-900/20 rounded-xl p-8 border border-red-800 text-center">
+            <h2 className="text-xl font-semibold text-red-400 mb-2">Fel vid laddning</h2>
+            <p className="text-slate-400 mb-4">{error}</p>
+            <Button onClick={refresh} className="bg-slate-700 hover:bg-slate-600">
+              Försök igen
+            </Button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   // Not connected - show connect card
   if (!connected && !loading) {
     return (
@@ -125,7 +148,7 @@ export function GA4Page() {
   }
 
   // Total sessions for percentage calculations
-  const totalSessions = trafficSources.reduce((sum, s) => sum + s.sessions, 0)
+  const totalSessions = (trafficSources || []).reduce((sum, s) => sum + (s.sessions || 0), 0)
 
   return (
     <div className="min-h-screen bg-slate-950">
