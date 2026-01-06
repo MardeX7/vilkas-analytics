@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useGA4 } from '@/hooks/useGA4'
 import { KPICard } from '@/components/KPICard'
 import { DateRangePicker, getDateRange, formatDateISO } from '@/components/DateRangePicker'
@@ -18,12 +18,15 @@ import {
   ArrowDownRight
 } from 'lucide-react'
 
-const defaultRange = getDateRange('last30')
-const defaultDateRange = {
-  preset: 'last30',
-  startDate: formatDateISO(defaultRange.startDate),
-  endDate: formatDateISO(defaultRange.endDate),
-  label: 'Senaste 30 dagarna'
+// Helper to create default date range
+function createDefaultDateRange() {
+  const range = getDateRange('last30')
+  return {
+    preset: 'last30',
+    startDate: formatDateISO(range.startDate),
+    endDate: formatDateISO(range.endDate),
+    label: 'Senaste 30 dagarna'
+  }
 }
 
 // Format session duration from seconds to mm:ss
@@ -51,7 +54,8 @@ function getChannelColor(channel) {
 }
 
 export function GA4Page() {
-  const [dateRange, setDateRange] = useState(defaultDateRange)
+  // Initialize date range inside component to avoid module-level execution issues
+  const [dateRange, setDateRange] = useState(() => createDefaultDateRange())
   const [syncing, setSyncing] = useState(false)
   const [comparisonMode, setComparisonMode] = useState('mom')
 
