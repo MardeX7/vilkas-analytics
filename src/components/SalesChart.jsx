@@ -170,7 +170,7 @@ export function HourlyChart({ data }) {
  * KPI Index History Chart - Like Vilkas Insights monthly bars
  * Shows index values over time with color coding
  */
-export function KPIHistoryChart({ data, title = 'Kehitys viimeisen 12 kk aikana', indexKey = 'overall_index' }) {
+export function KPIHistoryChart({ data, title = 'Kehitys viimeisen 12 kk aikana', indexKey = 'overall_index', granularity = 'month' }) {
   if (!data || data.length === 0) {
     return (
       <Card className="bg-slate-800/50 border-slate-700">
@@ -195,14 +195,31 @@ export function KPIHistoryChart({ data, title = 'Kehitys viimeisen 12 kk aikana'
     return '#ef4444' // red-500
   }
 
+  // Get ISO week number from date
+  const getWeekNumber = (date) => {
+    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
+    const dayNum = d.getUTCDay() || 7
+    d.setUTCDate(d.getUTCDate() + 4 - dayNum)
+    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1))
+    return Math.ceil((((d - yearStart) / 86400000) + 1) / 7)
+  }
+
   // Format data for chart
   const chartData = data.map(d => {
     const date = new Date(d.period_end)
-    const month = date.toLocaleDateString('sv-SE', { month: 'short' })
     const value = d[indexKey] || d.overall_index || 0
 
+    // Format label based on granularity
+    let label
+    if (granularity === 'week') {
+      const weekNum = getWeekNumber(date)
+      label = `v${weekNum}`
+    } else {
+      label = date.toLocaleDateString('sv-SE', { month: 'short' })
+    }
+
     return {
-      month,
+      label,
       value,
       fill: getBarColor(value),
       fullDate: d.period_end
@@ -220,11 +237,12 @@ export function KPIHistoryChart({ data, title = 'Kehitys viimeisen 12 kk aikana'
             <BarChart data={chartData} margin={{ top: 5, right: 5, bottom: 5, left: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
               <XAxis
-                dataKey="month"
+                dataKey="label"
                 stroke="#94a3b8"
                 fontSize={11}
                 tickLine={false}
                 axisLine={{ stroke: '#334155' }}
+                interval={granularity === 'week' ? 3 : 0}
               />
               <YAxis
                 domain={[0, 100]}

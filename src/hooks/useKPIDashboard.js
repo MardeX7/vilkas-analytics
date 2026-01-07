@@ -220,13 +220,13 @@ export function useKPIDashboard({
     retry: 2
   })
 
-  // KPI History query (for trends) - always monthly for long-term view
+  // KPI History query (for trends) - follows granularity selection
   const {
     data: history,
     isLoading: historyLoading
   } = useQuery({
-    queryKey: ['kpi-history', storeId, 'month'],
-    queryFn: () => fetchKPIHistory(storeId, 'month', 12),
+    queryKey: ['kpi-history', storeId, granularity],
+    queryFn: () => fetchKPIHistory(storeId, granularity, granularity === 'week' ? 52 : 12),
     staleTime: 10 * 60 * 1000,
     cacheTime: 60 * 60 * 1000
   })

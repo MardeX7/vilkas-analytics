@@ -1,13 +1,11 @@
 /**
- * Generate KPI History from Real Data
+ * Generate Weekly KPI History from Real Data
  *
- * Laskee KPI-indeksit oikeasta orders-datasta kuukausittain.
+ * Laskee KPI-indeksit oikeasta orders-datasta viikoittain.
  *
  * SKAALAUS: Suhteellinen omaan historiaan
- * - Paras kuukausi = 100, huonoin = 0
+ * - Paras viikko = 100, huonoin = 0
  * - Näyttää sesonkivaihtelun selvästi
- *
- * HIGH SEASON: Maaliskuu - Syyskuu
  */
 
 require('dotenv').config({ path: '.env.local' })
@@ -20,8 +18,35 @@ const supabase = createClient(
 
 const VAT_RATE = 1.25  // 25% ALV
 
-async function generateHistory() {
-  console.log('📊 Generating KPI history with RELATIVE scaling...\n')
+// Get ISO week number
+function getWeekNumber(date) {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
+  const dayNum = d.getUTCDay() || 7
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum)
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1))
+  return Math.ceil((((d - yearStart) / 86400000) + 1) / 7)
+}
+
+// Get week start (Monday) and end (Sunday) dates
+function getWeekDates(year, week) {
+  const simple = new Date(year, 0, 1 + (week - 1) * 7)
+  const dow = simple.getDay()
+  const weekStart = new Date(simple)
+  if (dow <= 4) {
+    weekStart.setDate(simple.getDate() - simple.getDay() + 1)
+  } else {
+    weekStart.setDate(simple.getDate() + 8 - simple.getDay())
+  }
+  const weekEnd = new Date(weekStart)
+  weekEnd.setDate(weekStart.getDate() + 6)
+  return {
+    start: weekStart.toISOString().split('T')[0],
+    end: weekEnd.toISOString().split('T')[0]
+  }
+}
+
+async function generateWeeklyHistory() {
+  console.log('📊 Generating WEEKLY KPI history with RELATIVE scaling...\n')
 
   // Get store
   const { data: store } = await supabase
@@ -82,42 +107,47 @@ async function generateHistory() {
     lineItemsByOrder[li.order_id].push(li)
   })
 
-  // Group orders by month
-  const ordersByMonth = {}
+  // Group orders by week (YYYY-Www format)
+  const ordersByWeek = {}
   orders.forEach(order => {
-    const month = order.creation_date.substring(0, 7) // YYYY-MM
-    if (!ordersByMonth[month]) ordersByMonth[month] = []
-    ordersByMonth[month].push(order)
+    const date = new Date(order.creation_date)
+    const year = date.getFullYear()
+    const week = getWeekNumber(date)
+    const weekKey = `${year}-W${String(week).padStart(2, '0')}`
+
+    if (!ordersByWeek[weekKey]) ordersByWeek[weekKey] = []
+    ordersByWeek[weekKey].push(order)
   })
 
-  console.log(`📅 Found data for ${Object.keys(ordersByMonth).length} months\n`)
+  console.log(`📅 Found data for ${Object.keys(ordersByWeek).length} weeks\n`)
 
   // ═══════════════════════════════════════════════════════════════════
-  // PHASE 1: Calculate raw metrics for all months FIRST
+  // PHASE 1: Calculate raw metrics for all weeks FIRST
   // ═══════════════════════════════════════════════════════════════════
 
-  const monthlyData = []
+  const weeklyData = []
 
-  for (const [month, monthOrders] of Object.entries(ordersByMonth).sort()) {
-    const [year, monthNum] = month.split('-').map(Number)
-    const periodStart = `${month}-01`
-    const periodEnd = new Date(year, monthNum, 0).toISOString().split('T')[0]
+  for (const [weekKey, weekOrders] of Object.entries(ordersByWeek).sort()) {
+    const [yearStr, weekStr] = weekKey.split('-W')
+    const year = parseInt(yearStr)
+    const week = parseInt(weekStr)
+    const { start: periodStart, end: periodEnd } = getWeekDates(year, week)
 
     // Core metrics
-    const orderCount = monthOrders.length
-    const totalRevenue = monthOrders.reduce((sum, o) => sum + (parseFloat(o.grand_total) || 0), 0)
+    const orderCount = weekOrders.length
+    const totalRevenue = weekOrders.reduce((sum, o) => sum + (parseFloat(o.grand_total) || 0), 0)
     const nettoRevenue = totalRevenue / VAT_RATE
     const aov = orderCount > 0 ? nettoRevenue / orderCount : 0
 
     // Unique customers
-    const uniqueCustomers = new Set(monthOrders.map(o => o.customer_id).filter(Boolean)).size
+    const uniqueCustomers = new Set(weekOrders.map(o => o.customer_id).filter(Boolean)).size
 
-    // Calculate gross profit from line items (if available) or estimate from orders
+    // Calculate gross profit from line items
     let totalCost = 0
     let totalSalesNetto = 0
     let hasLineItems = false
 
-    monthOrders.forEach(order => {
+    weekOrders.forEach(order => {
       const items = lineItemsByOrder[order.id] || []
 
       if (items.length > 0) {
@@ -142,8 +172,8 @@ async function generateHistory() {
     const grossProfit = totalSalesNetto - totalCost
     const marginPercent = totalSalesNetto > 0 ? (grossProfit / totalSalesNetto) * 100 : 0
 
-    monthlyData.push({
-      month,
+    weeklyData.push({
+      weekKey,
       periodStart,
       periodEnd,
       orderCount,
@@ -160,23 +190,25 @@ async function generateHistory() {
   // PHASE 2: Find min/max for relative scaling
   // ═══════════════════════════════════════════════════════════════════
 
-  // Filter out incomplete months (< 10 orders) for min/max calculation
-  const completeMonths = monthlyData.filter(m => m.orderCount >= 10)
+  // Filter out incomplete weeks (< 3 orders) for min/max calculation
+  const completeWeeks = weeklyData.filter(w => w.orderCount >= 3)
 
-  const minRevenue = Math.min(...completeMonths.map(m => m.nettoRevenue))
-  const maxRevenue = Math.max(...completeMonths.map(m => m.nettoRevenue))
-  const minOrders = Math.min(...completeMonths.map(m => m.orderCount))
-  const maxOrders = Math.max(...completeMonths.map(m => m.orderCount))
-  const minGrossProfit = Math.min(...completeMonths.map(m => m.grossProfit))
-  const maxGrossProfit = Math.max(...completeMonths.map(m => m.grossProfit))
-  const minAOV = Math.min(...completeMonths.map(m => m.aov))
-  const maxAOV = Math.max(...completeMonths.map(m => m.aov))
+  if (completeWeeks.length === 0) {
+    console.log('⚠️  No complete weeks found (need at least 3 orders per week)')
+    return
+  }
 
-  console.log('📈 SCALING RANGES (complete months only):')
+  const minRevenue = Math.min(...completeWeeks.map(w => w.nettoRevenue))
+  const maxRevenue = Math.max(...completeWeeks.map(w => w.nettoRevenue))
+  const minOrders = Math.min(...completeWeeks.map(w => w.orderCount))
+  const maxOrders = Math.max(...completeWeeks.map(w => w.orderCount))
+  const minGrossProfit = Math.min(...completeWeeks.map(w => w.grossProfit))
+  const maxGrossProfit = Math.max(...completeWeeks.map(w => w.grossProfit))
+
+  console.log('📈 SCALING RANGES (complete weeks only):')
   console.log(`   Revenue:      ${Math.round(minRevenue).toLocaleString()} - ${Math.round(maxRevenue).toLocaleString()} SEK`)
   console.log(`   Orders:       ${minOrders} - ${maxOrders}`)
-  console.log(`   Gross Profit: ${Math.round(minGrossProfit).toLocaleString()} - ${Math.round(maxGrossProfit).toLocaleString()} SEK`)
-  console.log(`   AOV:          ${Math.round(minAOV)} - ${Math.round(maxAOV)} SEK\n`)
+  console.log(`   Gross Profit: ${Math.round(minGrossProfit).toLocaleString()} - ${Math.round(maxGrossProfit).toLocaleString()} SEK\n`)
 
   // Helper function for relative scaling (0-100)
   const scale = (value, min, max) => {
@@ -191,14 +223,14 @@ async function generateHistory() {
   const snapshots = []
   let previousSnapshot = null
 
-  console.log('Kuukausi  | Revenue  | Orders | GP      | Core | PPI | Overall')
+  console.log('Viikko    | Revenue  | Orders | GP      | Core | PPI | Overall')
   console.log('----------|----------|--------|---------|------|-----|--------')
 
-  for (const data of monthlyData) {
-    const { month, periodStart, periodEnd, orderCount, nettoRevenue, aov, grossProfit, marginPercent, marginEstimated, uniqueCustomers } = data
+  for (const data of weeklyData) {
+    const { weekKey, periodStart, periodEnd, orderCount, nettoRevenue, aov, grossProfit, marginPercent, marginEstimated, uniqueCustomers } = data
 
-    // Skip incomplete months for index calculation (show as 0)
-    const isIncomplete = orderCount < 10
+    // Skip incomplete weeks for index calculation
+    const isIncomplete = orderCount < 3
 
     // CORE INDEX - Business Performance
     // Weighted: Revenue 40%, Orders 30%, Gross Profit 30%
@@ -213,7 +245,7 @@ async function generateHistory() {
     )
 
     // PPI - Product Profitability Index
-    // Based on margin % (absolute scale makes sense here)
+    // Based on margin % (absolute scale)
     // 30% margin = 0, 60% margin = 100
     const ppiIndex = isIncomplete ? 0 : Math.max(0, Math.min(100, Math.round((marginPercent - 30) * (100 / 30))))
 
@@ -221,18 +253,16 @@ async function generateHistory() {
     const spiIndex = 50
 
     // OI - Operational Index
-    // Based on current stock availability (we don't have historical stock)
     const outOfStockPercent = products?.filter(p => p.stock_level === 0).length / (products?.length || 1) * 100
     const stockIndex = Math.max(0, 100 - outOfStockPercent)
-    const oiIndex = Math.round(stockIndex * 0.7 + 15) // Stock weighted heavily
+    const oiIndex = Math.round(stockIndex * 0.7 + 15)
 
     // OVERALL INDEX
-    // Core is most important for seasonality visibility
     const overallIndex = isIncomplete ? 0 : Math.round(
-      coreIndex * 0.50 +    // Core (seasonality) weighs most
-      ppiIndex * 0.25 +     // Profitability
-      spiIndex * 0.10 +     // SEO (placeholder)
-      oiIndex * 0.15        // Operations
+      coreIndex * 0.50 +
+      ppiIndex * 0.25 +
+      spiIndex * 0.10 +
+      oiIndex * 0.15
     )
 
     // Calculate deltas
@@ -248,7 +278,7 @@ async function generateHistory() {
       store_id: store.id,
       period_start: periodStart,
       period_end: periodEnd,
-      granularity: 'month',
+      granularity: 'week',
       core_index: coreIndex,
       product_profitability_index: ppiIndex,
       seo_performance_index: spiIndex,
@@ -290,21 +320,21 @@ async function generateHistory() {
 
     const incompleteTag = isIncomplete ? ' *' : ''
     console.log(
-      `${month}  | ${Math.round(nettoRevenue).toLocaleString().padStart(8)} | ${String(orderCount).padStart(6)} | ${Math.round(grossProfit).toLocaleString().padStart(7)} | ${String(coreIndex).padStart(4)} | ${String(ppiIndex).padStart(3)} | ${String(overallIndex).padStart(7)}${incompleteTag}`
+      `${weekKey} | ${Math.round(nettoRevenue).toLocaleString().padStart(8)} | ${String(orderCount).padStart(6)} | ${Math.round(grossProfit).toLocaleString().padStart(7)} | ${String(coreIndex).padStart(4)} | ${String(ppiIndex).padStart(3)} | ${String(overallIndex).padStart(7)}${incompleteTag}`
     )
   }
 
-  console.log('\n* = incomplete month (<10 orders)')
+  console.log('\n* = incomplete week (<3 orders)')
 
-  // Delete existing monthly history
+  // Delete existing weekly history
   const { error: deleteError } = await supabase
     .from('kpi_index_snapshots')
     .delete()
     .eq('store_id', store.id)
-    .eq('granularity', 'month')
+    .eq('granularity', 'week')
 
   if (deleteError) {
-    console.error('⚠️  Error deleting old monthly data:', deleteError.message)
+    console.error('⚠️  Error deleting old weekly data:', deleteError.message)
   }
 
   // Insert new history
@@ -317,7 +347,7 @@ async function generateHistory() {
     return
   }
 
-  console.log(`\n✅ Generated ${snapshots.length} monthly KPI snapshots with relative scaling!`)
+  console.log(`\n✅ Generated ${snapshots.length} weekly KPI snapshots with relative scaling!`)
 }
 
-generateHistory().catch(console.error)
+generateWeeklyHistory().catch(console.error)
