@@ -223,7 +223,9 @@ async function calculateKPISnapshot(
   const grossProfitIndex = normalizeToIndex(coreMetrics.gross_profit, profitHistory || [], true)
   const aovIndex = normalizeToIndex(coreMetrics.aov, aovHistory || [], true)
   const repeatIndex = Math.max(0, Math.min(100, coreMetrics.repeat_rate * 2)) // 0-50% -> 0-100
-  const stockIndex = Math.max(0, Math.min(100, 100 - (coreMetrics.out_of_stock_percent * 5)))
+  // Stock index: 0% out-of-stock = 100, 100% out-of-stock = 0
+  // Lineaarinen skaala: stock_index = 100 - out_of_stock_percent
+  const stockIndex = Math.max(0, Math.min(100, 100 - coreMetrics.out_of_stock_percent))
 
   // Trendi: tarvitaan edellisen jakson data
   const trendIndex = 50 // TODO: laske trendi
@@ -317,7 +319,8 @@ async function calculateKPISnapshot(
   if (ppiIndex < 40) alerts.push('profitability_warning')
   if (spiIndex < 40) alerts.push('seo_warning')
   if (oiIndex < 40) alerts.push('operational_warning')
-  if (coreMetrics.out_of_stock_percent > 10) alerts.push('high_out_of_stock')
+  // High out-of-stock hälytys vain jos yli 30% (realistinen kynnys)
+  if (coreMetrics.out_of_stock_percent > 30) alerts.push('high_out_of_stock')
   if (deltas.overall < -10) alerts.push('significant_decline')
 
   // 6. Tallenna snapshot
