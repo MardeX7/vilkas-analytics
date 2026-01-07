@@ -360,12 +360,17 @@ DECLARE
     v_orders_with_dispatch INTEGER;
     v_total_orders INTEGER;
 BEGIN
-    -- Läpimenoaika (creation_date → dispatched_on)
+    -- Läpimenoaika ja dispatch rate
+    -- HUOM: dispatched_on on usein NULL vaikka tilaus on lähetetty
+    -- Käytetään status-kenttää: 'shipped' tai 'delivered' = lähetetty
     SELECT
         COALESCE(AVG(
-            EXTRACT(EPOCH FROM (dispatched_on - creation_date)) / 86400
+            CASE WHEN dispatched_on IS NOT NULL
+                THEN EXTRACT(EPOCH FROM (dispatched_on - creation_date)) / 86400
+                ELSE NULL
+            END
         ), 0),
-        COUNT(*) FILTER (WHERE dispatched_on IS NOT NULL),
+        COUNT(*) FILTER (WHERE status IN ('shipped', 'delivered') OR dispatched_on IS NOT NULL),
         COUNT(*)
     INTO v_avg_fulfillment_days, v_orders_with_dispatch, v_total_orders
     FROM orders

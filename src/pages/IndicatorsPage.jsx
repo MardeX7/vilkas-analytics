@@ -512,14 +512,14 @@ const COMPONENT_META = {
   // OI components
   fulfillment: {
     label: 'Toimitusaika',
-    tooltip: 'Keskimääräinen aika tilauksesta lähetykseen. Nopeampi = parempi.',
-    valueFormat: (v) => v === 0 ? 'Samana päivänä' : `${v?.toFixed(1) ?? '—'} päivää`,
+    tooltip: 'Keskimääräinen aika tilauksesta lähetykseen. Nopeampi = parempi. (Vaatii dispatched_on -datan ePages-kaupasta)',
+    valueFormat: (v) => v === 0 ? 'Ei dataa' : `${v?.toFixed(1) ?? '—'} päivää`,
     unit: 'pv'
   },
   dispatch_rate: {
     label: 'Lähetetty',
-    tooltip: 'Kuinka suuri osa tilauksista on merkitty lähetetyksi.',
-    valueFormat: (v) => `${v?.toFixed(0) ?? '—'}%`,
+    tooltip: 'Kuinka suuri osa tilauksista on merkitty lähetetyksi. (Vaatii status-datan ePages-kaupasta)',
+    valueFormat: (v) => v === 0 ? 'Ei dataa' : `${v?.toFixed(0) ?? '—'}%`,
     unit: '%'
   }
 }
