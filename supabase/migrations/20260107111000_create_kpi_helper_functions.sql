@@ -189,13 +189,34 @@ BEGIN
         ELSE 0 END;
 
     -- Out of Stock
+    -- HUOM: Lasketaan vain tuotteet joilla on oikeasti varastoseuranta:
+    -- 1. Tuotteet joilla stock_level > 0 (ei variaatioiden päätuotteet tai paketit)
+    -- 2. TAI tuotteet jotka on myyty erikseen (order_line_items)
+    -- Päätuotteet variaatioilla ja paketit eivät seuraa omaa saldoa
+    WITH tracked_products AS (
+        SELECT DISTINCT p.id, p.stock_level
+        FROM products p
+        WHERE p.store_id = p_store_id
+          AND p.for_sale = true
+          AND (
+              -- Tuotteella on saldo = seuraa varastoa
+              p.stock_level > 0
+              OR
+              -- TAI tuote on myyty erikseen (ei ole vain paketin osa)
+              EXISTS (
+                  SELECT 1 FROM order_line_items oli
+                  JOIN orders o ON o.id = oli.order_id
+                  WHERE oli.product_id = p.id
+                    AND o.store_id = p_store_id
+                    AND o.status NOT IN ('cancelled')
+              )
+          )
+    )
     SELECT
         COUNT(*) FILTER (WHERE stock_level = 0),
         COUNT(*)
     INTO v_out_of_stock_count, v_total_products
-    FROM products
-    WHERE store_id = p_store_id
-      AND for_sale = true;
+    FROM tracked_products;
 
     v_out_of_stock_percent := CASE WHEN v_total_products > 0
         THEN (v_out_of_stock_count::DECIMAL / v_total_products) * 100
