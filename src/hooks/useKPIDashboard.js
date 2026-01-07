@@ -5,7 +5,7 @@
  * Tukee viikko- ja kuukausigranulariteettia.
  */
 
-import { useState, useCallback, useMemo } from 'react'
+import { useCallback, useMemo } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { getIndexInterpretation, INDEX_INFO } from '@/lib/kpi/types'
@@ -107,6 +107,36 @@ async function fetchKPIHistory(storeId, granularity, limit = 12) {
 }
 
 /**
+ * Hae myyntikatteen yhteenveto
+ */
+async function fetchProfitSummary(storeId) {
+  const { data, error } = await supabase
+    .from('product_profitability')
+    .select('revenue, cost, gross_profit')
+    .eq('store_id', storeId)
+
+  if (error) {
+    console.warn('Failed to fetch profit summary:', error)
+    return null
+  }
+
+  if (!data || data.length === 0) return null
+
+  const totalRevenue = data.reduce((sum, p) => sum + (p.revenue || 0), 0)
+  const totalCost = data.reduce((sum, p) => sum + (p.cost || 0), 0)
+  const totalGrossProfit = data.reduce((sum, p) => sum + (p.gross_profit || 0), 0)
+  const marginPercent = totalRevenue > 0 ? (totalGrossProfit / totalRevenue) * 100 : 0
+
+  return {
+    revenue: totalRevenue,
+    cost: totalCost,
+    grossProfit: totalGrossProfit,
+    marginPercent,
+    currency: 'SEK'
+  }
+}
+
+/**
  * Hae top profit drivers
  */
 async function fetchTopDrivers(storeId) {
@@ -190,13 +220,13 @@ export function useKPIDashboard({
     retry: 2
   })
 
-  // KPI History query (for trends)
+  // KPI History query (for trends) - always monthly for long-term view
   const {
     data: history,
     isLoading: historyLoading
   } = useQuery({
-    queryKey: ['kpi-history', storeId, granularity],
-    queryFn: () => fetchKPIHistory(storeId, granularity, 12),
+    queryKey: ['kpi-history', storeId, 'month'],
+    queryFn: () => fetchKPIHistory(storeId, 'month', 12),
     staleTime: 10 * 60 * 1000,
     cacheTime: 60 * 60 * 1000
   })
@@ -220,6 +250,17 @@ export function useKPIDashboard({
   } = useQuery({
     queryKey: ['kpi-capital-traps', storeId],
     queryFn: () => fetchCapitalTraps(storeId),
+    staleTime: 10 * 60 * 1000,
+    cacheTime: 60 * 60 * 1000,
+    enabled: !!dashboard
+  })
+
+  // Profit Summary query (myyntikate yhteenveto)
+  const {
+    data: profitSummary
+  } = useQuery({
+    queryKey: ['kpi-profit-summary', storeId],
+    queryFn: () => fetchProfitSummary(storeId),
     staleTime: 10 * 60 * 1000,
     cacheTime: 60 * 60 * 1000,
     enabled: !!dashboard
@@ -319,6 +360,7 @@ export function useKPIDashboard({
     history: history || [],
     topDrivers: topDrivers || [],
     capitalTraps: capitalTraps || [],
+    profitSummary: profitSummary || null,
     alerts: dashboard?.alerts || [],
 
     // Period info

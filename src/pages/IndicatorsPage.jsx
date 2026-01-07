@@ -10,6 +10,7 @@
 import { useState } from 'react'
 import { RefreshCw, AlertTriangle, TrendingUp, TrendingDown, Minus, ChevronRight, Package, Search, Truck, DollarSign } from 'lucide-react'
 import { useKPIDashboard } from '@/hooks/useKPIDashboard'
+import { KPIHistoryChart } from '@/components/SalesChart'
 
 // Index icons
 const INDEX_ICONS = {
@@ -36,9 +37,11 @@ export function IndicatorsPage() {
   const {
     dashboard,
     indexes,
+    history,
     alerts,
     topDrivers,
     capitalTraps,
+    profitSummary,
     isLoading,
     error,
     hasData,
@@ -162,8 +165,24 @@ export function IndicatorsPage() {
               />
             )}
 
+            {/* Gross Profit Summary */}
+            {profitSummary && (
+              <GrossProfitCard profitSummary={profitSummary} />
+            )}
+
+            {/* KPI History Chart */}
+            {history && history.length > 0 && (
+              <div className="mt-6">
+                <KPIHistoryChart
+                  data={history}
+                  title="Kehitys viimeisen 12 kk aikana"
+                  indexKey="overall_index"
+                />
+              </div>
+            )}
+
             {/* Products Section */}
-            <div className="grid grid-cols-12 gap-6 mt-10">
+            <div className="grid grid-cols-12 gap-6 mt-6">
 
               {/* Top Profit Drivers */}
               <div className="col-span-12 lg:col-span-6">
@@ -748,6 +767,87 @@ function NoDataState({ onCalculate }) {
           'Laske KPI-indeksit'
         )}
       </button>
+    </div>
+  )
+}
+
+/**
+ * Gross Profit Card - Myyntikate-yhteenveto
+ * Näyttää myyntikatteen isolla ja graafin
+ */
+function GrossProfitCard({ profitSummary }) {
+  if (!profitSummary) return null
+
+  const { revenue, cost, grossProfit, marginPercent, currency } = profitSummary
+
+  // Format number with space as thousand separator (Swedish style)
+  const formatNumber = (num) => {
+    return Math.round(num).toLocaleString('sv-SE')
+  }
+
+  return (
+    <div className="mt-10 mb-6">
+      <div className="bg-gradient-to-br from-emerald-900/30 to-slate-900 border border-emerald-500/20 rounded-2xl p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <p className="text-emerald-400/80 text-sm font-medium uppercase tracking-wide">
+              Myyntikate (30 pv)
+            </p>
+            <div className="flex items-baseline gap-3 mt-1">
+              <span className="text-4xl font-bold text-white">
+                {formatNumber(grossProfit)}
+              </span>
+              <span className="text-2xl text-emerald-400 font-medium">
+                {currency}
+              </span>
+            </div>
+          </div>
+          <div className="text-right">
+            <div className="bg-emerald-500/20 px-4 py-2 rounded-xl">
+              <p className="text-emerald-400 text-2xl font-bold">
+                {marginPercent.toFixed(1)}%
+              </p>
+              <p className="text-emerald-400/60 text-xs">kate-%</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Revenue breakdown bar */}
+        <div className="mt-6">
+          <div className="flex justify-between text-sm mb-2">
+            <span className="text-slate-400">Myynti (netto)</span>
+            <span className="text-white font-medium">{formatNumber(revenue)} {currency}</span>
+          </div>
+          <div className="h-3 bg-slate-800 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-gradient-to-r from-emerald-500 to-emerald-400 rounded-full"
+              style={{ width: '100%' }}
+            />
+          </div>
+        </div>
+
+        <div className="mt-3">
+          <div className="flex justify-between text-sm mb-2">
+            <span className="text-slate-400">Ostot (netto)</span>
+            <span className="text-slate-300 font-medium">{formatNumber(cost)} {currency}</span>
+          </div>
+          <div className="h-3 bg-slate-800 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-gradient-to-r from-red-500/60 to-red-400/60 rounded-full"
+              style={{ width: `${(cost / revenue) * 100}%` }}
+            />
+          </div>
+        </div>
+
+        <div className="mt-4 pt-4 border-t border-slate-700/50">
+          <div className="flex justify-between items-center">
+            <span className="text-slate-400 text-sm">= Myyntikate</span>
+            <span className="text-emerald-400 font-bold text-lg">
+              {formatNumber(grossProfit)} {currency}
+            </span>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
