@@ -170,13 +170,22 @@ export function IndicatorsPage() {
               <GrossProfitCard profitSummary={profitSummary} />
             )}
 
-            {/* KPI History Chart */}
+            {/* KPI History Chart - changes based on selected index */}
             {history && history.length > 0 && (
               <div className="mt-6">
                 <KPIHistoryChart
                   data={history}
-                  title="Kehitys viimeisen 12 kk aikana"
-                  indexKey="overall_index"
+                  title={selectedIndex
+                    ? `${indexes.find(i => i.id === selectedIndex)?.name || 'Indeksi'} - Kehitys 12 kk`
+                    : 'Kokonaisindeksi - Kehitys 12 kk'
+                  }
+                  indexKey={selectedIndex
+                    ? (selectedIndex === 'ppi' ? 'product_profitability_index' :
+                       selectedIndex === 'spi' ? 'seo_performance_index' :
+                       selectedIndex === 'oi' ? 'operational_index' :
+                       selectedIndex === 'core' ? 'core_index' : 'overall_index')
+                    : 'overall_index'
+                  }
                 />
               </div>
             )}
