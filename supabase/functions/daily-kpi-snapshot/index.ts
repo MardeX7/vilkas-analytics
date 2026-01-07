@@ -439,7 +439,7 @@ async function calculateKPISnapshot(
       },
       spi_components: spiComponents,
       oi_components: oiComponents,
-      data_availability: dataAvailability,
+      // data_availability tallennetaan komponentteihin (available, reason kentät)
       alerts
     }, {
       onConflict: 'store_id,period_end,granularity'
