@@ -92,31 +92,38 @@
     "types": {
       "sales_trend": {
         "title": "Försäljningstrend",
-        "description": "Försäljningens utvecklingsriktning"
+        "description": "Försäljningens utvecklingsriktning",
+        "shortDesc": "Jämfört med föregående period"
       },
       "aov": {
         "title": "Genomsnittsorder",
-        "description": "Genomsnittligt ordervärde"
+        "description": "Genomsnittligt ordervärde",
+        "shortDesc": "Genomsnittligt ordervärde"
       },
       "gross_margin": {
         "title": "Bruttomarginal",
-        "description": "Total bruttomarginal"
+        "description": "Total bruttomarginal",
+        "shortDesc": "Försäljning minus inköpspriser"
       },
       "position_change": {
         "title": "SEO-positioner",
-        "description": "Genomsnittlig positionsförändring"
+        "description": "Genomsnittlig sökposition",
+        "shortDesc": "Lägre siffra = bättre"
       },
       "brand_vs_nonbrand": {
         "title": "Non-brand %",
-        "description": "Andel generiska sökningar"
+        "description": "Andel generiska sökningar",
+        "shortDesc": "Andel generiska sökningar"
       },
       "organic_conversion_rate": {
         "title": "Organisk CR",
-        "description": "Organisk trafikkonvertering"
+        "description": "Organisk trafikkonvertering",
+        "shortDesc": "GSC klick vs. ordrar"
       },
       "stock_availability_risk": {
         "title": "Lagerrisk",
-        "description": "Risk för SEO-produkter"
+        "description": "Risk för SEO-produkter",
+        "shortDesc": "Förlorad försäljning om slut"
       }
     }
   },
@@ -201,10 +208,11 @@
       "action": "Förbättra marginalen: förhandla inköpspriser, kontrollera rabatter, höj priserna."
     },
     "position_change": {
-      "whatIs": "SEO-position visar var din butik syns i Googles sökresultat. Position 1 = först, 10 = längst ner på sidan.",
-      "goodValue": "Negativ förändring (t.ex. -2) är BRA: du stiger uppåt i sökresultaten!",
-      "badValue": "Positiv förändring (t.ex. +3) är DÅLIGT: du har fallit nedåt i sökresultaten.",
-      "action": "Förbättra positioner: lägg till produktbeskrivningar, blogginlägg, kontrollera sidans hastighet."
+      "whatIs": "SEO-position visar var din butik syns i Googles sökresultat. Position 1 = första resultatet, 10 = längst ner på sidan.",
+      "goodValue": "Lägre siffra är bättre. Om positionen sjunker 10 → 5 har du stigit uppåt i sökresultaten.",
+      "badValue": "Högre siffra är sämre. Om positionen stiger 5 → 10 har du fallit nedåt i sökresultaten.",
+      "action": "Förbättra positioner: lägg till produktbeskrivningar, blogginlägg, kontrollera sidans hastighet.",
+      "changeExplanation": "MoM-% visar hur mycket positionen förändrades. Negativ % = förbättrad (stigit upp), positiv % = försämrad (fallit ner)."
     },
     "brand_vs_nonbrand": {
       "whatIs": "Non-brand % visar hur stor andel av besökarna som hittar dig via generella sökord (t.ex. 'billack') vs. varumärkessökningar (t.ex. 'Billackering').",

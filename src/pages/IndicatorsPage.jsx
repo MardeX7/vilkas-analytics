@@ -1,59 +1,62 @@
 /**
- * IndicatorsPage
+ * KPI Dashboard (formerly IndicatorsPage)
  *
- * Clean, minimal dashboard for 7 MVP indicators.
- * Inspired by modern dark analytics dashboards.
+ * Indeksipohjainen analytiikkanäkymä.
+ * 4 pääindeksiä (0-100): Core, PPI, SPI, OI
+ *
+ * Versio: 2.0 - KPI Index Engine
  */
 
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { RefreshCw } from 'lucide-react'
-import { useIndicators, useIndicatorsSummary } from '@/hooks/useIndicators'
-import { AlertsPanel } from '@/components/AlertsPanel'
-import { HealthScoreModal } from '@/components/HealthScoreModal'
-import { useTranslation } from '@/lib/i18n'
-import { MiniSparkline } from '@/components/IndicatorTrendChart'
+import { RefreshCw, AlertTriangle, TrendingUp, TrendingDown, Minus, ChevronRight, Package, Search, Truck, DollarSign } from 'lucide-react'
+import { useKPIDashboard } from '@/hooks/useKPIDashboard'
+
+// Index icons
+const INDEX_ICONS = {
+  overall: DollarSign,
+  core: DollarSign,
+  ppi: Package,
+  spi: Search,
+  oi: Truck
+}
+
+// Index colors
+const INDEX_COLORS = {
+  overall: 'cyan',
+  core: 'emerald',
+  ppi: 'violet',
+  spi: 'amber',
+  oi: 'blue'
+}
 
 export function IndicatorsPage() {
-  const [period, setPeriod] = useState('30d')
-  const [comparisonMode, setComparisonMode] = useState('mom') // 'mom' or 'yoy'
-  const [alertsPanelOpen, setAlertsPanelOpen] = useState(false)
-  const [healthScoreModalOpen, setHealthScoreModalOpen] = useState(false)
-  const { t } = useTranslation()
-  const navigate = useNavigate()
+  const [granularity, setGranularity] = useState('week')
+  const [selectedIndex, setSelectedIndex] = useState(null)
 
   const {
-    indicators,
+    dashboard,
+    indexes,
     alerts,
+    topDrivers,
+    capitalTraps,
     isLoading,
     error,
-    refresh
-  } = useIndicators({ period, comparisonMode })
+    hasData,
+    refresh,
+    triggerCalculation
+  } = useKPIDashboard({ granularity })
 
-  const { summary } = useIndicatorsSummary({ period })
-
-  // Fixed order for each category (prevents jumping between periods)
-  const SALES_ORDER = ['sales_trend', 'aov', 'gross_margin']
-  const SEO_ORDER = ['position_change', 'brand_vs_nonbrand']
-  const COMBINED_ORDER = ['organic_conversion_rate', 'stock_availability_risk']
-
-  // Group by category with fixed order
-  const salesIndicators = SALES_ORDER
-    .map(id => indicators.find(i => i.indicator_id === id))
-    .filter(Boolean)
-  const seoIndicators = SEO_ORDER
-    .map(id => indicators.find(i => i.indicator_id === id))
-    .filter(Boolean)
-  const combinedIndicators = COMBINED_ORDER
-    .map(id => indicators.find(i => i.indicator_id === id))
-    .filter(Boolean)
+  // Overall index (first in array)
+  const overallIndex = indexes.find(i => i.id === 'overall')
+  const subIndexes = indexes.filter(i => i.id !== 'overall')
 
   if (isLoading) {
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center">
         <div className="animate-pulse flex flex-col items-center gap-4">
-          <div className="w-16 h-16 rounded-full bg-slate-800" />
-          <div className="w-32 h-4 rounded bg-slate-800" />
+          <div className="w-20 h-20 rounded-full bg-slate-800" />
+          <div className="w-40 h-4 rounded bg-slate-800" />
+          <p className="text-slate-500 text-sm">Ladataan indeksejä...</p>
         </div>
       </div>
     )
@@ -63,58 +66,39 @@ export function IndicatorsPage() {
     <div className="min-h-screen bg-slate-950">
       <div className="max-w-7xl mx-auto px-6 py-8">
 
-        {/* Header - Minimal */}
+        {/* Header */}
         <div className="flex items-center justify-between mb-10">
           <div>
             <h1 className="text-2xl font-semibold text-white">
-              {t('indicators.title')}
+              KPI Dashboard
             </h1>
             <p className="text-slate-500 text-sm mt-1">
-              {t('indicators.subtitle')}
+              Liiketoiminnan indeksit viikko/kuukausitasolla
             </p>
           </div>
 
           <div className="flex items-center gap-4">
-            {/* Period Pills */}
-            <div className="flex bg-slate-900 rounded-xl p-1">
-              {['7d', '30d', '90d'].map(p => (
-                <button
-                  key={p}
-                  onClick={() => setPeriod(p)}
-                  className={`px-4 py-2 text-sm font-medium rounded-lg transition-all ${
-                    period === p
-                      ? 'bg-slate-800 text-white shadow-sm'
-                      : 'text-slate-500 hover:text-slate-300'
-                  }`}
-                >
-                  {t(`periods.${p}`)}
-                </button>
-              ))}
-            </div>
-
-            {/* MoM/YoY Toggle */}
+            {/* Granularity Toggle */}
             <div className="flex bg-slate-900 rounded-xl p-1">
               <button
-                onClick={() => setComparisonMode('mom')}
-                className={`px-3 py-2 text-sm font-medium rounded-lg transition-all ${
-                  comparisonMode === 'mom'
+                onClick={() => setGranularity('week')}
+                className={`px-4 py-2 text-sm font-medium rounded-lg transition-all ${
+                  granularity === 'week'
                     ? 'bg-cyan-600 text-white shadow-sm'
                     : 'text-slate-500 hover:text-slate-300'
                 }`}
-                title={t('comparison.momFull')}
               >
-                MoM
+                Viikko
               </button>
               <button
-                onClick={() => setComparisonMode('yoy')}
-                className={`px-3 py-2 text-sm font-medium rounded-lg transition-all ${
-                  comparisonMode === 'yoy'
+                onClick={() => setGranularity('month')}
+                className={`px-4 py-2 text-sm font-medium rounded-lg transition-all ${
+                  granularity === 'month'
                     ? 'bg-cyan-600 text-white shadow-sm'
                     : 'text-slate-500 hover:text-slate-300'
                 }`}
-                title={t('comparison.yoyFull')}
               >
-                YoY
+                Kuukausi
               </button>
             </div>
 
@@ -122,290 +106,482 @@ export function IndicatorsPage() {
             <button
               onClick={refresh}
               className="p-2.5 rounded-xl bg-slate-900 text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+              title="Päivitä"
             >
               <RefreshCw className="w-5 h-5" />
             </button>
           </div>
         </div>
 
+        {/* Error */}
         {error && (
           <div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-4 mb-8">
             <p className="text-red-400 text-sm">{error.message}</p>
           </div>
         )}
 
-        {/* Hero Section - Health Score + Key Stats */}
-        <div className="grid grid-cols-12 gap-6 mb-10">
-
-          {/* Health Score - Large */}
-          <div
-            className="col-span-12 lg:col-span-4 bg-gradient-to-br from-slate-900 to-slate-900/50 rounded-3xl p-8 cursor-pointer hover:from-slate-800/80 transition-all"
-            onClick={() => setHealthScoreModalOpen(true)}
-          >
-            <p className="text-slate-500 text-sm font-medium mb-4">{t('summary.healthScore')}</p>
-            <div className="flex items-end gap-4">
-              <span className={`text-7xl font-bold ${
-                (summary?.healthScore || 0) >= 60 ? 'text-emerald-400' :
-                (summary?.healthScore || 0) >= 40 ? 'text-amber-400' : 'text-red-400'
-              }`}>
-                {summary?.healthScore || 0}
-              </span>
-              <span className="text-3xl text-slate-600 mb-2">%</span>
-            </div>
-            <div className="mt-6 flex gap-8">
-              <div>
-                <span className="text-2xl font-semibold text-emerald-400">{summary?.up || 0}</span>
-                <p className="text-slate-600 text-xs mt-1">{t('summary.up')}</p>
-              </div>
-              <div>
-                <span className="text-2xl font-semibold text-red-400">{summary?.down || 0}</span>
-                <p className="text-slate-600 text-xs mt-1">{t('summary.down')}</p>
-              </div>
-              <div>
-                <span className="text-2xl font-semibold text-slate-400">{alerts.length}</span>
-                <p className="text-slate-600 text-xs mt-1">{t('summary.alerts')}</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Top 3 Key Metrics */}
-          <div className="col-span-12 lg:col-span-8 grid grid-cols-3 gap-4">
-            {salesIndicators.slice(0, 3).map(ind => (
-              <MetricCard
-                key={ind.indicator_id}
-                indicator={ind}
-                onClick={() => navigate(`/indicators/${ind.indicator_id}`)}
-                t={t}
-                period={period}
-              />
-            ))}
-          </div>
-        </div>
-
-        {/* Indicator Sections */}
-        <div className="space-y-10">
-
-          {/* SEO Section */}
-          <Section title="SEO" subtitle="Google Search Console">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {seoIndicators.map(ind => (
-                <MetricCard
-                  key={ind.indicator_id}
-                  indicator={ind}
-                  onClick={() => navigate(`/indicators/${ind.indicator_id}`)}
-                  t={t}
-                  period={period}
-                  size="large"
-                />
-              ))}
-            </div>
-          </Section>
-
-          {/* Combined Section */}
-          <Section title={t('indicators.combined.title')} subtitle="ePages + GSC">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {combinedIndicators.map(ind => (
-                <MetricCard
-                  key={ind.indicator_id}
-                  indicator={ind}
-                  onClick={() => navigate(`/indicators/${ind.indicator_id}`)}
-                  t={t}
-                  period={period}
-                  size="large"
-                />
-              ))}
-            </div>
-          </Section>
-        </div>
-
-        {/* No data state */}
-        {indicators.length === 0 && !isLoading && (
-          <div className="text-center py-20">
-            <div className="w-20 h-20 rounded-full bg-slate-900 mx-auto mb-6 flex items-center justify-center">
-              <span className="text-3xl">📊</span>
-            </div>
-            <p className="text-slate-400 mb-2">{t('indicators.noData')}</p>
-            <p className="text-slate-600 text-sm">
-              {t('indicators.runCommand')}
-            </p>
-          </div>
+        {/* No Data State */}
+        {!hasData && !isLoading && (
+          <NoDataState onCalculate={triggerCalculation} />
         )}
 
-        {/* Modals */}
-        <AlertsPanel
-          isOpen={alertsPanelOpen}
-          onClose={() => setAlertsPanelOpen(false)}
-          alerts={alerts}
-          onViewIndicator={(indicatorId) => {
-            setAlertsPanelOpen(false)
-            navigate(`/indicators/${indicatorId}`)
-          }}
-        />
+        {/* Main Dashboard */}
+        {hasData && (
+          <>
+            {/* Hero: Overall Index + Alerts */}
+            <div className="grid grid-cols-12 gap-6 mb-10">
 
-        <HealthScoreModal
-          isOpen={healthScoreModalOpen}
-          onClose={() => setHealthScoreModalOpen(false)}
-          score={summary?.healthScore || 0}
-          indicators={indicators}
-        />
+              {/* Overall Index - Large */}
+              <div className="col-span-12 lg:col-span-5">
+                <OverallIndexCard index={overallIndex} alerts={alerts} />
+              </div>
+
+              {/* 4 Sub-Indexes */}
+              <div className="col-span-12 lg:col-span-7 grid grid-cols-2 gap-4">
+                {subIndexes.map(index => (
+                  <IndexCard
+                    key={index.id}
+                    index={index}
+                    onClick={() => setSelectedIndex(index.id)}
+                    isSelected={selectedIndex === index.id}
+                  />
+                ))}
+              </div>
+            </div>
+
+            {/* Alerts Banner */}
+            {alerts.length > 0 && (
+              <AlertsBanner alerts={alerts} />
+            )}
+
+            {/* Index Detail (if selected) */}
+            {selectedIndex && (
+              <IndexDetail
+                index={indexes.find(i => i.id === selectedIndex)}
+                onClose={() => setSelectedIndex(null)}
+              />
+            )}
+
+            {/* Products Section */}
+            <div className="grid grid-cols-12 gap-6 mt-10">
+
+              {/* Top Profit Drivers */}
+              <div className="col-span-12 lg:col-span-6">
+                <ProductsCard
+                  title="Top Profit Drivers"
+                  subtitle="Kannattavimmat tuotteet"
+                  products={topDrivers}
+                  type="drivers"
+                />
+              </div>
+
+              {/* Capital Traps */}
+              <div className="col-span-12 lg:col-span-6">
+                <ProductsCard
+                  title="Capital Traps"
+                  subtitle="Tuotteet joissa pääoma jumissa"
+                  products={capitalTraps}
+                  type="traps"
+                />
+              </div>
+            </div>
+
+            {/* Period Info */}
+            {dashboard?.period && (
+              <div className="mt-10 text-center">
+                <p className="text-slate-600 text-sm">
+                  Jakso: {dashboard.period.start} – {dashboard.period.end}
+                  {dashboard.calculated_at && (
+                    <span className="ml-2">
+                      | Laskettu: {new Date(dashboard.calculated_at).toLocaleString('fi-FI')}
+                    </span>
+                  )}
+                </p>
+              </div>
+            )}
+          </>
+        )}
       </div>
     </div>
   )
 }
 
 /**
- * Section wrapper with title
+ * Overall Index Card - Large hero display
  */
-function Section({ title, subtitle, children }) {
+function OverallIndexCard({ index, alerts }) {
+  if (!index) return null
+
+  const { value, delta, interpretation } = index
+
+  const getColorClass = (level) => {
+    switch (level) {
+      case 'excellent': return 'text-emerald-400'
+      case 'good': return 'text-green-400'
+      case 'fair': return 'text-amber-400'
+      case 'poor': return 'text-orange-400'
+      case 'critical': return 'text-red-400'
+      default: return 'text-slate-400'
+    }
+  }
+
+  const getBgGradient = (level) => {
+    switch (level) {
+      case 'excellent': return 'from-emerald-500/10 to-emerald-500/5'
+      case 'good': return 'from-green-500/10 to-green-500/5'
+      case 'fair': return 'from-amber-500/10 to-amber-500/5'
+      case 'poor': return 'from-orange-500/10 to-orange-500/5'
+      case 'critical': return 'from-red-500/10 to-red-500/5'
+      default: return 'from-slate-800 to-slate-900'
+    }
+  }
+
   return (
-    <div>
-      <div className="mb-4">
-        <h2 className="text-lg font-semibold text-white">{title}</h2>
-        {subtitle && <p className="text-slate-600 text-sm">{subtitle}</p>}
+    <div className={`bg-gradient-to-br ${getBgGradient(interpretation?.level)} rounded-3xl p-8 h-full`}>
+      <div className="flex items-center justify-between mb-6">
+        <p className="text-slate-400 text-sm font-medium">Kokonaisindeksi</p>
+        {alerts.length > 0 && (
+          <div className="flex items-center gap-1.5 bg-amber-500/20 text-amber-400 px-2 py-1 rounded-lg">
+            <AlertTriangle className="w-3.5 h-3.5" />
+            <span className="text-xs font-medium">{alerts.length}</span>
+          </div>
+        )}
       </div>
-      {children}
+
+      <div className="flex items-end gap-4 mb-4">
+        <span className={`text-8xl font-bold ${getColorClass(interpretation?.level)}`}>
+          {value ?? '—'}
+        </span>
+      </div>
+
+      <div className="flex items-center gap-3 mb-6">
+        <span className={`text-lg font-semibold ${getColorClass(interpretation?.level)}`}>
+          {interpretation?.label}
+        </span>
+        {delta !== 0 && (
+          <DeltaBadge delta={delta} />
+        )}
+      </div>
+
+      {/* Index Gauge */}
+      <div className="mt-6">
+        <div className="h-3 bg-slate-800 rounded-full overflow-hidden">
+          <div
+            className={`h-full rounded-full transition-all duration-500 ${
+              interpretation?.level === 'excellent' ? 'bg-emerald-500' :
+              interpretation?.level === 'good' ? 'bg-green-500' :
+              interpretation?.level === 'fair' ? 'bg-amber-500' :
+              interpretation?.level === 'poor' ? 'bg-orange-500' : 'bg-red-500'
+            }`}
+            style={{ width: `${value || 0}%` }}
+          />
+        </div>
+        <div className="flex justify-between mt-2 text-xs text-slate-600">
+          <span>0</span>
+          <span>50</span>
+          <span>100</span>
+        </div>
+      </div>
     </div>
   )
 }
 
 /**
- * MetricCard - Clean, large metric display with mini sparkline
+ * Index Card - Sub-index display
  */
-function MetricCard({ indicator, onClick, t, period, size = 'default' }) {
-  if (!indicator) return null
+function IndexCard({ index, onClick, isSelected }) {
+  if (!index) return null
 
-  const {
-    indicator_id,
-    numeric_value,
-    display_direction,
-    display_change_percent,
-    comparison_mode,
-    yoy_loading,
-    alert_triggered
-  } = indicator
+  const { id, name, value, delta, interpretation } = index
+  const Icon = INDEX_ICONS[id] || DollarSign
+  const color = INDEX_COLORS[id] || 'slate'
 
-  // Format value
-  const formatValue = (id, val) => {
-    if (val === null || val === undefined) return '—'
-
-    switch (id) {
-      case 'aov':
-      case 'stock_availability_risk':
-        return `${Math.round(val).toLocaleString('fi-FI')}`
-      case 'gross_margin':
-      case 'brand_vs_nonbrand':
-      case 'organic_conversion_rate':
-        return `${val.toFixed(1)}`
-      case 'position_change':
-        return val > 0 ? `+${val.toFixed(1)}` : val.toFixed(1)
-      case 'sales_trend':
-        return val > 0 ? `+${val.toFixed(1)}` : val.toFixed(1)
-      default:
-        return String(val)
+  const getColorClasses = (color, level) => {
+    if (level === 'critical' || level === 'poor') {
+      return {
+        text: 'text-red-400',
+        bg: 'bg-red-500/10',
+        border: 'border-red-500/20'
+      }
     }
+
+    const colors = {
+      emerald: { text: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20' },
+      violet: { text: 'text-violet-400', bg: 'bg-violet-500/10', border: 'border-violet-500/20' },
+      amber: { text: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/20' },
+      blue: { text: 'text-blue-400', bg: 'bg-blue-500/10', border: 'border-blue-500/20' },
+      cyan: { text: 'text-cyan-400', bg: 'bg-cyan-500/10', border: 'border-cyan-500/20' }
+    }
+    return colors[color] || colors.cyan
   }
 
-  // Get unit
-  const getUnit = (id) => {
-    switch (id) {
-      case 'aov':
-      case 'stock_availability_risk':
-        return 'SEK'
-      case 'gross_margin':
-      case 'brand_vs_nonbrand':
-      case 'organic_conversion_rate':
-        return '%'
-      case 'sales_trend':
-        return '%'
-      default:
-        return ''
-    }
-  }
-
-  const title = t(`indicators.types.${indicator_id}.title`) || indicator_id
-  const description = t(`indicators.types.${indicator_id}.shortDesc`) ||
-                     t(`indicators.types.${indicator_id}.description`) || ''
-
-  const isLarge = size === 'large'
+  const colorClasses = getColorClasses(color, interpretation?.level)
 
   return (
     <div
       onClick={onClick}
       className={`
-        group relative overflow-hidden
+        group relative overflow-hidden cursor-pointer
         bg-slate-900/50 hover:bg-slate-900
-        border border-slate-800/50 hover:border-slate-700
-        rounded-2xl cursor-pointer transition-all duration-200
-        ${isLarge ? 'p-6' : 'p-5'}
+        border ${isSelected ? 'border-cyan-500' : 'border-slate-800/50 hover:border-slate-700'}
+        rounded-2xl p-5 transition-all duration-200
       `}
     >
-      {/* Alert indicator */}
-      {alert_triggered && (
-        <div className="absolute top-4 right-4 w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
-      )}
+      {/* Icon */}
+      <div className={`w-10 h-10 rounded-xl ${colorClasses.bg} flex items-center justify-center mb-4`}>
+        <Icon className={`w-5 h-5 ${colorClasses.text}`} />
+      </div>
 
       {/* Title */}
-      <p className="text-slate-500 text-sm font-medium mb-3">{title}</p>
+      <p className="text-slate-400 text-sm font-medium mb-2">{name}</p>
 
-      {/* Value + Unit */}
+      {/* Value */}
       <div className="flex items-baseline gap-2 mb-2">
-        <span className={`font-bold text-white ${isLarge ? 'text-4xl' : 'text-3xl'}`}>
-          {formatValue(indicator_id, numeric_value)}
+        <span className="text-4xl font-bold text-white">
+          {value ?? '—'}
         </span>
-        <span className="text-slate-600 text-lg">{getUnit(indicator_id)}</span>
       </div>
 
-      {/* Change indicator with comparison mode badge */}
-      {display_change_percent !== null && display_change_percent !== undefined && (
-        <div className="flex items-center gap-2 mb-4">
-          <span className="text-cyan-400 text-xs font-semibold bg-cyan-500/10 px-1.5 py-0.5 rounded">
-            {comparison_mode === 'yoy' ? 'YoY' : 'MoM'}
-          </span>
-          <span className={`text-sm font-medium ${
-            display_direction === 'up' ? 'text-emerald-400' :
-            display_direction === 'down' ? 'text-red-400' : 'text-slate-500'
-          }`}>
-            {display_direction === 'up' ? '↗' : display_direction === 'down' ? '↘' : '→'}
-            {' '}
-            {display_change_percent > 0 && '+'}{display_change_percent.toFixed(1)}%
-          </span>
+      {/* Delta & Status */}
+      <div className="flex items-center gap-2">
+        <DeltaBadge delta={delta} />
+        <span className={`text-xs ${colorClasses.text}`}>
+          {interpretation?.label}
+        </span>
+      </div>
+
+      {/* Expand icon */}
+      <ChevronRight className="absolute top-5 right-5 w-4 h-4 text-slate-600 group-hover:text-slate-400 transition-colors" />
+    </div>
+  )
+}
+
+/**
+ * Delta Badge
+ */
+function DeltaBadge({ delta }) {
+  if (delta === 0 || delta === null || delta === undefined) {
+    return (
+      <span className="flex items-center gap-1 text-slate-500 text-sm">
+        <Minus className="w-3 h-3" />
+        <span>0</span>
+      </span>
+    )
+  }
+
+  const isPositive = delta > 0
+  const Icon = isPositive ? TrendingUp : TrendingDown
+
+  return (
+    <span className={`flex items-center gap-1 text-sm font-medium ${
+      isPositive ? 'text-emerald-400' : 'text-red-400'
+    }`}>
+      <Icon className="w-3.5 h-3.5" />
+      <span>{isPositive ? '+' : ''}{delta.toFixed(0)}</span>
+    </span>
+  )
+}
+
+/**
+ * Alerts Banner
+ */
+function AlertsBanner({ alerts }) {
+  return (
+    <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-4 mb-6">
+      <div className="flex items-center gap-3">
+        <AlertTriangle className="w-5 h-5 text-amber-400" />
+        <div>
+          <p className="text-amber-400 font-medium text-sm">
+            {alerts.length} hälytystä vaatii huomiota
+          </p>
+          <p className="text-amber-400/70 text-xs mt-0.5">
+            {alerts.slice(0, 3).map(a => a.replace(/_/g, ' ')).join(', ')}
+            {alerts.length > 3 && ` +${alerts.length - 3} muuta`}
+          </p>
         </div>
-      )}
-      {/* Loading state for YoY */}
-      {yoy_loading && (
-        <div className="flex items-center gap-2 mb-4">
-          <span className="text-cyan-400 text-xs font-semibold bg-cyan-500/10 px-1.5 py-0.5 rounded">
-            YoY
-          </span>
-          <div className="w-4 h-4 animate-spin rounded-full border-2 border-slate-600 border-t-cyan-400" />
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Index Detail Panel
+ */
+function IndexDetail({ index, onClose }) {
+  if (!index) return null
+
+  const { id, name, description, components } = index
+  const Icon = INDEX_ICONS[id] || DollarSign
+
+  return (
+    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 mb-6">
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-3">
+          <Icon className="w-6 h-6 text-cyan-400" />
+          <div>
+            <h3 className="text-lg font-semibold text-white">{name}</h3>
+            <p className="text-slate-500 text-sm">{description}</p>
+          </div>
         </div>
-      )}
-      {/* No YoY data available */}
-      {!yoy_loading && comparison_mode === 'yoy' && display_change_percent === null && (
-        <div className="flex items-center gap-2 mb-4">
-          <span className="text-cyan-400 text-xs font-semibold bg-cyan-500/10 px-1.5 py-0.5 rounded">
-            YoY
-          </span>
-          <span className="text-slate-500 text-xs">—</span>
+        <button
+          onClick={onClose}
+          className="text-slate-500 hover:text-white text-sm"
+        >
+          Sulje
+        </button>
+      </div>
+
+      {/* Components Breakdown */}
+      {components && Object.keys(components).length > 0 && (
+        <div className="space-y-3">
+          <p className="text-slate-400 text-sm font-medium mb-3">Komponentit</p>
+          {Object.entries(components).map(([key, comp]) => (
+            <ComponentBar key={key} name={key} component={comp} />
+          ))}
         </div>
       )}
 
-      {/* Mini sparkline */}
-      <div className="mt-auto pt-2">
-        <MiniSparkline
-          indicatorId={indicator_id}
-          days={period === '7d' ? 7 : period === '90d' ? 90 : 30}
-          width={isLarge ? 140 : 100}
-          height={32}
+      {/* No components */}
+      {(!components || Object.keys(components).length === 0) && (
+        <p className="text-slate-500 text-sm">Komponenttitiedot eivät ole vielä saatavilla.</p>
+      )}
+    </div>
+  )
+}
+
+/**
+ * Component Bar
+ */
+function ComponentBar({ name, component }) {
+  if (!component) return null
+
+  const { index, weight } = component
+  const displayName = name.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
+
+  return (
+    <div className="flex items-center gap-4">
+      <div className="w-32 text-slate-400 text-sm truncate" title={displayName}>
+        {displayName}
+      </div>
+      <div className="flex-1 h-2 bg-slate-800 rounded-full overflow-hidden">
+        <div
+          className={`h-full rounded-full ${
+            index >= 60 ? 'bg-emerald-500' :
+            index >= 40 ? 'bg-amber-500' : 'bg-red-500'
+          }`}
+          style={{ width: `${index || 0}%` }}
         />
       </div>
+      <div className="w-12 text-right text-slate-300 text-sm font-medium">
+        {index?.toFixed(0) ?? '—'}
+      </div>
+      <div className="w-16 text-right text-slate-600 text-xs">
+        ({(weight * 100).toFixed(0)}%)
+      </div>
+    </div>
+  )
+}
 
-      {/* Description on hover */}
-      {description && (
-        <p className="text-slate-600 text-xs mt-3 line-clamp-2 group-hover:text-slate-500 transition-colors">
-          {description}
-        </p>
-      )}
+/**
+ * Products Card
+ */
+function ProductsCard({ title, subtitle, products, type }) {
+  if (!products || products.length === 0) {
+    return (
+      <div className="bg-slate-900/50 border border-slate-800/50 rounded-2xl p-6">
+        <h3 className="text-lg font-semibold text-white mb-1">{title}</h3>
+        <p className="text-slate-500 text-sm mb-4">{subtitle}</p>
+        <p className="text-slate-600 text-sm">Ei dataa vielä saatavilla.</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="bg-slate-900/50 border border-slate-800/50 rounded-2xl p-6">
+      <h3 className="text-lg font-semibold text-white mb-1">{title}</h3>
+      <p className="text-slate-500 text-sm mb-4">{subtitle}</p>
+
+      <div className="space-y-3">
+        {products.slice(0, 5).map((product, i) => (
+          <div key={product.product_id || i} className="flex items-center gap-3">
+            <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold ${
+              type === 'drivers' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'
+            }`}>
+              {i + 1}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-white text-sm truncate">
+                {product.products?.name || product.product_name || 'N/A'}
+              </p>
+              <p className="text-slate-500 text-xs">
+                {product.products?.product_number || product.sku || ''}
+              </p>
+            </div>
+            <div className="text-right">
+              {type === 'drivers' ? (
+                <p className="text-emerald-400 text-sm font-medium">
+                  {product.total_score?.toFixed(0) ?? '—'} pts
+                </p>
+              ) : (
+                <p className="text-red-400 text-sm font-medium">
+                  {product.stock_days?.toFixed(0) ?? '—'} pv
+                </p>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+/**
+ * No Data State
+ */
+function NoDataState({ onCalculate }) {
+  const [isCalculating, setIsCalculating] = useState(false)
+
+  const handleCalculate = async () => {
+    setIsCalculating(true)
+    try {
+      await onCalculate()
+    } catch (error) {
+      console.error('Calculation failed:', error)
+    } finally {
+      setIsCalculating(false)
+    }
+  }
+
+  return (
+    <div className="text-center py-20">
+      <div className="w-24 h-24 rounded-full bg-slate-900 mx-auto mb-6 flex items-center justify-center">
+        <span className="text-4xl">📊</span>
+      </div>
+      <h2 className="text-xl font-semibold text-white mb-2">
+        KPI-indeksit eivät ole vielä valmiita
+      </h2>
+      <p className="text-slate-500 mb-6 max-w-md mx-auto">
+        Laske ensimmäiset indeksit käynnistämällä KPI-laskenta.
+        Tämä voi kestää muutaman sekunnin.
+      </p>
+      <button
+        onClick={handleCalculate}
+        disabled={isCalculating}
+        className={`px-6 py-3 rounded-xl font-medium transition-colors ${
+          isCalculating
+            ? 'bg-slate-800 text-slate-500 cursor-not-allowed'
+            : 'bg-cyan-600 text-white hover:bg-cyan-700'
+        }`}
+      >
+        {isCalculating ? (
+          <span className="flex items-center gap-2">
+            <RefreshCw className="w-4 h-4 animate-spin" />
+            Lasketaan...
+          </span>
+        ) : (
+          'Laske KPI-indeksit'
+        )}
+      </button>
     </div>
   )
 }

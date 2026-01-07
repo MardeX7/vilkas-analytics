@@ -92,31 +92,38 @@
     "types": {
       "sales_trend": {
         "title": "Myyntitrendi",
-        "description": "Myynnin kehityssuunta"
+        "description": "Myynnin kehityssuunta",
+        "shortDesc": "Verrattuna edelliseen jaksoon"
       },
       "aov": {
         "title": "Keskiostos",
-        "description": "Keskimääräinen tilauksen arvo"
+        "description": "Keskimääräinen tilauksen arvo",
+        "shortDesc": "Keskimääräinen tilauksen arvo"
       },
       "gross_margin": {
         "title": "Myyntikate",
-        "description": "Kokonaiskatemarginaali"
+        "description": "Kokonaiskatemarginaali",
+        "shortDesc": "Myynti miinus ostohinnat"
       },
       "position_change": {
         "title": "SEO-positiot",
-        "description": "Keskimääräinen positiomuutos"
+        "description": "Keskimääräinen hakusijoitus",
+        "shortDesc": "Pienempi luku = parempi"
       },
       "brand_vs_nonbrand": {
         "title": "Non-brand %",
-        "description": "Geneeristen hakujen osuus"
+        "description": "Geneeristen hakujen osuus",
+        "shortDesc": "Geneeristen hakujen osuus"
       },
       "organic_conversion_rate": {
         "title": "Orgaaninen CR",
-        "description": "Orgaanisen liikenteen konversio"
+        "description": "Orgaanisen liikenteen konversio",
+        "shortDesc": "GSC klikit vs. tilaukset"
       },
       "stock_availability_risk": {
         "title": "Varastoriski",
-        "description": "SEO-tuotteiden riski"
+        "description": "SEO-tuotteiden riski",
+        "shortDesc": "Menetetty myynti jos loppu"
       }
     }
   },
@@ -201,10 +208,11 @@
       "action": "Paranna katetta: neuvottele ostohinnat, tarkista alennukset, nosta hintoja."
     },
     "position_change": {
-      "whatIs": "SEO-positio kertoo missä kohtaa kauppasi näkyy Googlen hakutuloksissa. Positio 1 = ensimmäinen, 10 = sivun alareuna.",
-      "goodValue": "Negatiivinen muutos (esim. -2) on HYVÄ: nouset ylöspäin hakutuloksissa!",
-      "badValue": "Positiivinen muutos (esim. +3) on HUONO: tippunut alaspäin hakutuloksissa.",
-      "action": "Paranna positioita: lisää tuotekuvauksia, blogikirjoituksia, tarkista sivuston nopeus."
+      "whatIs": "SEO-positio kertoo missä kohtaa kauppasi näkyy Googlen hakutuloksissa. Positio 1 = ensimmäinen tulos, 10 = sivun alareuna.",
+      "goodValue": "Pienempi luku on parempi. Jos positio laskee 10 → 5, olet noussut hakutuloksissa ylöspäin.",
+      "badValue": "Suurempi luku on huonompi. Jos positio nousee 5 → 10, olet pudonnut hakutuloksissa alaspäin.",
+      "action": "Paranna positioita: lisää tuotekuvauksia, blogikirjoituksia, tarkista sivuston nopeus.",
+      "changeExplanation": "MoM-% kertoo kuinka paljon positio muuttui. Negatiivinen % = parantunut (noussut ylös), positiivinen % = heikentynyt (pudonnut alas)."
     },
     "brand_vs_nonbrand": {
       "whatIs": "Non-brand % kertoo kuinka suuri osa kävijöistä löytää sinut yleisillä hakusanoilla (esim. 'automaali') vs. brändihauilla (esim. 'Billackering').",

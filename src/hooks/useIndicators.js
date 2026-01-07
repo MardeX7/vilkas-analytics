@@ -72,7 +72,7 @@ function calculateYoYChange(currentValue, historyData) {
  * Fetch indicators from database
  */
 async function fetchIndicators(storeId, periodLabel) {
-  const { data, error } = await supabase.rpc('get_indicators', {
+  const { data, error } = await supabase.rpc('get_indicators_public', {
     p_store_id: storeId,
     p_period_label: periodLabel
   })
@@ -88,7 +88,7 @@ async function fetchIndicators(storeId, periodLabel) {
  * Fetch indicator history for trending
  */
 async function fetchIndicatorHistory(storeId, indicatorId, days = 90) {
-  const { data, error } = await supabase.rpc('get_indicator_history', {
+  const { data, error } = await supabase.rpc('get_indicator_history_public', {
     p_store_id: storeId,
     p_indicator_id: indicatorId,
     p_days: days
@@ -105,7 +105,7 @@ async function fetchIndicatorHistory(storeId, indicatorId, days = 90) {
  * Fetch active alerts
  */
 async function fetchAlerts(storeId) {
-  const { data, error } = await supabase.rpc('get_active_alerts', {
+  const { data, error } = await supabase.rpc('get_active_alerts_public', {
     p_store_id: storeId
   })
 

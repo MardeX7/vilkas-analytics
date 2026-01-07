@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import { useAnalytics } from '@/hooks/useAnalytics'
+import { useCategories } from '@/hooks/useCategories'
 import { KPICard } from '@/components/KPICard'
 import { DailySalesChart, WeekdayChart, HourlyChart } from '@/components/SalesChart'
 import { TopProducts } from '@/components/TopProducts'
+import { CategoryChart } from '@/components/CategoryChart'
 import { PaymentMethodsChart, ShippingMethodsChart } from '@/components/PaymentMethods'
 import { DateRangePicker, getDateRange, formatDateISO } from '@/components/DateRangePicker'
 import { DollarSign, ShoppingCart, Users, TrendingUp, RefreshCw, BarChart3 } from 'lucide-react'
@@ -34,6 +36,9 @@ export function Dashboard() {
     error,
     refresh
   } = useAnalytics(dateRange)
+
+  // Get category data (default 30 days, could be linked to dateRange)
+  const { categories, loading: categoriesLoading } = useCategories(30)
 
   if (loading) {
     return (
@@ -166,6 +171,21 @@ export function Dashboard() {
             compare={dateRange.compare}
           />
           <TopProducts products={topProducts} />
+        </div>
+
+        {/* Charts Row 1.5 - Categories */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+          <CategoryChart
+            categories={categories}
+            maxItems={10}
+            title="Topp kategorier (30 dagar)"
+          />
+          {/* Second category view - filtered by parent category */}
+          <CategoryChart
+            categories={categories.filter(c => c.parent_category === 'Billack')}
+            maxItems={8}
+            title="Billack (underkategorier)"
+          />
         </div>
 
         {/* Charts Row 2 */}

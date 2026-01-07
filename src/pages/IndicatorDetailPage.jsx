@@ -457,6 +457,21 @@ export function IndicatorDetailPage() {
             </div>
           </div>
 
+          {/* Change explanation for position_change */}
+          {indicatorId === 'position_change' && (
+            <div className="mt-6 p-4 bg-amber-500/10 border border-amber-500/30 rounded-xl">
+              <div className="flex items-start gap-3">
+                <div className="p-2 bg-amber-500/20 rounded-lg shrink-0">
+                  <Info className="w-4 h-4 text-amber-400" />
+                </div>
+                <div>
+                  <p className="text-amber-400 font-medium mb-1">Miten luen muutosprosenttia?</p>
+                  <p className="text-slate-300 text-sm">{t(`guide.${indicatorId}.changeExplanation`)}</p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Action suggestion */}
           <div className="mt-6 p-4 bg-cyan-500/10 border border-cyan-500/30 rounded-xl">
             <div className="flex items-start gap-3">
