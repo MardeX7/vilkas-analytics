@@ -413,6 +413,13 @@ function IndexDetail({ index, onClose }) {
   const { id, name, description, components } = index
   const Icon = INDEX_ICONS[id] || DollarSign
 
+  // Laske kuinka monta komponenttia on "Ei dataa" -tilassa
+  const missingComponents = components
+    ? Object.values(components).filter(c => c.available === false || (c.index === null && c.value === 0))
+    : []
+  const totalComponents = components ? Object.keys(components).length : 0
+  const hasMissingData = missingComponents.length > 0
+
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 mb-6">
       <div className="flex items-center justify-between mb-6">
@@ -430,6 +437,24 @@ function IndexDetail({ index, onClose }) {
           Sulje
         </button>
       </div>
+
+      {/* Data Quality Banner */}
+      {hasMissingData && (
+        <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 mb-4">
+          <div className="flex items-start gap-2">
+            <AlertTriangle className="w-4 h-4 text-amber-400 mt-0.5 flex-shrink-0" />
+            <div>
+              <p className="text-amber-400 text-sm font-medium">
+                {missingComponents.length}/{totalComponents} komponenttia ilman dataa
+              </p>
+              <p className="text-amber-400/70 text-xs mt-0.5">
+                Indeksi lasketaan vain saatavilla olevien komponenttien perusteella.
+                Puuttuvat mittarit eivät vaikuta tulokseen negatiivisesti.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Components Breakdown */}
       {components && Object.keys(components).length > 0 && (
@@ -521,16 +546,24 @@ const COMPONENT_META = {
     tooltip: 'Kuinka suuri osa tilauksista on merkitty lähetetyksi. (Vaatii status-datan ePages-kaupasta)',
     valueFormat: (v) => v === 0 ? 'Ei dataa' : `${v?.toFixed(0) ?? '—'}%`,
     unit: '%'
+  },
+  // PPI components
+  margin: {
+    label: 'Myyntikate',
+    tooltip: 'Keskimääräinen myyntikate-%. Vaatii tuotteiden ostohintojen syöttämisen (cost_price).',
+    valueFormat: (v) => `${v?.toFixed(1) ?? '—'}%`,
+    unit: '%'
   }
 }
 
 /**
  * Component Bar with tooltip
+ * Näyttää "Ei dataa" jos komponentilla ei ole saatavilla olevaa dataa
  */
 function ComponentBar({ name, component }) {
   if (!component) return null
 
-  const { index, value, weight } = component
+  const { index, value, weight, available, reason } = component
   const meta = COMPONENT_META[name] || {
     label: name.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
     tooltip: '',
@@ -538,10 +571,14 @@ function ComponentBar({ name, component }) {
     unit: ''
   }
 
-  const displayValue = meta.valueFormat(value)
+  // Jos data ei ole saatavilla, näytä "Ei dataa" -tila
+  const isDataMissing = available === false || (index === null && value === 0)
+
+  const displayValue = isDataMissing ? 'Ei dataa' : meta.valueFormat(value)
 
   // Status text based on index
   const getStatusText = (idx) => {
+    if (idx === null || idx === undefined) return 'Ei dataa'
     if (idx >= 80) return 'Erinomainen'
     if (idx >= 60) return 'Hyvä'
     if (idx >= 40) return 'Kohtalainen'
@@ -553,30 +590,38 @@ function ComponentBar({ name, component }) {
     <div className="group relative flex items-center gap-4">
       {/* Label with tooltip trigger */}
       <div
-        className="w-32 text-slate-400 text-sm truncate cursor-help"
+        className={`w-32 text-sm truncate cursor-help ${isDataMissing ? 'text-slate-600' : 'text-slate-400'}`}
         title={meta.tooltip}
       >
         {meta.label}
       </div>
 
-      {/* Progress bar */}
-      <div className="flex-1 h-2 bg-slate-800 rounded-full overflow-hidden">
-        <div
-          className={`h-full rounded-full transition-all duration-300 ${
-            index >= 60 ? 'bg-emerald-500' :
-            index >= 40 ? 'bg-amber-500' : 'bg-red-500'
-          }`}
-          style={{ width: `${index || 0}%` }}
-        />
-      </div>
+      {/* Progress bar tai "Ei dataa" -tila */}
+      {isDataMissing ? (
+        <div className="flex-1 h-2 bg-slate-800/50 rounded-full overflow-hidden relative">
+          <div className="absolute inset-0 flex items-center justify-center">
+            <span className="text-slate-600 text-[10px] uppercase tracking-wider">Data puuttuu</span>
+          </div>
+        </div>
+      ) : (
+        <div className="flex-1 h-2 bg-slate-800 rounded-full overflow-hidden">
+          <div
+            className={`h-full rounded-full transition-all duration-300 ${
+              index >= 60 ? 'bg-emerald-500' :
+              index >= 40 ? 'bg-amber-500' : 'bg-red-500'
+            }`}
+            style={{ width: `${index || 0}%` }}
+          />
+        </div>
+      )}
 
       {/* Index score */}
-      <div className="w-12 text-right text-slate-300 text-sm font-medium">
-        {index?.toFixed(0) ?? '—'}
+      <div className={`w-12 text-right text-sm font-medium ${isDataMissing ? 'text-slate-600' : 'text-slate-300'}`}>
+        {isDataMissing ? '—' : (index?.toFixed(0) ?? '—')}
       </div>
 
       {/* Weight */}
-      <div className="w-16 text-right text-slate-600 text-xs">
+      <div className={`w-16 text-right text-xs ${isDataMissing ? 'text-slate-700' : 'text-slate-600'}`}>
         ({(weight * 100).toFixed(0)}%)
       </div>
 
@@ -585,9 +630,13 @@ function ComponentBar({ name, component }) {
         <div className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 shadow-xl min-w-[200px]">
           <p className="text-white text-sm font-medium mb-1">{meta.label}</p>
           <p className="text-slate-400 text-xs mb-2">{meta.tooltip}</p>
+          {isDataMissing && reason && (
+            <p className="text-amber-400/80 text-xs mb-2 italic">⚠️ {reason}</p>
+          )}
           <div className="flex justify-between items-center pt-1 border-t border-slate-700">
-            <span className="text-cyan-400 text-sm">{displayValue}</span>
+            <span className={`text-sm ${isDataMissing ? 'text-slate-500' : 'text-cyan-400'}`}>{displayValue}</span>
             <span className={`text-xs ${
+              isDataMissing ? 'text-slate-600' :
               index >= 60 ? 'text-emerald-400' :
               index >= 40 ? 'text-amber-400' : 'text-red-400'
             }`}>

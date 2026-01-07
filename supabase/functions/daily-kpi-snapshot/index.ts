@@ -209,7 +209,35 @@ async function calculateKPISnapshot(
     console.warn(`Operational metrics error (continuing): ${opError.message}`)
   }
 
-  // 2. Hae historiadata normalisointia varten
+  // 2. Data availability check - tunnista mitkä metriikat ovat luotettavia
+  const dataAvailability: Record<string, { available: boolean; reason?: string }> = {
+    revenue: { available: coreMetrics.order_count > 0 },
+    aov: { available: coreMetrics.order_count > 0 },
+    gross_profit: { available: coreMetrics.order_count > 0 },
+    repeat_rate: { available: coreMetrics.total_customers >= 5 },
+    stock: { available: coreMetrics.total_products > 0 },
+    // Dispatch ja fulfillment: tarkista onko oikeasti dataa
+    dispatch: {
+      available: opMetrics?.dispatch_rate > 0 && opMetrics?.orders_with_dispatch > 0,
+      reason: opMetrics?.dispatch_rate === 0 ? 'ePages ei palauta status-tietoja' : undefined
+    },
+    fulfillment: {
+      available: opMetrics?.avg_fulfillment_days > 0,
+      reason: opMetrics?.avg_fulfillment_days === 0 ? 'dispatched_on puuttuu tilauksista' : undefined
+    },
+    // PPI: tarkista onko cost_price oikeasti asetettu (ei oletusarvo)
+    cost_price: {
+      available: false, // TODO: tarkista tietokannasta onko cost_price != 0.6 * price
+      reason: 'Tuotteiden ostohintoja ei ole syötetty'
+    },
+    // SEO
+    seo: {
+      available: seoMetrics?.total_clicks > 0 || seoMetrics?.total_impressions > 0,
+      reason: seoMetrics?.total_clicks === 0 ? 'GSC-dataa ei ole synkronoitu' : undefined
+    }
+  }
+
+  // 2b. Hae historiadata normalisointia varten
   const { data: revenueHistory } = await supabase
     .rpc('get_history_array', { p_store_id: storeId, p_metric: 'revenue', p_days: 90 })
   const { data: aovHistory } = await supabase
@@ -263,28 +291,79 @@ async function calculateKPISnapshot(
   }
 
   // OPERATIONAL INDEX
+  // Lasketaan vain saatavilla olevien komponenttien perusteella
   let oiIndex = 50
   let oiComponents = {}
   if (opMetrics) {
     const fulfillmentIndex = Math.max(0, Math.min(100, 100 - ((opMetrics.avg_fulfillment_days - 1) * 16.67)))
     const dispatchIndex = opMetrics.dispatch_rate
 
-    oiIndex = Math.round(
-      fulfillmentIndex * 0.50 +
-      stockIndex * 0.30 +
-      dispatchIndex * 0.20
-    )
+    // Adaptiivinen laskenta: käytä vain komponentteja joilla on data
+    let totalWeight = 0
+    let weightedSum = 0
+
+    // Stock on aina saatavilla
+    weightedSum += stockIndex * 0.30
+    totalWeight += 0.30
+
+    // Fulfillment vain jos dataa on
+    if (dataAvailability.fulfillment.available) {
+      weightedSum += fulfillmentIndex * 0.50
+      totalWeight += 0.50
+    }
+
+    // Dispatch vain jos dataa on
+    if (dataAvailability.dispatch.available) {
+      weightedSum += dispatchIndex * 0.20
+      totalWeight += 0.20
+    }
+
+    // Normalisoi painotettu keskiarvo
+    oiIndex = totalWeight > 0 ? Math.round(weightedSum / totalWeight * (totalWeight / 1.0)) : stockIndex
 
     oiComponents = {
-      fulfillment: { value: opMetrics.avg_fulfillment_days, index: fulfillmentIndex, weight: 0.50 },
-      stock: { value: 100 - coreMetrics.out_of_stock_percent, index: stockIndex, weight: 0.30 },
-      dispatch_rate: { value: opMetrics.dispatch_rate, index: dispatchIndex, weight: 0.20 }
+      fulfillment: {
+        value: opMetrics.avg_fulfillment_days,
+        index: dataAvailability.fulfillment.available ? fulfillmentIndex : null,
+        weight: 0.50,
+        available: dataAvailability.fulfillment.available,
+        reason: dataAvailability.fulfillment.reason
+      },
+      stock: {
+        value: 100 - coreMetrics.out_of_stock_percent,
+        index: stockIndex,
+        weight: 0.30,
+        available: dataAvailability.stock.available
+      },
+      dispatch_rate: {
+        value: opMetrics.dispatch_rate,
+        index: dataAvailability.dispatch.available ? dispatchIndex : null,
+        weight: 0.20,
+        available: dataAvailability.dispatch.available,
+        reason: dataAvailability.dispatch.reason
+      }
     }
   }
 
   // PPI - Product Profitability (yksinkertaistettu aggregaatti)
+  // HUOM: Jos cost_price ei ole asetettu (= 0 tai puuttuu), marginaali on arvaus (60% oletuksella)
+  // Tässä tapauksessa PPI ei ole luotettava ja näytetään "Ei dataa"
+
+  // Tarkista onko cost_price data oikeasti saatavilla
+  // Jos marginaali on lähellä 40% (= 100% - 60% oletus), data on todennäköisesti arvattua
+  const isMarginEstimated = Math.abs(coreMetrics.margin_percent - 40) < 5 // 35-45% = todennäköisesti oletus
+
+  // Päivitä dataAvailability
+  dataAvailability.cost_price = {
+    available: !isMarginEstimated && coreMetrics.margin_percent > 0,
+    reason: isMarginEstimated ? 'Marginaali perustuu oletusarvoon (60% hankintahinta). Syötä tuotteiden ostohinnat tarkempaa analyysiä varten.' : undefined
+  }
+
+  // PPI: käytä oikeaa indeksiä vain jos data on saatavilla
   // Oletus: 50% marginaali = 100, rajataan 0-100
-  const ppiIndex = Math.max(0, Math.min(100, Math.round((coreMetrics.margin_percent / 50) * 100)))
+  const ppiIndex = dataAvailability.cost_price.available
+    ? Math.max(0, Math.min(100, Math.round((coreMetrics.margin_percent / 50) * 100)))
+    : 50 // Neutraali arvo jos data puuttuu
 
   // Overall
   const overallIndex = Math.round(
@@ -343,14 +422,24 @@ async function calculateKPISnapshot(
       overall_delta: deltas.overall,
       raw_metrics: { core: coreMetrics, seo: seoMetrics, operational: opMetrics },
       core_components: {
-        gross_profit: { value: coreMetrics.gross_profit, index: grossProfitIndex, weight: 0.30 },
-        aov: { value: coreMetrics.aov, index: aovIndex, weight: 0.20 },
-        repeat_rate: { value: coreMetrics.repeat_rate, index: repeatIndex, weight: 0.20 },
-        trend: { value: 0, index: trendIndex, weight: 0.20 },
-        stock: { value: 100 - coreMetrics.out_of_stock_percent, index: stockIndex, weight: 0.10 }
+        gross_profit: { value: coreMetrics.gross_profit, index: grossProfitIndex, weight: 0.30, available: dataAvailability.gross_profit.available },
+        aov: { value: coreMetrics.aov, index: aovIndex, weight: 0.20, available: dataAvailability.aov.available },
+        repeat_rate: { value: coreMetrics.repeat_rate, index: repeatIndex, weight: 0.20, available: dataAvailability.repeat_rate.available },
+        trend: { value: 0, index: trendIndex, weight: 0.20, available: true },
+        stock: { value: 100 - coreMetrics.out_of_stock_percent, index: stockIndex, weight: 0.10, available: dataAvailability.stock.available }
+      },
+      ppi_components: {
+        margin: {
+          value: coreMetrics.margin_percent,
+          index: dataAvailability.cost_price.available ? ppiIndex : null,
+          weight: 1.0,
+          available: dataAvailability.cost_price.available,
+          reason: dataAvailability.cost_price.reason
+        }
       },
       spi_components: spiComponents,
       oi_components: oiComponents,
+      data_availability: dataAvailability,
       alerts
     }, {
       onConflict: 'store_id,period_end,granularity'
