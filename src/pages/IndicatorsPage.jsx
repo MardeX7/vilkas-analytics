@@ -598,10 +598,9 @@ function ComponentBar({ name, component }) {
 
       {/* Progress bar tai "Ei dataa" -tila */}
       {isDataMissing ? (
-        <div className="flex-1 h-2 bg-slate-800/50 rounded-full overflow-hidden relative">
-          <div className="absolute inset-0 flex items-center justify-center">
-            <span className="text-slate-600 text-[10px] uppercase tracking-wider">Data puuttuu</span>
-          </div>
+        <div className="flex-1 flex items-center">
+          <div className="flex-1 h-2 bg-slate-800/30 rounded-full" style={{ backgroundImage: 'repeating-linear-gradient(90deg, transparent, transparent 4px, rgba(100,116,139,0.15) 4px, rgba(100,116,139,0.15) 8px)' }} />
+          <span className="ml-2 text-slate-600 text-xs whitespace-nowrap">Ei dataa</span>
         </div>
       ) : (
         <div className="flex-1 h-2 bg-slate-800 rounded-full overflow-hidden">
