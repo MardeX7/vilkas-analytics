@@ -450,33 +450,151 @@ function IndexDetail({ index, onClose }) {
 }
 
 /**
- * Component Bar
+ * Component metadata for tooltips and display
+ */
+const COMPONENT_META = {
+  // Core Index components
+  gross_profit: {
+    label: 'Myyntikate',
+    tooltip: 'Myyntikate euroissa. Korkeampi = parempi.',
+    valueFormat: (v) => `€${v?.toLocaleString('fi-FI') ?? '—'}`,
+    unit: '€'
+  },
+  aov: {
+    label: 'Keskitilaus',
+    tooltip: 'Keskimääräinen tilauksen arvo (AOV). Korkeampi = parempi.',
+    valueFormat: (v) => `€${v?.toFixed(0) ?? '—'}`,
+    unit: '€'
+  },
+  repeat_rate: {
+    label: 'Palautuvuus',
+    tooltip: 'Kuinka moni asiakas tilaa uudelleen samalla jaksolla.',
+    valueFormat: (v) => `${v?.toFixed(1) ?? '—'}%`,
+    unit: '%'
+  },
+  trend: {
+    label: 'Trendi',
+    tooltip: 'Myynnin kehityssuunta edelliseen jaksoon verrattuna.',
+    valueFormat: (v) => v > 0 ? `+${v?.toFixed(0)}%` : `${v?.toFixed(0) ?? '—'}%`,
+    unit: '%'
+  },
+  stock: {
+    label: 'Varastotilanne',
+    tooltip: 'Tuotteiden saatavuus. 100 = kaikki tuotteet varastossa, 0 = kaikki loppu.',
+    valueFormat: (v) => `${v?.toFixed(0) ?? '—'}% saatavilla`,
+    unit: '% saatavilla'
+  },
+  // SPI components
+  clicks_trend: {
+    label: 'Klikkauskehitys',
+    tooltip: 'Google-hakutulosten klikkausten kehitys.',
+    valueFormat: (v) => v > 0 ? `+${v?.toFixed(0)}%` : `${v?.toFixed(0) ?? '—'}%`,
+    unit: '%'
+  },
+  position: {
+    label: 'Hakusijoitus',
+    tooltip: 'Keskimääräinen sijoitus Google-hauissa. Pienempi = parempi (1 = paras).',
+    valueFormat: (v) => `#${v?.toFixed(1) ?? '—'}`,
+    unit: '#'
+  },
+  nonbrand: {
+    label: 'Non-brand',
+    tooltip: 'Kuinka suuri osa hauista ei sisällä brändinimeä. Optimi 40-70%.',
+    valueFormat: (v) => `${v?.toFixed(0) ?? '—'}%`,
+    unit: '%'
+  },
+  rising: {
+    label: 'Nousevat haut',
+    tooltip: 'Hakutermit joiden näkyvyys on kasvussa.',
+    valueFormat: (v) => `${v ?? '—'} kpl`,
+    unit: 'kpl'
+  },
+  // OI components
+  fulfillment: {
+    label: 'Toimitusaika',
+    tooltip: 'Keskimääräinen aika tilauksesta lähetykseen. Nopeampi = parempi.',
+    valueFormat: (v) => v === 0 ? 'Samana päivänä' : `${v?.toFixed(1) ?? '—'} päivää`,
+    unit: 'pv'
+  },
+  dispatch_rate: {
+    label: 'Lähetetty',
+    tooltip: 'Kuinka suuri osa tilauksista on merkitty lähetetyksi.',
+    valueFormat: (v) => `${v?.toFixed(0) ?? '—'}%`,
+    unit: '%'
+  }
+}
+
+/**
+ * Component Bar with tooltip
  */
 function ComponentBar({ name, component }) {
   if (!component) return null
 
-  const { index, weight } = component
-  const displayName = name.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
+  const { index, value, weight } = component
+  const meta = COMPONENT_META[name] || {
+    label: name.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+    tooltip: '',
+    valueFormat: (v) => v?.toFixed(1) ?? '—',
+    unit: ''
+  }
+
+  const displayValue = meta.valueFormat(value)
+
+  // Status text based on index
+  const getStatusText = (idx) => {
+    if (idx >= 80) return 'Erinomainen'
+    if (idx >= 60) return 'Hyvä'
+    if (idx >= 40) return 'Kohtalainen'
+    if (idx >= 20) return 'Heikko'
+    return 'Kriittinen'
+  }
 
   return (
-    <div className="flex items-center gap-4">
-      <div className="w-32 text-slate-400 text-sm truncate" title={displayName}>
-        {displayName}
+    <div className="group relative flex items-center gap-4">
+      {/* Label with tooltip trigger */}
+      <div
+        className="w-32 text-slate-400 text-sm truncate cursor-help"
+        title={meta.tooltip}
+      >
+        {meta.label}
       </div>
+
+      {/* Progress bar */}
       <div className="flex-1 h-2 bg-slate-800 rounded-full overflow-hidden">
         <div
-          className={`h-full rounded-full ${
+          className={`h-full rounded-full transition-all duration-300 ${
             index >= 60 ? 'bg-emerald-500' :
             index >= 40 ? 'bg-amber-500' : 'bg-red-500'
           }`}
           style={{ width: `${index || 0}%` }}
         />
       </div>
+
+      {/* Index score */}
       <div className="w-12 text-right text-slate-300 text-sm font-medium">
         {index?.toFixed(0) ?? '—'}
       </div>
+
+      {/* Weight */}
       <div className="w-16 text-right text-slate-600 text-xs">
         ({(weight * 100).toFixed(0)}%)
+      </div>
+
+      {/* Tooltip on hover */}
+      <div className="absolute left-0 bottom-full mb-2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+        <div className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 shadow-xl min-w-[200px]">
+          <p className="text-white text-sm font-medium mb-1">{meta.label}</p>
+          <p className="text-slate-400 text-xs mb-2">{meta.tooltip}</p>
+          <div className="flex justify-between items-center pt-1 border-t border-slate-700">
+            <span className="text-cyan-400 text-sm">{displayValue}</span>
+            <span className={`text-xs ${
+              index >= 60 ? 'text-emerald-400' :
+              index >= 40 ? 'text-amber-400' : 'text-red-400'
+            }`}>
+              {getStatusText(index)}
+            </span>
+          </div>
+        </div>
       </div>
     </div>
   )
