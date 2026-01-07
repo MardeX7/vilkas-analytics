@@ -788,7 +788,7 @@ function NoDataState({ onCalculate }) {
 function GrossProfitCard({ profitSummary }) {
   if (!profitSummary) return null
 
-  const { revenue, cost, grossProfit, marginPercent, currency } = profitSummary
+  const { revenue, cost, grossProfit, marginPercent, currency, period = '30 pv' } = profitSummary
 
   // Format number with space as thousand separator (Swedish style)
   const formatNumber = (num) => {
@@ -801,7 +801,7 @@ function GrossProfitCard({ profitSummary }) {
         <div className="flex items-center justify-between mb-4">
           <div>
             <p className="text-emerald-400/80 text-sm font-medium uppercase tracking-wide">
-              Myyntikate (30 pv)
+              Myyntikate ({period})
             </p>
             <div className="flex items-baseline gap-3 mt-1">
               <span className="text-4xl font-bold text-white">

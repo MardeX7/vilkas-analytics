@@ -107,9 +107,48 @@ async function fetchKPIHistory(storeId, granularity, limit = 12) {
 }
 
 /**
- * Hae myyntikatteen yhteenveto
+ * Hae myyntikatteen yhteenveto granulariteetin mukaan
  */
-async function fetchProfitSummary(storeId) {
+async function fetchProfitSummary(storeId, granularity) {
+  // For weekly granularity, get from latest snapshot's raw_metrics
+  if (granularity === 'week') {
+    const { data: snapshot, error } = await supabase
+      .from('kpi_index_snapshots')
+      .select('raw_metrics')
+      .eq('store_id', storeId)
+      .eq('granularity', 'week')
+      .order('period_end', { ascending: false })
+      .limit(1)
+      .single()
+
+    if (error || !snapshot?.raw_metrics?.profit_summary) {
+      // Fallback: calculate from raw_metrics core data
+      if (snapshot?.raw_metrics?.core) {
+        const core = snapshot.raw_metrics.core
+        return {
+          revenue: core.total_revenue || 0,
+          cost: (core.total_revenue || 0) - (core.gross_profit || 0),
+          grossProfit: core.gross_profit || 0,
+          marginPercent: core.margin_percent || 0,
+          currency: 'SEK',
+          period: '7 pv'
+        }
+      }
+      return null
+    }
+
+    const ps = snapshot.raw_metrics.profit_summary
+    return {
+      revenue: ps.revenue,
+      cost: ps.cost,
+      grossProfit: ps.gross_profit,
+      marginPercent: ps.margin_percent,
+      currency: 'SEK',
+      period: '7 pv'
+    }
+  }
+
+  // For monthly granularity, use product_profitability table
   const { data, error } = await supabase
     .from('product_profitability')
     .select('revenue, cost, gross_profit')
@@ -132,7 +171,8 @@ async function fetchProfitSummary(storeId) {
     cost: totalCost,
     grossProfit: totalGrossProfit,
     marginPercent,
-    currency: 'SEK'
+    currency: 'SEK',
+    period: '30 pv'
   }
 }
 
@@ -255,12 +295,12 @@ export function useKPIDashboard({
     enabled: !!dashboard
   })
 
-  // Profit Summary query (myyntikate yhteenveto)
+  // Profit Summary query (myyntikate yhteenveto) - follows granularity
   const {
     data: profitSummary
   } = useQuery({
-    queryKey: ['kpi-profit-summary', storeId],
-    queryFn: () => fetchProfitSummary(storeId),
+    queryKey: ['kpi-profit-summary', storeId, granularity],
+    queryFn: () => fetchProfitSummary(storeId, granularity),
     staleTime: 10 * 60 * 1000,
     cacheTime: 60 * 60 * 1000,
     enabled: !!dashboard
