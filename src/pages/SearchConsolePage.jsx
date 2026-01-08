@@ -43,6 +43,12 @@ export function SearchConsolePage() {
     deviceBreakdown,
     countryBreakdown,
     summary,
+    keywordBuckets,
+    totalUniqueKeywords,
+    page1Keywords,
+    previousKeywordBuckets,
+    previousTotalUniqueKeywords,
+    previousPage1Keywords,
     previousDailySummary,
     previousSummary,
     comparisonEnabled,
@@ -71,6 +77,14 @@ export function SearchConsolePage() {
   // For position, lower is better, so invert the comparison
   const positionChange = comparisonEnabled && previousSummary
     ? getChangePercent(previousSummary.avgPosition, summary?.avgPosition)
+    : null
+
+  // Keyword stats changes
+  const totalKeywordsChange = comparisonEnabled && previousTotalUniqueKeywords
+    ? getChangePercent(totalUniqueKeywords, previousTotalUniqueKeywords)
+    : null
+  const page1KeywordsChange = comparisonEnabled && previousPage1Keywords
+    ? getChangePercent(page1Keywords, previousPage1Keywords)
     : null
 
   const handleSync = async () => {
@@ -162,7 +176,7 @@ export function SearchConsolePage() {
         ) : (
           <>
             {/* KPI Cards */}
-            <MetricCardGroup columns={4} className="mb-8">
+            <MetricCardGroup columns={4} className="mb-6">
               <MetricCard
                 label={t('gsc.clicks')}
                 value={summary?.totalClicks || 0}
@@ -188,6 +202,76 @@ export function SearchConsolePage() {
                 deltaLabel={comparisonEnabled ? comparisonMode.toUpperCase() : undefined}
                 invertDelta={true}
               />
+            </MetricCardGroup>
+
+            {/* Keyword Stats */}
+            <MetricCardGroup columns={3} className="mb-8">
+              <MetricCard
+                label={t('gsc.totalKeywords')}
+                value={totalUniqueKeywords}
+                delta={totalKeywordsChange}
+                deltaLabel={comparisonEnabled ? comparisonMode.toUpperCase() : undefined}
+              />
+              <MetricCard
+                label={t('gsc.page1Keywords')}
+                value={page1Keywords}
+                subtitle={totalUniqueKeywords > 0 ? `${((page1Keywords / totalUniqueKeywords) * 100).toFixed(0)}% ${t('gsc.ofTotal')}` : undefined}
+                delta={page1KeywordsChange}
+                deltaLabel={comparisonEnabled ? comparisonMode.toUpperCase() : undefined}
+              />
+              <div className="bg-background-elevated rounded-xl p-5 border border-border">
+                <h3 className="text-sm font-medium text-foreground-muted mb-3">{t('gsc.rankingDistribution')}</h3>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-foreground">Top 3</span>
+                    <div className="flex items-center gap-2">
+                      <div className="w-24 h-2 bg-background-subtle rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-green-500 rounded-full"
+                          style={{ width: `${totalUniqueKeywords > 0 ? (keywordBuckets.top3 / totalUniqueKeywords) * 100 : 0}%` }}
+                        />
+                      </div>
+                      <span className="text-sm font-medium text-foreground w-8 text-right">{keywordBuckets.top3}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-foreground">4-10</span>
+                    <div className="flex items-center gap-2">
+                      <div className="w-24 h-2 bg-background-subtle rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-blue-500 rounded-full"
+                          style={{ width: `${totalUniqueKeywords > 0 ? (keywordBuckets.top10 / totalUniqueKeywords) * 100 : 0}%` }}
+                        />
+                      </div>
+                      <span className="text-sm font-medium text-foreground w-8 text-right">{keywordBuckets.top10}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-foreground">11-20</span>
+                    <div className="flex items-center gap-2">
+                      <div className="w-24 h-2 bg-background-subtle rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-yellow-500 rounded-full"
+                          style={{ width: `${totalUniqueKeywords > 0 ? (keywordBuckets.top20 / totalUniqueKeywords) * 100 : 0}%` }}
+                        />
+                      </div>
+                      <span className="text-sm font-medium text-foreground w-8 text-right">{keywordBuckets.top20}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-foreground">20+</span>
+                    <div className="flex items-center gap-2">
+                      <div className="w-24 h-2 bg-background-subtle rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-red-400 rounded-full"
+                          style={{ width: `${totalUniqueKeywords > 0 ? (keywordBuckets.beyond20 / totalUniqueKeywords) * 100 : 0}%` }}
+                        />
+                      </div>
+                      <span className="text-sm font-medium text-foreground w-8 text-right">{keywordBuckets.beyond20}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </MetricCardGroup>
 
             {dailySummary.length > 0 ? (

@@ -5,7 +5,7 @@ import { useAuth } from '@/contexts/AuthContext'
 
 export function Sidebar() {
   const { t, language, toggleLanguage } = useTranslation()
-  const { currentShop, user, logout, isAdmin } = useAuth()
+  const { user, logout, isAdmin } = useAuth()
 
   const navItems = [
     { to: '/', icon: BarChart3, label: t('nav.dashboard') },
@@ -19,8 +19,8 @@ export function Sidebar() {
     <aside className="fixed left-0 top-0 h-screen w-64 bg-background-elevated border-r border-border flex flex-col z-20">
       {/* Logo */}
       <div className="p-6 border-b border-border">
-        <h1 className="text-xl font-bold text-foreground">Vilkas Analytics</h1>
-        <p className="text-foreground-subtle text-xs mt-1">{currentShop?.shop_name || 'Billackering'}</p>
+        <h1 className="text-xl font-bold text-foreground">Billackering.eu</h1>
+        <p className="text-foreground-subtle text-xs mt-1">Analytics Agent</p>
       </div>
 
       {/* Navigation */}

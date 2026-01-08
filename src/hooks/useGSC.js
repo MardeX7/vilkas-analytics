@@ -15,6 +15,14 @@ export function useGSC(dateRange = null, comparisonMode = 'mom') {
     deviceBreakdown: [],
     countryBreakdown: [],
     summary: null,
+    // SEO KPIs
+    keywordBuckets: { top3: 0, top10: 0, top20: 0, beyond20: 0 },
+    totalUniqueKeywords: 0,
+    page1Keywords: 0,
+    // Previous period keyword data
+    previousKeywordBuckets: { top3: 0, top10: 0, top20: 0, beyond20: 0 },
+    previousTotalUniqueKeywords: 0,
+    previousPage1Keywords: 0,
     // Comparison data
     previousDailySummary: [],
     previousSummary: null,
@@ -178,10 +186,43 @@ export function useGSC(dateRange = null, comparisonMode = 'mom') {
       const avgCtr = totalImpressions > 0 ? totalClicks / totalImpressions : 0
       const avgPosition = dailySummary.reduce((sum, d) => sum + (d.avg_position || 0), 0) / Math.max(dailySummary.length, 1)
 
+      // Calculate Keyword Ranking Buckets (unique keywords by position)
+      const uniqueKeywordPositions = new Map()
+      queriesRes.data?.forEach(row => {
+        if (row.query) {
+          // Keep the best (lowest) position for each keyword
+          const current = uniqueKeywordPositions.get(row.query)
+          if (!current || row.position < current) {
+            uniqueKeywordPositions.set(row.query, row.position)
+          }
+        }
+      })
+
+      const totalUniqueKeywords = uniqueKeywordPositions.size
+      const keywordBuckets = {
+        top3: 0,
+        top10: 0,
+        top20: 0,
+        beyond20: 0
+      }
+
+      uniqueKeywordPositions.forEach((position) => {
+        if (position <= 3) keywordBuckets.top3++
+        else if (position <= 10) keywordBuckets.top10++
+        else if (position <= 20) keywordBuckets.top20++
+        else keywordBuckets.beyond20++
+      })
+
+      // Page 1 keywords = positions 1-10 (top3 + top10)
+      const page1Keywords = keywordBuckets.top3 + keywordBuckets.top10
+
       // Fetch comparison data based on comparisonMode (MoM or YoY)
       let previousDailySummary = []
       let previousSummary = null
       let comparisonEnabled = false
+      let previousKeywordBuckets = { top3: 0, top10: 0, top20: 0, beyond20: 0 }
+      let previousTotalUniqueKeywords = 0
+      let previousPage1Keywords = 0
 
       // Calculate comparison date range based on mode
       if (startDate && endDate) {
@@ -232,6 +273,35 @@ export function useGSC(dateRange = null, comparisonMode = 'mom') {
             avgCtr: prevAvgCtr,
             avgPosition: prevAvgPosition
           }
+
+          // Fetch previous period keyword data for comparison
+          const prevQueriesQuery = await supabase
+            .from('gsc_search_analytics')
+            .select('query, position')
+            .eq('store_id', STORE_ID)
+            .not('query', 'is', null)
+            .gte('date', prevStart)
+            .lte('date', prevEnd)
+
+          // Calculate previous keyword buckets
+          const prevUniqueKeywordPositions = new Map()
+          prevQueriesQuery.data?.forEach(row => {
+            if (row.query) {
+              const current = prevUniqueKeywordPositions.get(row.query)
+              if (!current || row.position < current) {
+                prevUniqueKeywordPositions.set(row.query, row.position)
+              }
+            }
+          })
+
+          previousTotalUniqueKeywords = prevUniqueKeywordPositions.size
+          prevUniqueKeywordPositions.forEach((position) => {
+            if (position <= 3) previousKeywordBuckets.top3++
+            else if (position <= 10) previousKeywordBuckets.top10++
+            else if (position <= 20) previousKeywordBuckets.top20++
+            else previousKeywordBuckets.beyond20++
+          })
+          previousPage1Keywords = previousKeywordBuckets.top3 + previousKeywordBuckets.top10
         }
       }
 
@@ -247,6 +317,14 @@ export function useGSC(dateRange = null, comparisonMode = 'mom') {
           avgCtr,
           avgPosition
         },
+        // New SEO KPIs
+        keywordBuckets,
+        totalUniqueKeywords,
+        page1Keywords,
+        // Previous period keyword data
+        previousKeywordBuckets,
+        previousTotalUniqueKeywords,
+        previousPage1Keywords,
         previousDailySummary,
         previousSummary,
         comparisonEnabled,

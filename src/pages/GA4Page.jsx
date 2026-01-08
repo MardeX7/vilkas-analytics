@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react'
 import { useGA4 } from '@/hooks/useGA4'
+import { useGA4Ecommerce } from '@/hooks/useGA4Ecommerce'
 import { MetricCard, MetricCardGroup } from '@/components/MetricCard'
 import { DateRangePicker, getDateRange, formatDateISO } from '@/components/DateRangePicker'
 import { Button } from '@/components/ui/button'
@@ -16,7 +17,11 @@ import {
   Globe,
   Loader2,
   ArrowUpRight,
-  ArrowDownRight
+  ArrowDownRight,
+  ShoppingCart,
+  Package,
+  Eye,
+  AlertTriangle
 } from 'lucide-react'
 
 // Helper to create default date range
@@ -65,6 +70,7 @@ export function GA4Page() {
     dailySummary = [],
     trafficSources = [],
     landingPages = [],
+    deviceBreakdown = [],
     summary,
     previousSummary,
     comparisonEnabled,
@@ -76,6 +82,16 @@ export function GA4Page() {
     error,
     refresh
   } = useGA4(dateRange, comparisonMode)
+
+  // E-commerce data
+  const {
+    topProducts = [],
+    productFunnel,
+    lowConversionProducts = [],
+    highPerformers = [],
+    loading: ecommerceLoading,
+    syncEcommerce
+  } = useGA4Ecommerce(dateRange)
 
   // Calculate change percentages
   const getChangePercent = (current, previous) => {
@@ -93,11 +109,21 @@ export function GA4Page() {
   const durationChange = comparisonEnabled && previousSummary
     ? getChangePercent(summary?.avgSessionDuration, previousSummary.avgSessionDuration)
     : null
+  const usersChange = comparisonEnabled && previousSummary
+    ? getChangePercent(summary?.totalUsers, previousSummary.totalUsers)
+    : null
+  const newUsersChange = comparisonEnabled && previousSummary
+    ? getChangePercent(summary?.totalNewUsers, previousSummary.totalNewUsers)
+    : null
 
   const handleSync = async () => {
     setSyncing(true)
     try {
-      await syncGA4(dateRange.startDate, dateRange.endDate)
+      // Sync both behavioral and e-commerce data in parallel
+      await Promise.all([
+        syncGA4(dateRange.startDate, dateRange.endDate),
+        syncEcommerce(dateRange.startDate, dateRange.endDate)
+      ])
       await refresh()
     } catch (err) {
       console.error('Sync failed:', err)
@@ -220,8 +246,8 @@ export function GA4Page() {
           </div>
         ) : (
           <div className="space-y-6">
-            {/* KPI Cards */}
-            <MetricCardGroup columns={4} className="mb-8">
+            {/* KPI Cards - Row 1: Traffic */}
+            <MetricCardGroup columns={4} className="mb-6">
               <MetricCard
                 label={t('ga4.sessions')}
                 value={summary?.totalSessions || 0}
@@ -229,8 +255,16 @@ export function GA4Page() {
                 deltaLabel={comparisonEnabled ? comparisonMode.toUpperCase() : undefined}
               />
               <MetricCard
-                label={t('ga4.engagedSessions')}
-                value={summary?.totalEngagedSessions || 0}
+                label={t('ga4.users')}
+                value={summary?.totalUsers || 0}
+                delta={usersChange}
+                deltaLabel={comparisonEnabled ? comparisonMode.toUpperCase() : undefined}
+              />
+              <MetricCard
+                label={t('ga4.newUsers')}
+                value={summary?.totalNewUsers || 0}
+                delta={newUsersChange}
+                deltaLabel={comparisonEnabled ? comparisonMode.toUpperCase() : undefined}
               />
               <MetricCard
                 label={t('ga4.bounceRate')}
@@ -239,12 +273,45 @@ export function GA4Page() {
                 deltaLabel={comparisonEnabled ? comparisonMode.toUpperCase() : undefined}
                 invertDelta={true}
               />
+            </MetricCardGroup>
+
+            {/* KPI Cards - Row 2: Engagement */}
+            <MetricCardGroup columns={4} className="mb-8">
+              <MetricCard
+                label={t('ga4.engagedSessions')}
+                value={summary?.totalEngagedSessions || 0}
+                subtitle={summary?.totalSessions > 0 ? `${((summary.totalEngagedSessions / summary.totalSessions) * 100).toFixed(0)}% ${t('gsc.ofTotal')}` : undefined}
+              />
               <MetricCard
                 label={t('ga4.avgSessionDuration')}
                 value={formatDuration(summary?.avgSessionDuration || 0)}
                 delta={durationChange}
                 deltaLabel={comparisonEnabled ? comparisonMode.toUpperCase() : undefined}
               />
+              <MetricCard
+                label={t('ga4.returningUsers')}
+                value={summary?.totalReturningUsers || 0}
+                subtitle={summary?.totalUsers > 0 ? `${((summary.totalReturningUsers / summary.totalUsers) * 100).toFixed(0)}% ${t('gsc.ofTotal')}` : undefined}
+              />
+              <div className="bg-background-elevated rounded-xl p-5 border border-border">
+                <h3 className="text-sm font-medium text-foreground-muted mb-3">{t('ga4.deviceBreakdown')}</h3>
+                <div className="space-y-2">
+                  {deviceBreakdown.map((device) => (
+                    <div key={device.device} className="flex items-center justify-between">
+                      <span className="text-sm text-foreground">{device.device}</span>
+                      <div className="flex items-center gap-2">
+                        <div className="w-16 h-2 bg-background-subtle rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-primary rounded-full"
+                            style={{ width: `${device.percentage}%` }}
+                          />
+                        </div>
+                        <span className="text-sm font-medium text-foreground w-10 text-right">{device.percentage}%</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </MetricCardGroup>
 
             {/* Traffic Sources & Landing Pages */}
@@ -288,11 +355,22 @@ export function GA4Page() {
 
               {/* Landing Pages */}
               <div className="bg-background-elevated rounded-lg border border-card-border p-5">
-                <h3 className="text-base font-medium text-foreground mb-4 flex items-center gap-2">
-                  <Link2 className="w-5 h-5 text-primary" />
-                  {t('ga4.landingPages')}
-                </h3>
-                <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                <div className="mb-4">
+                  <h3 className="text-base font-medium text-foreground flex items-center gap-2">
+                    <Link2 className="w-5 h-5 text-primary" />
+                    {t('ga4.landingPages')}
+                  </h3>
+                  <p className="text-xs text-foreground-muted mt-1">{t('ga4.landingPagesSubtitle')}</p>
+                </div>
+                {/* Column headers */}
+                <div className="flex items-center justify-between pb-2 mb-2 border-b border-border text-xs text-foreground-muted">
+                  <span>{t('gsc.page')}</span>
+                  <div className="flex items-center gap-4">
+                    <span className="w-16 text-right">{t('ga4.bounceRate')}</span>
+                    <span className="w-16 text-right">{t('ga4.sessions')}</span>
+                  </div>
+                </div>
+                <div className="space-y-2 max-h-[360px] overflow-y-auto">
                   {landingPages.map((page, i) => {
                     const bounceHigh = page.bounce_rate > 0.5
                     return (
@@ -306,7 +384,7 @@ export function GA4Page() {
                           </p>
                         </div>
                         <div className="flex items-center gap-4 flex-shrink-0">
-                          <div className={`flex items-center gap-1 text-sm ${bounceHigh ? 'text-destructive' : 'text-success'}`}>
+                          <div className={`flex items-center gap-1 text-sm w-16 justify-end ${bounceHigh ? 'text-destructive' : 'text-success'}`}>
                             {bounceHigh ? (
                               <ArrowUpRight className="w-3 h-3" />
                             ) : (
@@ -363,6 +441,154 @@ export function GA4Page() {
                 )}
               </div>
             </div>
+
+            {/* E-commerce Section */}
+            {topProducts.length > 0 && (
+              <>
+                {/* E-commerce Funnel KPIs */}
+                <div className="mt-8">
+                  <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
+                    <ShoppingCart className="w-5 h-5 text-primary" />
+                    {t('ga4.ecommerce.title')}
+                  </h2>
+                  <MetricCardGroup columns={4} className="mb-6">
+                    <MetricCard
+                      label={t('ga4.ecommerce.itemsViewed')}
+                      value={productFunnel?.totalViews?.toLocaleString() || 0}
+                    />
+                    <MetricCard
+                      label={t('ga4.ecommerce.addedToCart')}
+                      value={productFunnel?.totalAddToCart?.toLocaleString() || 0}
+                      subtitle={productFunnel?.totalViews > 0 ? `${((productFunnel.viewToCartRate) * 100).toFixed(1)}% ${t('ga4.ecommerce.conversionRate')}` : undefined}
+                    />
+                    <MetricCard
+                      label={t('ga4.ecommerce.purchased')}
+                      value={productFunnel?.totalPurchased?.toLocaleString() || 0}
+                      subtitle={productFunnel?.totalAddToCart > 0 ? `${((productFunnel.cartToPurchaseRate) * 100).toFixed(1)}% ${t('ga4.ecommerce.conversionRate')}` : undefined}
+                    />
+                    <MetricCard
+                      label={t('ga4.ecommerce.revenue')}
+                      value={`kr${(productFunnel?.totalRevenue || 0).toLocaleString('sv-SE', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`}
+                    />
+                  </MetricCardGroup>
+                </div>
+
+                {/* Top Products & Problem Products */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Top Products by Views */}
+                  <div className="bg-background-elevated rounded-lg border border-card-border p-5">
+                    <div className="mb-4">
+                      <h3 className="text-base font-medium text-foreground flex items-center gap-2">
+                        <Eye className="w-5 h-5 text-primary" />
+                        {t('ga4.ecommerce.topProducts')}
+                      </h3>
+                      <p className="text-xs text-foreground-muted mt-1">{t('ga4.ecommerce.topProductsDesc')}</p>
+                    </div>
+                    {/* Column headers */}
+                    <div className="flex items-center justify-between pb-2 mb-2 border-b border-border text-xs text-foreground-muted">
+                      <span>{t('ga4.ecommerce.product')}</span>
+                      <div className="flex items-center gap-3">
+                        <span className="w-14 text-right">{t('ga4.ecommerce.views')}</span>
+                        <span className="w-14 text-right">{t('ga4.ecommerce.cart')}</span>
+                        <span className="w-14 text-right">{t('ga4.ecommerce.sold')}</span>
+                      </div>
+                    </div>
+                    <div className="space-y-2 max-h-[320px] overflow-y-auto">
+                      {topProducts.slice(0, 15).map((product, i) => (
+                        <div
+                          key={i}
+                          className="flex items-center justify-between py-2 border-b border-border last:border-0"
+                        >
+                          <div className="flex-1 min-w-0 pr-3">
+                            <p className="text-sm text-foreground truncate" title={product.item_name}>
+                              {product.item_name}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-3 flex-shrink-0">
+                            <span className="text-sm text-foreground-muted w-14 text-right tabular-nums">
+                              {product.items_viewed.toLocaleString()}
+                            </span>
+                            <span className="text-sm text-foreground-muted w-14 text-right tabular-nums">
+                              {product.items_added_to_cart.toLocaleString()}
+                            </span>
+                            <span className="text-sm font-medium text-foreground w-14 text-right tabular-nums">
+                              {product.items_purchased.toLocaleString()}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Low Conversion Products */}
+                  <div className="bg-background-elevated rounded-lg border border-card-border p-5">
+                    <div className="mb-4">
+                      <h3 className="text-base font-medium text-foreground flex items-center gap-2">
+                        <AlertTriangle className="w-5 h-5 text-warning" />
+                        {t('ga4.ecommerce.lowConversion')}
+                      </h3>
+                      <p className="text-xs text-foreground-muted mt-1">{t('ga4.ecommerce.lowConversionDesc')}</p>
+                    </div>
+                    {lowConversionProducts.length > 0 ? (
+                      <>
+                        {/* Column headers */}
+                        <div className="flex items-center justify-between pb-2 mb-2 border-b border-border text-xs text-foreground-muted">
+                          <span>{t('ga4.ecommerce.product')}</span>
+                          <div className="flex items-center gap-3">
+                            <span className="w-14 text-right">{t('ga4.ecommerce.views')}</span>
+                            <span className="w-16 text-right">{t('ga4.ecommerce.cartRate')}</span>
+                          </div>
+                        </div>
+                        <div className="space-y-2 max-h-[320px] overflow-y-auto">
+                          {lowConversionProducts.map((product, i) => (
+                            <div
+                              key={i}
+                              className="flex items-center justify-between py-2 border-b border-border last:border-0"
+                            >
+                              <div className="flex-1 min-w-0 pr-3">
+                                <p className="text-sm text-foreground truncate" title={product.item_name}>
+                                  {product.item_name}
+                                </p>
+                              </div>
+                              <div className="flex items-center gap-3 flex-shrink-0">
+                                <span className="text-sm text-foreground-muted w-14 text-right tabular-nums">
+                                  {product.items_viewed.toLocaleString()}
+                                </span>
+                                <span className="text-sm font-medium text-destructive w-16 text-right tabular-nums">
+                                  {(product.view_to_cart_rate * 100).toFixed(1)}%
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </>
+                    ) : (
+                      <div className="py-8 text-center text-foreground-muted text-sm">
+                        {t('ga4.ecommerce.noLowConversion')}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* E-commerce empty state */}
+            {topProducts.length === 0 && !ecommerceLoading && (
+              <div className="mt-8 bg-background-elevated rounded-lg border border-card-border p-8 text-center">
+                <ShoppingCart className="w-12 h-12 text-foreground-muted mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-foreground mb-2">{t('ga4.ecommerce.noData')}</h3>
+                <p className="text-foreground-muted text-sm mb-4">{t('ga4.ecommerce.noDataDesc')}</p>
+                <Button
+                  variant="outline"
+                  onClick={() => syncEcommerce(dateRange.startDate, dateRange.endDate)}
+                  disabled={syncing}
+                  className="bg-background-subtle border-border"
+                >
+                  <RefreshCw className={`w-4 h-4 mr-2 ${syncing ? 'animate-spin' : ''}`} />
+                  {t('ga4.ecommerce.syncNow')}
+                </Button>
+              </div>
+            )}
           </div>
         )}
       </main>
