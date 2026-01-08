@@ -237,5 +237,270 @@
     "title": "Kieli",
     "fi": "Suomi",
     "sv": "Ruotsi"
+  },
+  "dashboard": {
+    "title": "Myynti",
+    "subtitle": "Reaaliaikainen analytiikka verkkokaupallesi",
+    "compare": "Vertaa",
+    "showingDataFor": "Näytetään data:",
+    "metrics": {
+      "sales": "Myynti",
+      "grossMargin": "Myyntikate",
+      "orders": "Tilauksia",
+      "avgOrderValue": "Keskitilaus",
+      "conversion": "Konversio",
+      "uniqueCustomers": "Uniikkia asiakasta",
+      "returningCustomers": "Palaavia asiakkaita",
+      "sessions": "Sessiot",
+      "bounceRate": "Poistumis-%",
+      "productsPerOrder": "Tuotteita/tilaus",
+      "avgPerDay": "Keskiarvo/pv",
+      "shippingCost": "Toimituskulut",
+      "discounts": "Alennukset",
+      "cancelled": "Peruutetut"
+    },
+    "connectGA4": "Yhdistä GA4",
+    "vsPrevious": "vs edellinen"
+  },
+  "datePicker": {
+    "selectPeriod": "Valitse jakso",
+    "quickSelect": "Pikavalinnat",
+    "comparisonPeriod": "Vertailujakso",
+    "previousPeriod": "Edellinen jakso",
+    "lastYear": "Viime vuosi (YoY)",
+    "presets": {
+      "today": "Tänään",
+      "yesterday": "Eilen",
+      "last7": "Viimeiset 7 päivää",
+      "last14": "Viimeiset 14 päivää",
+      "last28": "Viimeiset 28 päivää",
+      "last30": "Viimeiset 30 päivää",
+      "thisMonth": "Tämä kuukausi",
+      "lastMonth": "Viime kuukausi",
+      "last90": "Viimeiset 90 päivää"
+    }
+  },
+  "charts": {
+    "dailySales": "Päivittäinen myynti",
+    "salesByWeekday": "Myynti viikonpäivittäin",
+    "salesByHour": "Myynti tunneittain",
+    "topProducts": "Myydyimmät tuotteet",
+    "topCategories": "Suosituimmat kategoriat",
+    "paymentMethods": "Maksutavat",
+    "shippingMethods": "Toimitustavat",
+    "noHistory": "Ei historiaa",
+    "current": "Nykyinen",
+    "previous": "Edellinen",
+    "currentPeriod": "Nykyinen jakso",
+    "previousPeriod": "Edellinen jakso",
+    "sales": "Myynti",
+    "pcs": "kpl",
+    "index": "Indeksi",
+    "moreCategories": "kategoriaa lisää",
+    "legend": {
+      "excellent": "Erinomainen",
+      "good": "Hyvä",
+      "ok": "OK",
+      "weak": "Heikko",
+      "critical": "Kriittinen"
+    }
+  },
+  "weekdays": {
+    "sunday": "Sunnuntai",
+    "monday": "Maanantai",
+    "tuesday": "Tiistai",
+    "wednesday": "Keskiviikko",
+    "thursday": "Torstai",
+    "friday": "Perjantai",
+    "saturday": "Lauantai"
+  },
+  "gsc": {
+    "title": "Google Search Console",
+    "subtitle": "SEO-suorituskyky ja hakudata",
+    "notConnected": "GSC ei yhdistetty",
+    "connectDescription": "Yhdistä Google Search Console nähdäksesi SEO-datan",
+    "connect": "Yhdistä GSC",
+    "clicks": "Klikkaukset",
+    "impressions": "Näyttökerrat",
+    "avgPosition": "Keskisijoitus",
+    "ctr": "CTR",
+    "topQueries": "Suosituimmat haut",
+    "topPages": "Suosituimmat sivut",
+    "query": "Hakutermi",
+    "page": "Sivu",
+    "position": "Sijoitus",
+    "syncData": "Synkronoi data",
+    "syncDataNow": "Synkronoi nyt",
+    "noData": "Ei dataa vielä",
+    "noDataDescription": "Klikkaa 'Synkronoi data' hakeaksesi datan Google Search Consolesta.",
+    "deviceBreakdown": "Laitejakauma",
+    "countries": "Maat"
+  },
+  "ga4": {
+    "title": "Google Analytics",
+    "subtitle": "Verkkosivuanalytiikka ja käyttäytymisdata",
+    "notConnected": "GA4 ei yhdistetty",
+    "connectTitle": "Yhdistä Google Analytics",
+    "connectDescription": "Yhdistä GA4-tilisi nähdäksesi liikennedatan, poistumisprosentin ja laskeutumissivut.",
+    "connect": "Yhdistä GA4",
+    "sessions": "Sessiot",
+    "engagedSessions": "Sitoutuneet sessiot",
+    "users": "Käyttäjät",
+    "newUsers": "Uudet käyttäjät",
+    "bounceRate": "Poistumis-%",
+    "bounceShort": "poist.",
+    "avgSessionDuration": "Keskisessioaika",
+    "trafficSources": "Liikennelähteet",
+    "landingPages": "Laskeutumissivut",
+    "homePage": "Etusivu",
+    "dailyTraffic": "Päivittäinen liikenne",
+    "noDataForPeriod": "Ei dataa valitulle jaksolle",
+    "tryAgain": "Yritä uudelleen",
+    "source": "Lähde",
+    "medium": "Media"
+  },
+  "insights": {
+    "title": "Analyysit",
+    "subtitle": "AI-generoidut näkemykset ja suositukset",
+    "noInsights": "Ei analyyseja vielä saatavilla",
+    "generating": "Generoidaan analyyseja...",
+    "comingSoon": "Tulossa pian",
+    "comingSoonDescription": "Tekoälypohjaiset analyysit ja toimenpidesuositukset verkkokauppasi datasta.",
+    "conversion": "Konversio-optimointi",
+    "conversionDesc": "Tunnista pullonkaulat ja paranna konversiota",
+    "opportunities": "Kasvumahdollisuudet",
+    "opportunitiesDesc": "Löydä piilossa olevat kasvumahdollisuudet",
+    "trends": "Trendianalyysit",
+    "trendsDesc": "Seuraa markkinatrendejä ja ennakoi muutoksia"
+  },
+  "kpi": {
+    "title": "KPI Dashboard",
+    "subtitle": "Liiketoiminnan indeksit viikko/kuukausitasolla",
+    "loading": "Ladataan indeksejä...",
+    "overallIndex": "Kokonaisindeksi",
+    "granularity": {
+      "week": "Viikko",
+      "month": "Kuukausi"
+    },
+    "weeksCount": "52 viikkoa",
+    "monthsCount": "12 kuukautta",
+    "index": "Indeksi",
+    "alerts": {
+      "count": "{{count}} hälytystä vaatii huomiota",
+      "more": "+{{count}} muuta"
+    },
+    "noData": {
+      "title": "KPI-indeksit eivät ole vielä valmiita",
+      "description": "Laske ensimmäiset indeksit käynnistämällä KPI-laskenta. Tämä voi kestää muutaman sekunnin.",
+      "button": "Laske KPI-indeksit",
+      "calculating": "Lasketaan..."
+    },
+    "detail": {
+      "close": "Sulje",
+      "components": "Komponentit",
+      "noComponents": "Komponenttitiedot eivät ole vielä saatavilla.",
+      "missingData": {
+        "title": "{{missing}}/{{total}} komponenttia ilman dataa",
+        "description": "Indeksi lasketaan vain saatavilla olevien komponenttien perusteella. Puuttuvat mittarit eivät vaikuta tulokseen negatiivisesti."
+      }
+    },
+    "products": {
+      "topDrivers": "Top Profit Drivers",
+      "topDriversDesc": "Kannattavimmat tuotteet",
+      "capitalTraps": "Capital Traps",
+      "capitalTrapsDesc": "Tuotteet joissa pääoma jumissa",
+      "noData": "Ei dataa vielä saatavilla.",
+      "points": "pts",
+      "days": "pv"
+    },
+    "period": {
+      "label": "Jakso",
+      "calculated": "Laskettu"
+    },
+    "profit": {
+      "title": "Myyntikate",
+      "salesNet": "Myynti (netto)",
+      "purchasesNet": "Ostot (netto)",
+      "grossMargin": "Myyntikate",
+      "marginPercent": "kate-%",
+      "vsLastYear": "vs viime vuosi",
+      "lastYearSamePeriod": "Viime vuosi sama periodi"
+    },
+    "components": {
+      "gross_profit": {
+        "label": "Myyntikate",
+        "tooltip": "Myyntikate euroissa. Korkeampi = parempi."
+      },
+      "aov": {
+        "label": "Keskitilaus",
+        "tooltip": "Keskimääräinen tilauksen arvo (AOV). Korkeampi = parempi."
+      },
+      "repeat_rate": {
+        "label": "Palautuvuus",
+        "tooltip": "Kuinka moni asiakas tilaa uudelleen samalla jaksolla."
+      },
+      "trend": {
+        "label": "Trendi",
+        "tooltip": "Myynnin kehityssuunta edelliseen jaksoon verrattuna."
+      },
+      "stock": {
+        "label": "Varastotilanne",
+        "tooltip": "Tuotteiden saatavuus. 100 = kaikki tuotteet varastossa, 0 = kaikki loppu.",
+        "unit": "% saatavilla"
+      },
+      "clicks_trend": {
+        "label": "Klikkauskehitys",
+        "tooltip": "Google-hakutulosten klikkausten kehitys."
+      },
+      "position": {
+        "label": "Hakusijoitus",
+        "tooltip": "Keskimääräinen sijoitus Google-hauissa. Pienempi = parempi (1 = paras)."
+      },
+      "nonbrand": {
+        "label": "Non-brand",
+        "tooltip": "Kuinka suuri osa hauista ei sisällä brändinimeä. Optimi 40-70%."
+      },
+      "rising": {
+        "label": "Nousevat haut",
+        "tooltip": "Hakutermit joiden näkyvyys on kasvussa.",
+        "unit": "kpl"
+      },
+      "fulfillment": {
+        "label": "Toimitusaika",
+        "tooltip": "Keskimääräinen aika tilauksesta lähetykseen. Nopeampi = parempi.",
+        "unit": "päivää"
+      },
+      "dispatch_rate": {
+        "label": "Lähetetty",
+        "tooltip": "Kuinka suuri osa tilauksista on merkitty lähetetyksi."
+      },
+      "margin": {
+        "label": "Myyntikate",
+        "tooltip": "Keskimääräinen myyntikate-%. Vaatii tuotteiden ostohintojen syöttämisen (cost_price)."
+      },
+      "noData": "Ei dataa"
+    },
+    "status": {
+      "excellent": "Erinomainen",
+      "good": "Hyvä",
+      "fair": "Kohtalainen",
+      "poor": "Heikko",
+      "critical": "Kriittinen",
+      "noData": "Ei dataa"
+    },
+    "indexes": {
+      "overall": "Kokonaisindeksi",
+      "core": "Core Index",
+      "ppi": "Product Profitability",
+      "spi": "SEO Performance",
+      "oi": "Operational Index"
+    },
+    "navigation": {
+      "previous": "Edellinen",
+      "next": "Seuraava",
+      "latest": "Uusin",
+      "weekNumber": "Viikko {{week}}",
+      "monthName": "{{month}} {{year}}"
+    }
   }
 }

@@ -1,12 +1,14 @@
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
+import { useTranslation } from '@/lib/i18n'
 
 export function TopProducts({ products }) {
+  const { t, locale } = useTranslation()
   const maxRevenue = Math.max(...products.map(p => p.total_revenue || 0))
 
   return (
     <Card className="bg-background-elevated border-card-border">
       <CardHeader className="pb-2">
-        <CardTitle className="text-foreground text-base font-medium">Bästsäljande produkter</CardTitle>
+        <CardTitle className="text-foreground text-base font-medium">{t('charts.topProducts')}</CardTitle>
       </CardHeader>
       <CardContent>
         <div className="space-y-3">
@@ -26,13 +28,13 @@ export function TopProducts({ products }) {
                     />
                   </div>
                   <span className="text-xs text-foreground-subtle w-20 text-right tabular-nums">
-                    {product.total_quantity} st
+                    {product.total_quantity} {t('charts.pcs')}
                   </span>
                 </div>
               </div>
               <div className="text-right min-w-24">
                 <p className="text-sm font-medium text-foreground tabular-nums">
-                  {product.total_revenue?.toLocaleString('sv-SE')} SEK
+                  {product.total_revenue?.toLocaleString(locale)} SEK
                 </p>
               </div>
             </div>

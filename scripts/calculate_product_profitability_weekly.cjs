@@ -83,39 +83,20 @@ async function calculateWeeklyProfitability() {
 
   console.log(`📦 Found ${lineItems?.length || 0} line items\n`)
 
-  // 6. Aggregate sales by product
-  const salesByProduct = {}
-  lineItems?.forEach(item => {
-    if (!item.product_id) return
+  // 6. Calculate totals directly from line items (product_id may be null)
+  let totalRevenue = 0
+  let totalUnits = 0
 
-    if (!salesByProduct[item.product_id]) {
-      salesByProduct[item.product_id] = {
-        units_sold: 0,
-        revenue_net_sek: 0
-      }
-    }
-    salesByProduct[item.product_id].units_sold += item.quantity
+  lineItems?.forEach(item => {
     const bruttoSek = parseFloat(item.total_price) || 0
     const nettoSek = bruttoSek / VAT_RATE
-    salesByProduct[item.product_id].revenue_net_sek += nettoSek
+    totalRevenue += nettoSek
+    totalUnits += item.quantity || 1
   })
 
-  // 7. Calculate totals for summary
-  let totalRevenue = 0
-  let totalCost = 0
-
-  products.forEach(product => {
-    const sales = salesByProduct[product.id] || { units_sold: 0, revenue_net_sek: 0 }
-    if (sales.units_sold === 0) return
-
-    totalRevenue += sales.revenue_net_sek
-
-    let costPrice = product.cost_price
-    if (!costPrice && sales.revenue_net_sek > 0) {
-      costPrice = (sales.revenue_net_sek / sales.units_sold) * (1 - DEFAULT_MARGIN_PERCENT / 100)
-    }
-    totalCost += (costPrice || 0) * sales.units_sold
-  })
+  // 7. Calculate cost using default margin (since product_id links are missing)
+  // Use DEFAULT_MARGIN_PERCENT as fallback
+  const totalCost = totalRevenue * (1 - DEFAULT_MARGIN_PERCENT / 100)
 
   const totalGrossProfit = totalRevenue - totalCost
   const avgMarginPercent = totalRevenue > 0 ? (totalGrossProfit / totalRevenue) * 100 : 0

@@ -66,73 +66,69 @@ async function fetchPeriodSummary(startDate, endDate) {
   }
 }
 
-// Helper to fetch gross margin data
+// Helper to fetch gross margin data from KPI snapshots
+// Uses pre-calculated data from kpi_index_snapshots.raw_metrics.core
+// Falls back to snapshot closest to the requested period
 async function fetchGrossMargin(startDate, endDate) {
-  // Get orders with line items and product cost prices
-  let query = supabase
-    .from('orders')
-    .select(`
-      id, grand_total,
-      order_line_items (
-        quantity,
-        unit_price,
-        total_price,
-        product_id
-      )
-    `)
+  // Get snapshots for both week and month granularity to find best match
+  const { data: snapshots } = await supabase
+    .from('kpi_index_snapshots')
+    .select('period_start, period_end, granularity, raw_metrics')
     .eq('store_id', STORE_ID)
-    .neq('status', 'cancelled')
+    .order('period_end', { ascending: false })
+    .limit(24) // ~6 months of weekly + monthly snapshots
 
-  if (startDate) query = query.gte('creation_date', startDate)
-  if (endDate) query = query.lte('creation_date', endDate + 'T23:59:59')
-
-  const { data: orders } = await query
-
-  if (!orders || orders.length === 0) {
+  if (!snapshots || snapshots.length === 0) {
     return { grossProfit: 0, marginPercent: 0, totalCost: 0, totalRevenue: 0 }
   }
 
-  // Get all product IDs to fetch cost prices
-  const productIds = new Set()
-  orders.forEach(o => {
-    o.order_line_items?.forEach(item => {
-      if (item.product_id) productIds.add(item.product_id)
-    })
-  })
+  // Find the snapshot that best matches the requested period
+  // Prefer weekly for shorter periods, monthly for longer
+  let bestSnapshot = null
 
-  // Fetch product cost prices
-  const { data: products } = await supabase
-    .from('products')
-    .select('id, cost_price')
-    .in('id', Array.from(productIds))
+  if (startDate && endDate) {
+    const start = new Date(startDate)
+    const end = new Date(endDate)
+    const daysDiff = Math.ceil((end - start) / (1000 * 60 * 60 * 24))
 
-  const costPriceMap = {}
-  products?.forEach(p => {
-    costPriceMap[p.id] = p.cost_price
-  })
+    // For periods <= 14 days, prefer weekly; for longer, prefer monthly
+    const preferredGranularity = daysDiff <= 14 ? 'week' : (daysDiff <= 45 ? 'week' : 'month')
 
-  // Calculate gross margin
-  let totalRevenue = 0
-  let totalCost = 0
+    // Find snapshot that overlaps with the requested period
+    for (const snap of snapshots) {
+      if (snap.granularity === preferredGranularity && snap.raw_metrics?.core) {
+        const snapStart = new Date(snap.period_start)
+        const snapEnd = new Date(snap.period_end)
 
-  orders.forEach(order => {
-    order.order_line_items?.forEach(item => {
-      const revenue = item.total_price || 0
-      // Use cost_price if available, otherwise estimate 60% of unit price
-      const costPrice = item.product_id && costPriceMap[item.product_id]
-        ? costPriceMap[item.product_id]
-        : (item.unit_price || 0) * 0.6
-      const cost = costPrice * (item.quantity || 1)
+        // Check if periods overlap
+        if (start <= snapEnd && end >= snapStart) {
+          bestSnapshot = snap
+          break
+        }
+      }
+    }
 
-      totalRevenue += revenue
-      totalCost += cost
-    })
-  })
+    // Fallback: take the latest snapshot with core data
+    if (!bestSnapshot) {
+      bestSnapshot = snapshots.find(s => s.raw_metrics?.core)
+    }
+  } else {
+    // No date range specified, use latest snapshot with core data
+    bestSnapshot = snapshots.find(s => s.raw_metrics?.core)
+  }
 
-  const grossProfit = totalRevenue - totalCost
-  const marginPercent = totalRevenue > 0 ? (grossProfit / totalRevenue) * 100 : 0
+  if (bestSnapshot?.raw_metrics?.core) {
+    const core = bestSnapshot.raw_metrics.core
+    return {
+      grossProfit: core.gross_profit || 0,
+      marginPercent: core.margin_percent || 0,
+      totalCost: (core.total_revenue || 0) - (core.gross_profit || 0),
+      totalRevenue: core.total_revenue || 0
+    }
+  }
 
-  return { grossProfit, marginPercent, totalCost, totalRevenue }
+  // Fallback: return zeros if no snapshot available
+  return { grossProfit: 0, marginPercent: 0, totalCost: 0, totalRevenue: 0 }
 }
 
 // Helper to fetch average items per order

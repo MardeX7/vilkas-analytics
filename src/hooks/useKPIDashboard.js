@@ -35,15 +35,19 @@ async function fetchKPIDashboard(storeId, granularity) {
 
 /**
  * Fallback: hae suoraan taulusta jos RPC ei ole vielä käytössä
+ * @param {string} storeId
+ * @param {string} granularity
+ * @param {number} periodOffset - 0 = uusin, 1 = edellinen, jne.
  */
-async function fetchKPIDashboardFallback(storeId, granularity) {
+async function fetchKPIDashboardFallback(storeId, granularity, periodOffset = 0) {
+  // Hae enemmän snapshoteja jotta voimme navigoida historiassa
   const { data, error } = await supabase
     .from('kpi_index_snapshots')
     .select('*')
     .eq('store_id', storeId)
     .eq('granularity', granularity)
     .order('period_end', { ascending: false })
-    .limit(2)
+    .limit(52) // Max 52 viikkoa tai 12 kuukautta historiaa
 
   if (error) {
     throw new Error(`Failed to fetch KPI snapshots: ${error.message}`)
@@ -53,8 +57,10 @@ async function fetchKPIDashboardFallback(storeId, granularity) {
     return null
   }
 
-  const current = data[0]
-  const previous = data.length > 1 ? data[1] : null
+  // Valitse snapshot offsetin perusteella
+  const currentIndex = Math.min(periodOffset, data.length - 1)
+  const current = data[currentIndex]
+  const previous = currentIndex + 1 < data.length ? data[currentIndex + 1] : null
 
   return {
     period: {
@@ -83,8 +89,31 @@ async function fetchKPIDashboardFallback(storeId, granularity) {
       oi: current.oi_components || {}
     },
     alerts: current.alerts || [],
-    calculated_at: current.created_at
+    calculated_at: current.created_at,
+    // Lisätietoja navigointia varten
+    totalPeriods: data.length,
+    currentPeriodIndex: currentIndex
   }
+}
+
+/**
+ * Hae saatavilla olevat periodit navigointia varten
+ */
+async function fetchAvailablePeriods(storeId, granularity) {
+  const { data, error } = await supabase
+    .from('kpi_index_snapshots')
+    .select('period_start, period_end')
+    .eq('store_id', storeId)
+    .eq('granularity', granularity)
+    .order('period_end', { ascending: false })
+    .limit(52)
+
+  if (error) {
+    console.warn('Failed to fetch available periods:', error)
+    return []
+  }
+
+  return data || []
 }
 
 /**
@@ -316,23 +345,35 @@ async function fetchCapitalTraps(storeId) {
  * @param {Object} options
  * @param {string} options.storeId - Store UUID (default: Billackering)
  * @param {'week' | 'month'} options.granularity - Aikajakson tarkkuus
+ * @param {number} options.periodOffset - 0 = uusin, 1 = edellinen, jne.
  * @returns {Object} Dashboard data, loading state, error, helpers
  */
 export function useKPIDashboard({
   storeId = DEFAULT_STORE_ID,
-  granularity = 'week'
+  granularity = 'week',
+  periodOffset = 0
 } = {}) {
   const queryClient = useQueryClient()
 
-  // KPI Dashboard query
+  // Available periods query (for navigation)
+  const {
+    data: availablePeriods
+  } = useQuery({
+    queryKey: ['kpi-available-periods', storeId, granularity],
+    queryFn: () => fetchAvailablePeriods(storeId, granularity),
+    staleTime: 10 * 60 * 1000,
+    cacheTime: 60 * 60 * 1000
+  })
+
+  // KPI Dashboard query - now with periodOffset
   const {
     data: dashboard,
     isLoading: dashboardLoading,
     error: dashboardError,
     refetch: refetchDashboard
   } = useQuery({
-    queryKey: ['kpi-dashboard', storeId, granularity],
-    queryFn: () => fetchKPIDashboard(storeId, granularity),
+    queryKey: ['kpi-dashboard', storeId, granularity, periodOffset],
+    queryFn: () => fetchKPIDashboardFallback(storeId, granularity, periodOffset),
     staleTime: 5 * 60 * 1000, // 5 min
     cacheTime: 30 * 60 * 1000, // 30 min
     retry: 2
@@ -483,6 +524,11 @@ export function useKPIDashboard({
 
     // Period info
     period: dashboard?.period,
+
+    // Navigation info
+    availablePeriods: availablePeriods || [],
+    totalPeriods: dashboard?.totalPeriods || availablePeriods?.length || 0,
+    currentPeriodIndex: dashboard?.currentPeriodIndex ?? periodOffset,
 
     // State
     isLoading: dashboardLoading,

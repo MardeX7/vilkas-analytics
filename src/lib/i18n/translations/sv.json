@@ -237,5 +237,270 @@
     "title": "Språk",
     "fi": "Finska",
     "sv": "Svenska"
+  },
+  "dashboard": {
+    "title": "Försäljning",
+    "subtitle": "Realtidsanalytik för din webshop",
+    "compare": "Jämför",
+    "showingDataFor": "Visar data för:",
+    "metrics": {
+      "sales": "Försäljning",
+      "grossMargin": "Bruttomarginal",
+      "orders": "Antal ordrar",
+      "avgOrderValue": "Snittordervärde",
+      "conversion": "Konvertering",
+      "uniqueCustomers": "Unika kunder",
+      "returningCustomers": "Återkommande kunder",
+      "sessions": "Sessioner",
+      "bounceRate": "Avvisningsfrekvens",
+      "productsPerOrder": "Produkter/order",
+      "avgPerDay": "Snitt/dag",
+      "shippingCost": "Fraktkostnad",
+      "discounts": "Rabatter",
+      "cancelled": "Avbeställda"
+    },
+    "connectGA4": "Anslut GA4",
+    "vsPrevious": "vs förra"
+  },
+  "datePicker": {
+    "selectPeriod": "Välj period",
+    "quickSelect": "Snabbval",
+    "comparisonPeriod": "Jämförelseperiod",
+    "previousPeriod": "Föregående period",
+    "lastYear": "Förra året (YoY)",
+    "presets": {
+      "today": "Idag",
+      "yesterday": "Igår",
+      "last7": "Senaste 7 dagarna",
+      "last14": "Senaste 14 dagarna",
+      "last28": "Senaste 28 dagarna",
+      "last30": "Senaste 30 dagarna",
+      "thisMonth": "Denna månad",
+      "lastMonth": "Förra månaden",
+      "last90": "Senaste 90 dagarna"
+    }
+  },
+  "charts": {
+    "dailySales": "Daglig försäljning",
+    "salesByWeekday": "Försäljning per veckodag",
+    "salesByHour": "Försäljning per timme",
+    "topProducts": "Bästsäljande produkter",
+    "topCategories": "Topp kategorier",
+    "paymentMethods": "Betalningsmetoder",
+    "shippingMethods": "Leveransmetoder",
+    "noHistory": "Ingen historik",
+    "current": "Nuvarande",
+    "previous": "Föregående",
+    "currentPeriod": "Nuvarande period",
+    "previousPeriod": "Föregående period",
+    "sales": "Försäljning",
+    "pcs": "st",
+    "index": "Index",
+    "moreCategories": "fler kategorier",
+    "legend": {
+      "excellent": "Utmärkt",
+      "good": "Bra",
+      "ok": "Godkänt",
+      "weak": "Svag",
+      "critical": "Kritisk"
+    }
+  },
+  "weekdays": {
+    "sunday": "Söndag",
+    "monday": "Måndag",
+    "tuesday": "Tisdag",
+    "wednesday": "Onsdag",
+    "thursday": "Torsdag",
+    "friday": "Fredag",
+    "saturday": "Lördag"
+  },
+  "gsc": {
+    "title": "Google Search Console",
+    "subtitle": "SEO-prestanda och sökdata",
+    "notConnected": "GSC inte ansluten",
+    "connectDescription": "Anslut Google Search Console för att se SEO-data",
+    "connect": "Anslut GSC",
+    "clicks": "Klick",
+    "impressions": "Visningar",
+    "avgPosition": "Snittposition",
+    "ctr": "CTR",
+    "topQueries": "Topp sökfrågor",
+    "topPages": "Topp sidor",
+    "query": "Sökfråga",
+    "page": "Sida",
+    "position": "Position",
+    "syncData": "Synka data",
+    "syncDataNow": "Synka data nu",
+    "noData": "Ingen data ännu",
+    "noDataDescription": "Klicka på 'Synka data' för att hämta data från Google Search Console.",
+    "deviceBreakdown": "Enhetsfördelning",
+    "countries": "Länder"
+  },
+  "ga4": {
+    "title": "Google Analytics",
+    "subtitle": "Webbplatsanalys och beteendedata",
+    "notConnected": "GA4 inte ansluten",
+    "connectTitle": "Anslut Google Analytics",
+    "connectDescription": "Anslut ditt GA4-konto för att se trafikdata, avvisningsfrekvens och landningssidor.",
+    "connect": "Anslut GA4",
+    "sessions": "Sessioner",
+    "engagedSessions": "Engagerade sessioner",
+    "users": "Användare",
+    "newUsers": "Nya användare",
+    "bounceRate": "Avvisningsfrekvens",
+    "bounceShort": "avv.",
+    "avgSessionDuration": "Snitt sessionstid",
+    "trafficSources": "Trafikkällor",
+    "landingPages": "Landningssidor",
+    "homePage": "Startsida",
+    "dailyTraffic": "Daglig trafik",
+    "noDataForPeriod": "Ingen data för vald period",
+    "tryAgain": "Försök igen",
+    "source": "Källa",
+    "medium": "Medium"
+  },
+  "insights": {
+    "title": "Analyser",
+    "subtitle": "AI-genererade insikter och rekommendationer",
+    "noInsights": "Inga analyser tillgängliga ännu",
+    "generating": "Genererar analyser...",
+    "comingSoon": "Kommer snart",
+    "comingSoonDescription": "AI-drivna analyser och åtgärdsrekommendationer baserade på din webbutiks data.",
+    "conversion": "Konverteringsoptimering",
+    "conversionDesc": "Identifiera flaskhalsar och förbättra konverteringen",
+    "opportunities": "Tillväxtmöjligheter",
+    "opportunitiesDesc": "Hitta dolda tillväxtmöjligheter",
+    "trends": "Trendanalyser",
+    "trendsDesc": "Följ marknadstrender och förutse förändringar"
+  },
+  "kpi": {
+    "title": "KPI Dashboard",
+    "subtitle": "Affärsindex på vecko-/månadsnivå",
+    "loading": "Laddar index...",
+    "overallIndex": "Totalindex",
+    "granularity": {
+      "week": "Vecka",
+      "month": "Månad"
+    },
+    "weeksCount": "52 veckor",
+    "monthsCount": "12 månader",
+    "index": "Index",
+    "alerts": {
+      "count": "{{count}} varningar kräver uppmärksamhet",
+      "more": "+{{count}} fler"
+    },
+    "noData": {
+      "title": "KPI-index är inte klara ännu",
+      "description": "Beräkna första indexen genom att starta KPI-beräkningen. Detta kan ta några sekunder.",
+      "button": "Beräkna KPI-index",
+      "calculating": "Beräknar..."
+    },
+    "detail": {
+      "close": "Stäng",
+      "components": "Komponenter",
+      "noComponents": "Komponentinformation är inte tillgänglig ännu.",
+      "missingData": {
+        "title": "{{missing}}/{{total}} komponenter utan data",
+        "description": "Index beräknas endast baserat på tillgängliga komponenter. Saknade mätvärden påverkar inte resultatet negativt."
+      }
+    },
+    "products": {
+      "topDrivers": "Top Profit Drivers",
+      "topDriversDesc": "Mest lönsamma produkter",
+      "capitalTraps": "Capital Traps",
+      "capitalTrapsDesc": "Produkter med bundet kapital",
+      "noData": "Ingen data tillgänglig ännu.",
+      "points": "pts",
+      "days": "dagar"
+    },
+    "period": {
+      "label": "Period",
+      "calculated": "Beräknad"
+    },
+    "profit": {
+      "title": "Bruttomarginal",
+      "salesNet": "Försäljning (netto)",
+      "purchasesNet": "Inköp (netto)",
+      "grossMargin": "Bruttomarginal",
+      "marginPercent": "marginal-%",
+      "vsLastYear": "vs förra året",
+      "lastYearSamePeriod": "Förra året samma period"
+    },
+    "components": {
+      "gross_profit": {
+        "label": "Bruttomarginal",
+        "tooltip": "Bruttomarginal i euro. Högre = bättre."
+      },
+      "aov": {
+        "label": "Snittorder",
+        "tooltip": "Genomsnittligt ordervärde (AOV). Högre = bättre."
+      },
+      "repeat_rate": {
+        "label": "Återköp",
+        "tooltip": "Hur många kunder beställer igen under samma period."
+      },
+      "trend": {
+        "label": "Trend",
+        "tooltip": "Försäljningens utvecklingsriktning jämfört med föregående period."
+      },
+      "stock": {
+        "label": "Lagerstatus",
+        "tooltip": "Produkttillgänglighet. 100 = alla produkter i lager, 0 = alla slut.",
+        "unit": "% tillgängligt"
+      },
+      "clicks_trend": {
+        "label": "Klickutveckling",
+        "tooltip": "Utveckling av klick från Google-sökresultat."
+      },
+      "position": {
+        "label": "Sökposition",
+        "tooltip": "Genomsnittlig position i Google-sök. Lägre = bättre (1 = bäst)."
+      },
+      "nonbrand": {
+        "label": "Non-brand",
+        "tooltip": "Hur stor andel av sökningarna som inte innehåller varumärkesnamn. Optimalt 40-70%."
+      },
+      "rising": {
+        "label": "Stigande sökningar",
+        "tooltip": "Söktermer vars synlighet växer.",
+        "unit": "st"
+      },
+      "fulfillment": {
+        "label": "Leveranstid",
+        "tooltip": "Genomsnittlig tid från order till leverans. Snabbare = bättre.",
+        "unit": "dagar"
+      },
+      "dispatch_rate": {
+        "label": "Skickade",
+        "tooltip": "Hur stor andel av orderna som är markerade som skickade."
+      },
+      "margin": {
+        "label": "Bruttomarginal",
+        "tooltip": "Genomsnittlig bruttomarginal-%. Kräver att produkternas inköpspriser (cost_price) är inmatade."
+      },
+      "noData": "Ingen data"
+    },
+    "status": {
+      "excellent": "Utmärkt",
+      "good": "Bra",
+      "fair": "Acceptabel",
+      "poor": "Svag",
+      "critical": "Kritisk",
+      "noData": "Ingen data"
+    },
+    "indexes": {
+      "overall": "Totalindex",
+      "core": "Core Index",
+      "ppi": "Product Profitability",
+      "spi": "SEO Performance",
+      "oi": "Operational Index"
+    },
+    "navigation": {
+      "previous": "Föregående",
+      "next": "Nästa",
+      "latest": "Senaste",
+      "weekNumber": "Vecka {{week}}",
+      "monthName": "{{month}} {{year}}"
+    }
   }
 }

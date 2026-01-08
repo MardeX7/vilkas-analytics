@@ -2,27 +2,37 @@ import { useState } from 'react'
 import { useAnalytics } from '@/hooks/useAnalytics'
 import { useGA4 } from '@/hooks/useGA4'
 import { useCategories } from '@/hooks/useCategories'
+import { useTranslation } from '@/lib/i18n'
 import { MetricCard, MetricCardGroup } from '@/components/MetricCard'
 import { DailySalesChart, WeekdayChart, HourlyChart } from '@/components/SalesChart'
 import { TopProducts } from '@/components/TopProducts'
 import { CategoryChart } from '@/components/CategoryChart'
 import { PaymentMethodsChart, ShippingMethodsChart } from '@/components/PaymentMethods'
-import { DateRangePicker, getDateRange, formatDateISO } from '@/components/DateRangePicker'
+import { DateRangePicker, getDateRange, formatDateISO, getPreviousPeriod, getYearOverYearPeriod } from '@/components/DateRangePicker'
 import { RefreshCw, BarChart3, TrendingUp, Package, XCircle, Truck, Tag } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
-// Default to last 30 days
-const defaultRange = getDateRange('last30')
-const defaultDateRange = {
-  preset: 'last30',
-  startDate: formatDateISO(defaultRange.startDate),
-  endDate: formatDateISO(defaultRange.endDate),
-  label: 'Senaste 30 dagarna'
+// Helper to create default date range with YoY comparison enabled
+function createDefaultDateRange() {
+  const range = getDateRange('last30')
+  const yoyRange = getYearOverYearPeriod(range.startDate, range.endDate)
+  return {
+    preset: 'last30',
+    startDate: formatDateISO(range.startDate),
+    endDate: formatDateISO(range.endDate),
+    label: null, // Will use translation
+    compare: true, // YoY enabled by default
+    compareMode: 'yoy',
+    previousStartDate: formatDateISO(yoyRange.startDate),
+    previousEndDate: formatDateISO(yoyRange.endDate)
+  }
 }
 
 export function Dashboard() {
-  const [dateRange, setDateRange] = useState(defaultDateRange)
+  const { t, language } = useTranslation()
+  const [dateRange, setDateRange] = useState(() => createDefaultDateRange())
+  const [comparisonMode, setComparisonMode] = useState('yoy') // 'mom' or 'yoy', default YoY
 
   const {
     dailySales,
@@ -43,6 +53,8 @@ export function Dashboard() {
   // GA4 data for sessions and conversion
   const {
     summary: ga4Summary,
+    previousSummary: ga4PreviousSummary,
+    comparisonEnabled: ga4ComparisonEnabled,
     connected: ga4Connected
   } = useGA4(dateRange)
 
@@ -54,12 +66,36 @@ export function Dashboard() {
     ? ((summary?.orderCount || 0) / ga4Summary.totalSessions) * 100
     : null
 
+  // Calculate previous conversion rate for comparison
+  const previousConversionRate = ga4Connected && ga4PreviousSummary?.totalSessions > 0 && previousSummary?.orderCount
+    ? ((previousSummary.orderCount || 0) / ga4PreviousSummary.totalSessions) * 100
+    : null
+
+  // Calculate GA4 comparison deltas
+  const getChangePercent = (current, previous) => {
+    if (!previous || previous === 0) return null
+    return ((current - previous) / previous) * 100
+  }
+
+  const sessionsChange = ga4ComparisonEnabled && dateRange.compare && ga4PreviousSummary
+    ? getChangePercent(ga4Summary?.totalSessions, ga4PreviousSummary.totalSessions)
+    : null
+
+  // For bounce rate, lower is better - so we invert (previous - current to show improvement as positive)
+  const bounceRateChange = ga4ComparisonEnabled && dateRange.compare && ga4PreviousSummary
+    ? getChangePercent(ga4PreviousSummary.avgBounceRate, ga4Summary?.avgBounceRate)
+    : null
+
+  const conversionChange = dateRange.compare && conversionRate !== null && previousConversionRate !== null
+    ? getChangePercent(conversionRate, previousConversionRate)
+    : null
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-foreground-muted">Laddar analytik...</p>
+          <p className="text-foreground-muted">{t('common.loading')}</p>
         </div>
       </div>
     )
@@ -69,8 +105,8 @@ export function Dashboard() {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
-          <p className="text-destructive mb-4">Fel: {error}</p>
-          <Button onClick={refresh} variant="outline">Försök igen</Button>
+          <p className="text-destructive mb-4">{t('common.error')}: {error}</p>
+          <Button onClick={refresh} variant="outline">{t('common.refresh')}</Button>
         </div>
       </div>
     )
@@ -84,33 +120,62 @@ export function Dashboard() {
           <div>
             <h1 className="text-2xl font-semibold text-foreground flex items-center gap-2">
               <BarChart3 className="w-6 h-6 text-primary" />
-              Försäljning
+              {t('dashboard.title')}
             </h1>
-            <p className="text-foreground-muted text-sm mt-1">Realtidsanalytik för din webshop</p>
+            <p className="text-foreground-muted text-sm mt-1">{t('dashboard.subtitle')}</p>
           </div>
           <div className="flex items-center gap-3">
-            {/* Compare toggle - always visible in header */}
-            <label className="flex items-center gap-2 text-sm text-foreground-muted cursor-pointer">
-              <input
-                type="checkbox"
-                checked={dateRange.compare || false}
-                onChange={(e) => {
-                  const newCompare = e.target.checked
-                  // Trigger DateRangePicker's onChange with compare flag
-                  setDateRange(prev => ({
-                    ...prev,
-                    compare: newCompare
-                  }))
-                }}
-                className="rounded border-border bg-background-elevated text-primary focus:ring-primary focus:ring-offset-0"
-              />
-              <span>Jämför</span>
-            </label>
             <DateRangePicker
               value={dateRange.preset}
               onChange={setDateRange}
-              compareEnabled={dateRange.compare}
             />
+            {/* MoM/YoY Toggle - GA4 style */}
+            <div className="flex bg-background-subtle rounded-lg p-1">
+              <button
+                onClick={() => {
+                  setComparisonMode('mom')
+                  const currentRange = getDateRange(dateRange.preset || 'last30')
+                  const prevRange = getPreviousPeriod(currentRange.startDate, currentRange.endDate)
+                  setDateRange(prev => ({
+                    ...prev,
+                    compare: true,
+                    compareMode: 'mom',
+                    previousStartDate: formatDateISO(prevRange.startDate),
+                    previousEndDate: formatDateISO(prevRange.endDate)
+                  }))
+                }}
+                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
+                  comparisonMode === 'mom'
+                    ? 'bg-primary text-primary-foreground shadow-sm'
+                    : 'text-foreground-muted hover:text-foreground'
+                }`}
+                title={t('comparison.momFull')}
+              >
+                {t('comparison.mom')}
+              </button>
+              <button
+                onClick={() => {
+                  setComparisonMode('yoy')
+                  const currentRange = getDateRange(dateRange.preset || 'last30')
+                  const prevRange = getYearOverYearPeriod(currentRange.startDate, currentRange.endDate)
+                  setDateRange(prev => ({
+                    ...prev,
+                    compare: true,
+                    compareMode: 'yoy',
+                    previousStartDate: formatDateISO(prevRange.startDate),
+                    previousEndDate: formatDateISO(prevRange.endDate)
+                  }))
+                }}
+                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
+                  comparisonMode === 'yoy'
+                    ? 'bg-primary text-primary-foreground shadow-sm'
+                    : 'text-foreground-muted hover:text-foreground'
+                }`}
+                title={t('comparison.yoyFull')}
+              >
+                {t('comparison.yoy')}
+              </button>
+            </div>
             <Button
               onClick={refresh}
               variant="outline"
@@ -127,7 +192,7 @@ export function Dashboard() {
         {/* Period indicator */}
         <div className="mb-8 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <span className="text-foreground-subtle text-sm">Visar data för:</span>
+            <span className="text-foreground-subtle text-sm">{t('dashboard.showingDataFor')}</span>
             <span className="inline-flex items-center px-3 py-1 rounded-full bg-primary-muted text-primary text-sm font-medium">
               {dateRange.label}
             </span>
@@ -140,72 +205,78 @@ export function Dashboard() {
         {/* KPI Cards - Top row: 5 core metrics */}
         <MetricCardGroup columns={5} className="mb-6">
           <MetricCard
-            label="Försäljning"
+            label={t('dashboard.metrics.sales')}
             value={summary?.totalRevenue || 0}
             suffix=" kr"
             delta={comparison?.revenue}
             previousValue={dateRange.compare ? previousSummary?.totalRevenue : undefined}
-            deltaLabel={dateRange.compare ? 'vs förra' : undefined}
+            deltaLabel={dateRange.compare ? comparisonMode.toUpperCase() : undefined}
           />
           <MetricCard
-            label="Bruttomarginal"
+            label={t('dashboard.metrics.grossMargin')}
             value={(summary?.marginPercent || 0).toFixed(1)}
             suffix="%"
             delta={comparison?.margin}
             previousValue={dateRange.compare ? previousSummary?.marginPercent?.toFixed(1) : undefined}
-            deltaLabel={dateRange.compare ? 'vs förra' : undefined}
+            deltaLabel={dateRange.compare ? comparisonMode.toUpperCase() : undefined}
           />
           <MetricCard
-            label="Antal ordrar"
+            label={t('dashboard.metrics.orders')}
             value={summary?.orderCount || 0}
             delta={comparison?.orders}
             previousValue={dateRange.compare ? previousSummary?.orderCount : undefined}
-            deltaLabel={dateRange.compare ? 'vs förra' : undefined}
+            deltaLabel={dateRange.compare ? comparisonMode.toUpperCase() : undefined}
           />
           <MetricCard
-            label="Snittordervärde"
+            label={t('dashboard.metrics.avgOrderValue')}
             value={Math.round(summary?.avgOrderValue || 0)}
             suffix=" kr"
             delta={comparison?.aov}
             previousValue={dateRange.compare ? Math.round(previousSummary?.avgOrderValue || 0) : undefined}
-            deltaLabel={dateRange.compare ? 'vs förra' : undefined}
+            deltaLabel={dateRange.compare ? comparisonMode.toUpperCase() : undefined}
           />
           <MetricCard
-            label="Konvertering"
+            label={t('dashboard.metrics.conversion')}
             value={conversionRate !== null ? conversionRate.toFixed(2) : '—'}
             suffix={conversionRate !== null ? '%' : ''}
-            deltaLabel={!ga4Connected ? 'Anslut GA4' : undefined}
+            delta={conversionChange}
+            previousValue={dateRange.compare && previousConversionRate !== null ? previousConversionRate.toFixed(2) : undefined}
+            deltaLabel={!ga4Connected ? t('dashboard.connectGA4') : (dateRange.compare ? comparisonMode.toUpperCase() : undefined)}
           />
         </MetricCardGroup>
 
         {/* KPI Cards - Second row: Customer & traffic metrics */}
         <MetricCardGroup columns={4} className="mb-8">
           <MetricCard
-            label="Unika kunder"
+            label={t('dashboard.metrics.uniqueCustomers')}
             value={summary?.uniqueCustomers || 0}
             delta={comparison?.customers}
             previousValue={dateRange.compare ? previousSummary?.uniqueCustomers : undefined}
-            deltaLabel={dateRange.compare ? 'vs förra' : undefined}
+            deltaLabel={dateRange.compare ? comparisonMode.toUpperCase() : undefined}
           />
           <MetricCard
-            label="Återkommande kunder"
+            label={t('dashboard.metrics.returningCustomers')}
             value={(summary?.returningCustomerPercent || 0).toFixed(1)}
             suffix="%"
             delta={comparison?.returningCustomers}
             previousValue={dateRange.compare ? previousSummary?.returningCustomerPercent?.toFixed(1) : undefined}
-            deltaLabel={dateRange.compare ? 'vs förra' : undefined}
+            deltaLabel={dateRange.compare ? comparisonMode.toUpperCase() : undefined}
           />
           <MetricCard
-            label="Sessioner"
+            label={t('dashboard.metrics.sessions')}
             value={ga4Connected ? (ga4Summary?.totalSessions || 0) : '—'}
-            deltaLabel={!ga4Connected ? 'Anslut GA4' : undefined}
+            delta={sessionsChange}
+            previousValue={dateRange.compare && ga4PreviousSummary?.totalSessions ? ga4PreviousSummary.totalSessions : undefined}
+            deltaLabel={!ga4Connected ? t('dashboard.connectGA4') : (dateRange.compare ? comparisonMode.toUpperCase() : undefined)}
           />
           <MetricCard
-            label="Avvisningsfrekvens"
+            label={t('dashboard.metrics.bounceRate')}
             value={ga4Connected && ga4Summary?.avgBounceRate != null ? (ga4Summary.avgBounceRate * 100).toFixed(1) : '—'}
             suffix={ga4Connected ? '%' : ''}
+            delta={bounceRateChange}
+            previousValue={dateRange.compare && ga4PreviousSummary?.avgBounceRate != null ? (ga4PreviousSummary.avgBounceRate * 100).toFixed(1) : undefined}
             invertDelta={true}
-            deltaLabel={!ga4Connected ? 'Anslut GA4' : undefined}
+            deltaLabel={!ga4Connected ? t('dashboard.connectGA4') : (dateRange.compare ? comparisonMode.toUpperCase() : undefined)}
           />
         </MetricCardGroup>
 
@@ -214,42 +285,51 @@ export function Dashboard() {
           <div className="flex flex-wrap gap-6 text-sm">
             <div className="flex items-center gap-2">
               <Package className="w-4 h-4 text-foreground-subtle" />
-              <span className="text-foreground-subtle">Produkter/order:</span>
+              <span className="text-foreground-subtle">{t('dashboard.metrics.productsPerOrder')}:</span>
               <span className="text-foreground font-medium tabular-nums">
                 {(summary?.avgItemsPerOrder || 0).toFixed(1)}
               </span>
             </div>
             <div className="flex items-center gap-2">
               <TrendingUp className="w-4 h-4 text-foreground-subtle" />
-              <span className="text-foreground-subtle">Snitt/dag:</span>
+              <span className="text-foreground-subtle">{t('dashboard.metrics.avgPerDay')}:</span>
               <span className="text-foreground font-medium tabular-nums">
-                {Math.round((summary?.totalRevenue || 0) / Math.max(dailySales.length, 1)).toLocaleString('sv-SE')} kr
+                {Math.round((summary?.totalRevenue || 0) / Math.max(dailySales.length, 1)).toLocaleString(language === 'fi' ? 'fi-FI' : 'sv-SE')} kr
               </span>
             </div>
-            <div className="flex items-center gap-2">
-              <Truck className="w-4 h-4 text-foreground-subtle" />
-              <span className="text-foreground-subtle">Fraktkostnad:</span>
-              <span className="text-foreground font-medium tabular-nums">
-                {(summary?.shippingPercent || 0).toFixed(1)}%
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Tag className="w-4 h-4 text-foreground-subtle" />
-              <span className="text-foreground-subtle">Rabatter:</span>
-              <span className="text-foreground font-medium tabular-nums">
-                {(summary?.discountPercent || 0).toFixed(1)}%
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              <XCircle className="w-4 h-4 text-foreground-subtle" />
-              <span className="text-foreground-subtle">Avbeställda:</span>
-              <span className={cn(
-                "font-medium tabular-nums",
-                (summary?.cancelledPercent || 0) > 5 ? "text-destructive" : "text-foreground"
-              )}>
-                {(summary?.cancelledPercent || 0).toFixed(1)}%
-              </span>
-            </div>
+            {/* Show shipping only if data exists (totalShipping > 0) */}
+            {summary?.totalShipping > 0 && (
+              <div className="flex items-center gap-2">
+                <Truck className="w-4 h-4 text-foreground-subtle" />
+                <span className="text-foreground-subtle">{t('dashboard.metrics.shippingCost')}:</span>
+                <span className="text-foreground font-medium tabular-nums">
+                  {(summary?.shippingPercent || 0).toFixed(1)}%
+                </span>
+              </div>
+            )}
+            {/* Show discounts only if data exists (totalDiscount > 0) */}
+            {summary?.totalDiscount > 0 && (
+              <div className="flex items-center gap-2">
+                <Tag className="w-4 h-4 text-foreground-subtle" />
+                <span className="text-foreground-subtle">{t('dashboard.metrics.discounts')}:</span>
+                <span className="text-foreground font-medium tabular-nums">
+                  {(summary?.discountPercent || 0).toFixed(1)}%
+                </span>
+              </div>
+            )}
+            {/* Show cancelled only if data exists (cancelledCount > 0) */}
+            {summary?.cancelledCount > 0 && (
+              <div className="flex items-center gap-2">
+                <XCircle className="w-4 h-4 text-foreground-subtle" />
+                <span className="text-foreground-subtle">{t('dashboard.metrics.cancelled')}:</span>
+                <span className={cn(
+                  "font-medium tabular-nums",
+                  (summary?.cancelledPercent || 0) > 5 ? "text-destructive" : "text-foreground"
+                )}>
+                  {(summary?.cancelledPercent || 0).toFixed(1)}%
+                </span>
+              </div>
+            )}
           </div>
         </div>
 

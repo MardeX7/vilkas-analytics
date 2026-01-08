@@ -13,6 +13,7 @@ import {
   Legend,
   Cell
 } from 'recharts'
+import { useTranslation } from '@/lib/i18n'
 
 // Billackering brand colors
 const COLORS = {
@@ -28,6 +29,7 @@ const COLORS = {
 }
 
 export function DailySalesChart({ data, previousData = null, compare = false }) {
+  const { t, locale } = useTranslation()
   // Reverse to show oldest first
   const currentData = [...data].reverse()
 
@@ -36,15 +38,15 @@ export function DailySalesChart({ data, previousData = null, compare = false }) 
   if (compare && previousData && previousData.length > 0) {
     const prevReversed = [...previousData].reverse()
     chartData = currentData.map((d, i) => ({
-      date: new Date(d.sale_date).toLocaleDateString('sv-SE', { month: 'short', day: 'numeric' }),
+      date: new Date(d.sale_date).toLocaleDateString(locale, { month: 'short', day: 'numeric' }),
       revenue: d.total_revenue,
       orders: d.order_count,
       previousRevenue: prevReversed[i]?.total_revenue || null,
-      previousDate: prevReversed[i] ? new Date(prevReversed[i].sale_date).toLocaleDateString('sv-SE', { month: 'short', day: 'numeric' }) : null
+      previousDate: prevReversed[i] ? new Date(prevReversed[i].sale_date).toLocaleDateString(locale, { month: 'short', day: 'numeric' }) : null
     }))
   } else {
     chartData = currentData.map(d => ({
-      date: new Date(d.sale_date).toLocaleDateString('sv-SE', { month: 'short', day: 'numeric' }),
+      date: new Date(d.sale_date).toLocaleDateString(locale, { month: 'short', day: 'numeric' }),
       revenue: d.total_revenue,
       orders: d.order_count
     }))
@@ -55,7 +57,7 @@ export function DailySalesChart({ data, previousData = null, compare = false }) 
   return (
     <Card className="bg-background-elevated border-card-border">
       <CardHeader className="pb-2">
-        <CardTitle className="text-foreground text-base font-medium">Daglig försäljning</CardTitle>
+        <CardTitle className="text-foreground text-base font-medium">{t('charts.dailySales')}</CardTitle>
       </CardHeader>
       <CardContent>
         <div className="h-64">
@@ -74,15 +76,15 @@ export function DailySalesChart({ data, previousData = null, compare = false }) 
                 contentStyle={{ backgroundColor: COLORS.tooltip, border: `1px solid ${COLORS.grid}`, borderRadius: '8px' }}
                 labelStyle={{ color: COLORS.text }}
                 formatter={(value, name) => {
-                  if (name === 'revenue') return [`${value?.toLocaleString()} SEK`, 'Nuvarande']
-                  if (name === 'previousRevenue') return [`${value?.toLocaleString()} SEK`, 'Föregående']
+                  if (name === 'revenue') return [`${value?.toLocaleString()} SEK`, t('charts.current')]
+                  if (name === 'previousRevenue') return [`${value?.toLocaleString()} SEK`, t('charts.previous')]
                   return [value, name]
                 }}
               />
               {showComparison && (
                 <Legend
                   wrapperStyle={{ paddingTop: '10px' }}
-                  formatter={(value) => value === 'revenue' ? 'Nuvarande period' : 'Föregående period'}
+                  formatter={(value) => value === 'revenue' ? t('charts.currentPeriod') : t('charts.previousPeriod')}
                 />
               )}
               <Area
@@ -112,10 +114,11 @@ export function DailySalesChart({ data, previousData = null, compare = false }) 
 }
 
 export function WeekdayChart({ data }) {
-  const weekdays = ['Söndag', 'Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lördag']
+  const { t } = useTranslation()
+  const weekdayKeys = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
 
   const chartData = data.map(d => ({
-    name: weekdays[d.day_of_week] || d.weekday_name,
+    name: t(`weekdays.${weekdayKeys[d.day_of_week]}`) || d.weekday_name,
     revenue: d.total_revenue,
     orders: d.order_count
   }))
@@ -123,7 +126,7 @@ export function WeekdayChart({ data }) {
   return (
     <Card className="bg-background-elevated border-card-border">
       <CardHeader className="pb-2">
-        <CardTitle className="text-foreground text-base font-medium">Försäljning per veckodag</CardTitle>
+        <CardTitle className="text-foreground text-base font-medium">{t('charts.salesByWeekday')}</CardTitle>
       </CardHeader>
       <CardContent>
         <div className="h-64">
@@ -135,7 +138,7 @@ export function WeekdayChart({ data }) {
               <Tooltip
                 contentStyle={{ backgroundColor: COLORS.tooltip, border: `1px solid ${COLORS.grid}`, borderRadius: '8px' }}
                 labelStyle={{ color: COLORS.text }}
-                formatter={(value) => [`${value.toLocaleString()} SEK`, 'Försäljning']}
+                formatter={(value) => [`${value.toLocaleString()} SEK`, t('charts.sales')]}
               />
               <Bar dataKey="revenue" fill={COLORS.primary} radius={[4, 4, 0, 0]} />
             </BarChart>
@@ -147,6 +150,7 @@ export function WeekdayChart({ data }) {
 }
 
 export function HourlyChart({ data }) {
+  const { t } = useTranslation()
   const chartData = data.map(d => ({
     hour: `${String(d.hour_of_day).padStart(2, '0')}:00`,
     revenue: d.total_revenue,
@@ -156,7 +160,7 @@ export function HourlyChart({ data }) {
   return (
     <Card className="bg-background-elevated border-card-border">
       <CardHeader className="pb-2">
-        <CardTitle className="text-foreground text-base font-medium">Försäljning per timme</CardTitle>
+        <CardTitle className="text-foreground text-base font-medium">{t('charts.salesByHour')}</CardTitle>
       </CardHeader>
       <CardContent>
         <div className="h-64">
@@ -168,7 +172,7 @@ export function HourlyChart({ data }) {
               <Tooltip
                 contentStyle={{ backgroundColor: COLORS.tooltip, border: `1px solid ${COLORS.grid}`, borderRadius: '8px' }}
                 labelStyle={{ color: COLORS.text }}
-                formatter={(value) => [`${value.toLocaleString()} SEK`, 'Försäljning']}
+                formatter={(value) => [`${value.toLocaleString()} SEK`, t('charts.sales')]}
               />
               <Bar dataKey="revenue" fill={COLORS.success} radius={[4, 4, 0, 0]} />
             </BarChart>
@@ -183,16 +187,19 @@ export function HourlyChart({ data }) {
  * KPI Index History Chart - Like Vilkas Insights monthly bars
  * Shows index values over time with color coding
  */
-export function KPIHistoryChart({ data, title = 'Kehitys viimeisen 12 kk aikana', indexKey = 'overall_index', granularity = 'month' }) {
+export function KPIHistoryChart({ data, title, indexKey = 'overall_index', granularity = 'month' }) {
+  const { t, locale } = useTranslation()
+  const displayTitle = title || t('charts.noHistory')
+
   if (!data || data.length === 0) {
     return (
       <Card className="bg-background-elevated border-card-border">
         <CardHeader className="pb-2">
-          <CardTitle className="text-foreground text-base font-medium">{title}</CardTitle>
+          <CardTitle className="text-foreground text-base font-medium">{displayTitle}</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="h-64 flex items-center justify-center text-foreground-muted">
-            Ei historiaa
+            {t('charts.noHistory')}
           </div>
         </CardContent>
       </Card>
@@ -228,7 +235,7 @@ export function KPIHistoryChart({ data, title = 'Kehitys viimeisen 12 kk aikana'
       const weekNum = getWeekNumber(date)
       label = `v${weekNum}`
     } else {
-      label = date.toLocaleDateString('sv-SE', { month: 'short' })
+      label = date.toLocaleDateString(locale, { month: 'short' })
     }
 
     return {
@@ -271,11 +278,11 @@ export function KPIHistoryChart({ data, title = 'Kehitys viimeisen 12 kk aikana'
                   borderRadius: '8px'
                 }}
                 labelStyle={{ color: COLORS.text }}
-                formatter={(value) => [`${value}`, 'Index']}
+                formatter={(value) => [`${value}`, t('charts.index')]}
                 labelFormatter={(label, payload) => {
                   if (payload && payload[0]) {
                     const date = new Date(payload[0].payload.fullDate)
-                    return date.toLocaleDateString('sv-SE', { year: 'numeric', month: 'long' })
+                    return date.toLocaleDateString(locale, { year: 'numeric', month: 'long' })
                   }
                   return label
                 }}
@@ -297,23 +304,23 @@ export function KPIHistoryChart({ data, title = 'Kehitys viimeisen 12 kk aikana'
         <div className="flex justify-center gap-4 mt-4 text-xs text-foreground-subtle">
           <div className="flex items-center gap-1">
             <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: COLORS.success }} />
-            <span>70+ Utmärkt</span>
+            <span>70+ {t('charts.legend.excellent')}</span>
           </div>
           <div className="flex items-center gap-1">
             <div className="w-3 h-3 rounded-sm bg-lime-500" />
-            <span>50-69 Bra</span>
+            <span>50-69 {t('charts.legend.good')}</span>
           </div>
           <div className="flex items-center gap-1">
             <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: COLORS.warning }} />
-            <span>40-49 Godkänt</span>
+            <span>40-49 {t('charts.legend.ok')}</span>
           </div>
           <div className="flex items-center gap-1">
             <div className="w-3 h-3 rounded-sm bg-orange-500" />
-            <span>30-39 Svag</span>
+            <span>30-39 {t('charts.legend.weak')}</span>
           </div>
           <div className="flex items-center gap-1">
             <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: COLORS.destructive }} />
-            <span>&lt;30 Kritisk</span>
+            <span>&lt;30 {t('charts.legend.critical')}</span>
           </div>
         </div>
       </CardContent>

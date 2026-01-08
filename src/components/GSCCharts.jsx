@@ -1,5 +1,6 @@
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { useTranslation } from '@/lib/i18n'
 import {
   AreaChart,
   Area,
@@ -37,6 +38,7 @@ const COUNTRY_COLORS = [COLORS.primary, COLORS.secondary, COLORS.success, '#f59e
 
 // GSC Connect Card (shown when not connected)
 export function GSCConnectCard({ onConnect }) {
+  const { t } = useTranslation()
   return (
     <Card className="bg-background-elevated border-card-border">
       <CardContent className="pt-6">
@@ -44,16 +46,16 @@ export function GSCConnectCard({ onConnect }) {
           <div className="p-4 bg-background-subtle rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">
             <Search className="w-8 h-8 text-foreground-subtle" />
           </div>
-          <h3 className="text-lg font-medium text-foreground mb-2">Connect Google Search Console</h3>
+          <h3 className="text-lg font-medium text-foreground mb-2">{t('gsc.notConnected')}</h3>
           <p className="text-sm text-foreground-muted mb-6 max-w-md mx-auto">
-            Se vilka sökord som driver trafik till din webshop. Anslut Google Search Console för att se klick, visningar och positioner.
+            {t('gsc.connectDescription')}
           </p>
           <Button
             onClick={onConnect}
             className="bg-primary hover:bg-primary/90 text-primary-foreground"
           >
             <Search className="w-4 h-4 mr-2" />
-            Anslut Search Console
+            {t('gsc.connect')}
           </Button>
         </div>
       </CardContent>
@@ -63,6 +65,7 @@ export function GSCConnectCard({ onConnect }) {
 
 // Daily Clicks & Impressions Chart
 export function GSCDailyChart({ data, previousData = [], comparisonEnabled = false }) {
+  const { t, language } = useTranslation()
   // Combine current and previous data if comparison is enabled
   const chartData = [...data].reverse().map((d, index) => {
     const prevItem = previousData && previousData.length > 0
@@ -70,7 +73,7 @@ export function GSCDailyChart({ data, previousData = [], comparisonEnabled = fal
       : null
 
     return {
-      date: new Date(d.date).toLocaleDateString('sv-SE', { month: 'short', day: 'numeric' }),
+      date: new Date(d.date).toLocaleDateString(language === 'fi' ? 'fi-FI' : 'sv-SE', { month: 'short', day: 'numeric' }),
       clicks: d.total_clicks,
       impressions: d.total_impressions,
       position: d.avg_position,
@@ -86,7 +89,7 @@ export function GSCDailyChart({ data, previousData = [], comparisonEnabled = fal
       <CardHeader className="pb-2">
         <CardTitle className="text-foreground text-base font-medium flex items-center gap-2">
           <Search className="w-5 h-5 text-primary" />
-          Sökprestanda
+          {t('gsc.title')}
         </CardTitle>
       </CardHeader>
       <CardContent>
@@ -116,7 +119,7 @@ export function GSCDailyChart({ data, previousData = [], comparisonEnabled = fal
                   <Area
                     type="monotone"
                     dataKey="prevClicks"
-                    name="Klick (föreg.)"
+                    name={`${t('gsc.clicks')} (${t('charts.previous')})`}
                     stroke={COLORS.primary}
                     strokeWidth={1.5}
                     strokeDasharray="5 5"
@@ -126,7 +129,7 @@ export function GSCDailyChart({ data, previousData = [], comparisonEnabled = fal
                   <Area
                     type="monotone"
                     dataKey="prevImpressions"
-                    name="Visningar (föreg.)"
+                    name={`${t('gsc.impressions')} (${t('charts.previous')})`}
                     stroke={COLORS.secondary}
                     strokeWidth={1.5}
                     strokeDasharray="5 5"
@@ -139,7 +142,7 @@ export function GSCDailyChart({ data, previousData = [], comparisonEnabled = fal
               <Area
                 type="monotone"
                 dataKey="clicks"
-                name="Klick"
+                name={t('gsc.clicks')}
                 stroke={COLORS.primary}
                 strokeWidth={2}
                 fillOpacity={1}
@@ -148,7 +151,7 @@ export function GSCDailyChart({ data, previousData = [], comparisonEnabled = fal
               <Area
                 type="monotone"
                 dataKey="impressions"
-                name="Visningar"
+                name={t('gsc.impressions')}
                 stroke={COLORS.secondary}
                 strokeWidth={2}
                 fillOpacity={1}
@@ -160,16 +163,16 @@ export function GSCDailyChart({ data, previousData = [], comparisonEnabled = fal
         <div className="flex justify-center gap-6 mt-4 text-sm">
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS.primary }}></div>
-            <span className="text-foreground-muted">Klick</span>
+            <span className="text-foreground-muted">{t('gsc.clicks')}</span>
           </div>
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS.secondary }}></div>
-            <span className="text-foreground-muted">Visningar</span>
+            <span className="text-foreground-muted">{t('gsc.impressions')}</span>
           </div>
           {showComparison && (
             <div className="flex items-center gap-2">
               <div className="w-6 h-0 border border-dashed border-foreground-subtle"></div>
-              <span className="text-foreground-subtle">Föreg. period</span>
+              <span className="text-foreground-subtle">{t('charts.previousPeriod')}</span>
             </div>
           )}
         </div>
@@ -180,10 +183,11 @@ export function GSCDailyChart({ data, previousData = [], comparisonEnabled = fal
 
 // Top Queries Table
 export function GSCTopQueries({ queries }) {
+  const { t } = useTranslation()
   return (
     <Card className="bg-background-elevated border-card-border">
       <CardHeader className="pb-2">
-        <CardTitle className="text-foreground text-base font-medium">Top sökord</CardTitle>
+        <CardTitle className="text-foreground text-base font-medium">{t('gsc.topQueries')}</CardTitle>
       </CardHeader>
       <CardContent>
         <div className="space-y-1 max-h-80 overflow-y-auto">
@@ -201,7 +205,6 @@ export function GSCTopQueries({ queries }) {
               <div className="flex items-center gap-4 text-sm">
                 <div className="text-right w-16">
                   <span className="text-primary font-medium tabular-nums">{q.clicks}</span>
-                  <span className="text-foreground-subtle text-xs ml-1">klick</span>
                 </div>
                 <div className="text-right w-16">
                   <span className="text-foreground-muted tabular-nums">{(q.ctr * 100).toFixed(1)}%</span>
@@ -214,8 +217,8 @@ export function GSCTopQueries({ queries }) {
           ))}
         </div>
         <div className="flex justify-end gap-4 mt-4 text-xs text-foreground-subtle pr-2">
-          <span>CTR</span>
-          <span>Pos</span>
+          <span>{t('gsc.ctr')}</span>
+          <span>{t('gsc.position')}</span>
         </div>
       </CardContent>
     </Card>
@@ -224,6 +227,7 @@ export function GSCTopQueries({ queries }) {
 
 // Top Pages Table
 export function GSCTopPages({ pages }) {
+  const { t } = useTranslation()
   // Extract just the path from URL
   const formatPath = (url) => {
     try {
@@ -237,7 +241,7 @@ export function GSCTopPages({ pages }) {
   return (
     <Card className="bg-background-elevated border-card-border">
       <CardHeader className="pb-2">
-        <CardTitle className="text-foreground text-base font-medium">Top sidor</CardTitle>
+        <CardTitle className="text-foreground text-base font-medium">{t('gsc.topPages')}</CardTitle>
       </CardHeader>
       <CardContent>
         <div className="space-y-1 max-h-80 overflow-y-auto">
@@ -255,7 +259,6 @@ export function GSCTopPages({ pages }) {
               <div className="flex items-center gap-4 text-sm">
                 <div className="text-right w-16">
                   <span className="text-primary font-medium tabular-nums">{p.clicks}</span>
-                  <span className="text-foreground-subtle text-xs ml-1">klick</span>
                 </div>
                 <div className="text-right w-20">
                   <span className="text-foreground-muted tabular-nums">{p.impressions.toLocaleString()}</span>
@@ -265,7 +268,7 @@ export function GSCTopPages({ pages }) {
           ))}
         </div>
         <div className="flex justify-end gap-4 mt-4 text-xs text-foreground-subtle pr-2">
-          <span>Visningar</span>
+          <span>{t('gsc.impressions')}</span>
         </div>
       </CardContent>
     </Card>
@@ -274,6 +277,7 @@ export function GSCTopPages({ pages }) {
 
 // Device Breakdown
 export function GSCDeviceChart({ devices }) {
+  const { t } = useTranslation()
   const deviceIcons = {
     'DESKTOP': Monitor,
     'MOBILE': Smartphone,
@@ -285,7 +289,7 @@ export function GSCDeviceChart({ devices }) {
   return (
     <Card className="bg-background-elevated border-card-border">
       <CardHeader className="pb-2">
-        <CardTitle className="text-foreground text-base font-medium">Enhetsfördelning</CardTitle>
+        <CardTitle className="text-foreground text-base font-medium">{t('gsc.deviceBreakdown')}</CardTitle>
       </CardHeader>
       <CardContent>
         <div className="space-y-3">
@@ -327,6 +331,7 @@ export function GSCDeviceChart({ devices }) {
 
 // Country Breakdown
 export function GSCCountryChart({ countries }) {
+  const { t } = useTranslation()
   const total = countries.reduce((sum, c) => sum + c.clicks, 0)
 
   const chartData = countries.slice(0, 6).map(c => ({
@@ -340,7 +345,7 @@ export function GSCCountryChart({ countries }) {
       <CardHeader className="pb-2">
         <CardTitle className="text-foreground text-base font-medium flex items-center gap-2">
           <Globe className="w-5 h-5 text-primary" />
-          Länder
+          {t('gsc.countries')}
         </CardTitle>
       </CardHeader>
       <CardContent>

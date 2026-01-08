@@ -1,6 +1,9 @@
 import { TrendingUp, Lightbulb, Target, ArrowUpRight, ArrowDownRight } from 'lucide-react'
+import { useTranslation } from '@/lib/i18n'
 
 export function InsightsPage() {
+  const { t } = useTranslation()
+
   return (
     <div className="min-h-screen bg-slate-950">
       {/* Header */}
@@ -8,9 +11,9 @@ export function InsightsPage() {
         <div className="px-8 py-4">
           <h1 className="text-2xl font-bold text-white flex items-center gap-2">
             <TrendingUp className="w-6 h-6 text-cyan-400" />
-            Analyysit & Insikter
+            {t('insights.title')}
           </h1>
-          <p className="text-slate-400 text-sm mt-1">AI-drivna insikter och rekommendationer</p>
+          <p className="text-slate-400 text-sm mt-1">{t('insights.subtitle')}</p>
         </div>
       </header>
 
@@ -20,10 +23,9 @@ export function InsightsPage() {
           <div className="w-16 h-16 bg-cyan-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
             <Lightbulb className="w-8 h-8 text-cyan-400" />
           </div>
-          <h2 className="text-2xl font-bold text-white mb-3">Kommer snart</h2>
+          <h2 className="text-2xl font-bold text-white mb-3">{t('insights.comingSoon')}</h2>
           <p className="text-slate-400 max-w-md mx-auto mb-8">
-            AI-drivna analyser som kombinerar försäljningsdata med Search Console
-            för att ge dig handlingsbara insikter.
+            {t('insights.comingSoonDescription')}
           </p>
 
           {/* Preview cards */}
@@ -31,23 +33,23 @@ export function InsightsPage() {
             <div className="bg-slate-800/50 rounded-lg p-4 text-left border border-slate-700/30">
               <div className="flex items-center gap-2 mb-2">
                 <Target className="w-4 h-4 text-cyan-400" />
-                <span className="text-sm font-medium text-white">Konvertering</span>
+                <span className="text-sm font-medium text-white">{t('insights.conversion')}</span>
               </div>
-              <p className="text-xs text-slate-500">Vilka sökord leder till köp?</p>
+              <p className="text-xs text-slate-500">{t('insights.conversionDesc')}</p>
             </div>
             <div className="bg-slate-800/50 rounded-lg p-4 text-left border border-slate-700/30">
               <div className="flex items-center gap-2 mb-2">
                 <ArrowUpRight className="w-4 h-4 text-green-400" />
-                <span className="text-sm font-medium text-white">Möjligheter</span>
+                <span className="text-sm font-medium text-white">{t('insights.opportunities')}</span>
               </div>
-              <p className="text-xs text-slate-500">Sökord med hög potential</p>
+              <p className="text-xs text-slate-500">{t('insights.opportunitiesDesc')}</p>
             </div>
             <div className="bg-slate-800/50 rounded-lg p-4 text-left border border-slate-700/30">
               <div className="flex items-center gap-2 mb-2">
                 <ArrowDownRight className="w-4 h-4 text-orange-400" />
-                <span className="text-sm font-medium text-white">Trender</span>
+                <span className="text-sm font-medium text-white">{t('insights.trends')}</span>
               </div>
-              <p className="text-xs text-slate-500">Säsongsbetonade mönster</p>
+              <p className="text-xs text-slate-500">{t('insights.trendsDesc')}</p>
             </div>
           </div>
         </div>

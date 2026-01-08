@@ -3,6 +3,7 @@
  */
 
 import { TrendingUp, TrendingDown, Minus, Package } from 'lucide-react'
+import { useTranslation } from '@/lib/i18n'
 
 // Billackering brand-inspired color palette - primary first, then variations
 const COLORS = [
@@ -18,24 +19,27 @@ const COLORS = [
   '#f97316', // orange
 ]
 
-function formatCurrency(value) {
-  return new Intl.NumberFormat('sv-SE', {
-    style: 'currency',
-    currency: 'SEK',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0
-  }).format(value)
-}
+export function CategoryChart({ categories, maxItems = 10, title }) {
+  const { t, locale } = useTranslation()
+  const displayTitle = title || t('charts.topCategories')
 
-export function CategoryChart({ categories, maxItems = 10, title = 'Kategorier' }) {
+  const formatCurrency = (value) => {
+    return new Intl.NumberFormat(locale, {
+      style: 'currency',
+      currency: 'SEK',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
+    }).format(value)
+  }
+
   if (!categories || categories.length === 0) {
     return (
       <div className="bg-background-elevated rounded-lg border border-card-border p-5">
         <h3 className="text-base font-medium text-foreground mb-4 flex items-center gap-2">
           <Package className="w-5 h-5 text-primary" />
-          {title}
+          {displayTitle}
         </h3>
-        <p className="text-foreground-subtle text-center py-8">Ingen kategoridata</p>
+        <p className="text-foreground-subtle text-center py-8">{t('common.loading')}</p>
       </div>
     )
   }
@@ -48,7 +52,7 @@ export function CategoryChart({ categories, maxItems = 10, title = 'Kategorier' 
     <div className="bg-background-elevated rounded-lg border border-card-border p-5">
       <h3 className="text-base font-medium text-foreground mb-4 flex items-center gap-2">
         <Package className="w-5 h-5 text-primary" />
-        {title}
+        {displayTitle}
       </h3>
 
       <div className="space-y-3">
@@ -106,7 +110,7 @@ export function CategoryChart({ categories, maxItems = 10, title = 'Kategorier' 
       {/* Summary footer */}
       {categories.length > maxItems && (
         <p className="text-xs text-foreground-subtle mt-4 text-center">
-          +{categories.length - maxItems} fler kategorier
+          +{categories.length - maxItems} {t('charts.moreCategories')}
         </p>
       )}
     </div>

@@ -3,6 +3,7 @@ import { useGA4 } from '@/hooks/useGA4'
 import { MetricCard, MetricCardGroup } from '@/components/MetricCard'
 import { DateRangePicker, getDateRange, formatDateISO } from '@/components/DateRangePicker'
 import { Button } from '@/components/ui/button'
+import { useTranslation } from '@/lib/i18n'
 import {
   Users,
   MousePointer,
@@ -25,7 +26,7 @@ function createDefaultDateRange() {
     preset: 'last30',
     startDate: formatDateISO(range.startDate),
     endDate: formatDateISO(range.endDate),
-    label: 'Senaste 30 dagarna'
+    label: null // Will use translation
   }
 }
 
@@ -54,10 +55,11 @@ function getChannelColor(channel) {
 }
 
 export function GA4Page() {
+  const { t } = useTranslation()
   // Initialize date range inside component to avoid module-level execution issues
   const [dateRange, setDateRange] = useState(() => createDefaultDateRange())
   const [syncing, setSyncing] = useState(false)
-  const [comparisonMode, setComparisonMode] = useState('mom')
+  const [comparisonMode, setComparisonMode] = useState('yoy') // Default YoY
 
   const {
     dailySummary = [],
@@ -110,10 +112,10 @@ export function GA4Page() {
       <div className="min-h-screen bg-background p-6">
         <div className="max-w-md mx-auto mt-20">
           <div className="bg-destructive-muted rounded-xl p-8 border border-destructive/30 text-center">
-            <h2 className="text-xl font-semibold text-destructive mb-2">Fel vid laddning</h2>
+            <h2 className="text-xl font-semibold text-destructive mb-2">{t('common.error')}</h2>
             <p className="text-foreground-muted mb-4">{error}</p>
             <Button onClick={refresh} className="bg-background-subtle hover:bg-background-elevated border border-border">
-              Försök igen
+              {t('ga4.tryAgain')}
             </Button>
           </div>
         </div>
@@ -131,14 +133,14 @@ export function GA4Page() {
               <BarChart3 className="w-8 h-8 text-primary" />
             </div>
             <h2 className="text-xl font-semibold text-foreground mb-2">
-              Anslut Google Analytics
+              {t('ga4.connectTitle')}
             </h2>
             <p className="text-foreground-muted mb-6">
-              Anslut ditt GA4-konto för att se trafikdata, avvisningsfrekvens och landningssidor.
+              {t('ga4.connectDescription')}
             </p>
             <Button onClick={connectGA4} className="bg-primary hover:bg-primary/90 text-primary-foreground">
               <Link2 className="w-4 h-4 mr-2" />
-              Anslut GA4
+              {t('ga4.connect')}
             </Button>
           </div>
         </div>
@@ -157,7 +159,7 @@ export function GA4Page() {
           <div>
             <h1 className="text-2xl font-semibold text-foreground flex items-center gap-2">
               <BarChart3 className="w-6 h-6 text-primary" />
-              Google Analytics
+              {t('ga4.title')}
             </h1>
             {propertyName && (
               <p className="text-foreground-muted text-sm mt-1">{propertyName}</p>
@@ -177,9 +179,9 @@ export function GA4Page() {
                     ? 'bg-primary text-primary-foreground shadow-sm'
                     : 'text-foreground-muted hover:text-foreground'
                 }`}
-                title="Månad för månad"
+                title={t('comparison.momFull')}
               >
-                MoM
+                {t('comparison.mom')}
               </button>
               <button
                 onClick={() => setComparisonMode('yoy')}
@@ -188,9 +190,9 @@ export function GA4Page() {
                     ? 'bg-primary text-primary-foreground shadow-sm'
                     : 'text-foreground-muted hover:text-foreground'
                 }`}
-                title="År för år"
+                title={t('comparison.yoyFull')}
               >
-                YoY
+                {t('comparison.yoy')}
               </button>
             </div>
             <Button
@@ -221,24 +223,24 @@ export function GA4Page() {
             {/* KPI Cards */}
             <MetricCardGroup columns={4} className="mb-8">
               <MetricCard
-                label="Sessioner"
+                label={t('ga4.sessions')}
                 value={summary?.totalSessions || 0}
                 delta={sessionsChange}
                 deltaLabel={comparisonEnabled ? comparisonMode.toUpperCase() : undefined}
               />
               <MetricCard
-                label="Engagerade sessioner"
+                label={t('ga4.engagedSessions')}
                 value={summary?.totalEngagedSessions || 0}
               />
               <MetricCard
-                label="Avvisningsfrekvens"
+                label={t('ga4.bounceRate')}
                 value={`${((summary?.avgBounceRate || 0) * 100).toFixed(1)}%`}
                 delta={bounceChange}
                 deltaLabel={comparisonEnabled ? comparisonMode.toUpperCase() : undefined}
                 invertDelta={true}
               />
               <MetricCard
-                label="Snitt sessionstid"
+                label={t('ga4.avgSessionDuration')}
                 value={formatDuration(summary?.avgSessionDuration || 0)}
                 delta={durationChange}
                 deltaLabel={comparisonEnabled ? comparisonMode.toUpperCase() : undefined}
@@ -251,7 +253,7 @@ export function GA4Page() {
               <div className="bg-background-elevated rounded-lg border border-card-border p-5">
                 <h3 className="text-base font-medium text-foreground mb-4 flex items-center gap-2">
                   <Globe className="w-5 h-5 text-primary" />
-                  Trafikkällor
+                  {t('ga4.trafficSources')}
                 </h3>
                 <div className="space-y-3">
                   {trafficSources.slice(0, 8).map((source, i) => {
@@ -262,7 +264,7 @@ export function GA4Page() {
                           <span className="text-sm text-foreground">{source.channel}</span>
                           <div className="flex items-center gap-3">
                             <span className="text-sm text-foreground-subtle tabular-nums">
-                              {(source.bounce_rate * 100).toFixed(0)}% avv.
+                              {(source.bounce_rate * 100).toFixed(0)}% {t('ga4.bounceShort')}
                             </span>
                             <span className="text-sm font-medium text-foreground tabular-nums">
                               {source.sessions.toLocaleString()}
@@ -288,7 +290,7 @@ export function GA4Page() {
               <div className="bg-background-elevated rounded-lg border border-card-border p-5">
                 <h3 className="text-base font-medium text-foreground mb-4 flex items-center gap-2">
                   <Link2 className="w-5 h-5 text-primary" />
-                  Landningssidor
+                  {t('ga4.landingPages')}
                 </h3>
                 <div className="space-y-2 max-h-[400px] overflow-y-auto">
                   {landingPages.map((page, i) => {
@@ -300,7 +302,7 @@ export function GA4Page() {
                       >
                         <div className="flex-1 min-w-0 pr-4">
                           <p className="text-sm text-foreground truncate">
-                            {page.page === '/' ? 'Startsida' : page.page}
+                            {page.page === '/' ? t('ga4.homePage') : page.page}
                           </p>
                         </div>
                         <div className="flex items-center gap-4 flex-shrink-0">
@@ -327,7 +329,7 @@ export function GA4Page() {
             <div className="bg-background-elevated rounded-lg border border-card-border p-5">
               <h3 className="text-base font-medium text-foreground mb-4 flex items-center gap-2">
                 <TrendingUp className="w-5 h-5 text-primary" />
-                Daglig trafik
+                {t('ga4.dailyTraffic')}
               </h3>
               <div className="h-64 flex items-center justify-center">
                 {dailySummary.length > 0 ? (
@@ -342,7 +344,7 @@ export function GA4Page() {
                             key={i}
                             className="flex-1 bg-primary/60 hover:bg-primary transition-colors rounded-t cursor-pointer group relative"
                             style={{ height: `${height}%`, minHeight: '4px' }}
-                            title={`${day.date}: ${day.total_sessions} sessioner`}
+                            title={`${day.date}: ${day.total_sessions} ${t('ga4.sessions').toLowerCase()}`}
                           >
                             <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 bg-background-subtle border border-border text-foreground text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-10">
                               {day.date}: {day.total_sessions}
@@ -357,7 +359,7 @@ export function GA4Page() {
                     </div>
                   </div>
                 ) : (
-                  <p className="text-foreground-subtle">Ingen data för vald period</p>
+                  <p className="text-foreground-subtle">{t('ga4.noDataForPeriod')}</p>
                 )}
               </div>
             </div>

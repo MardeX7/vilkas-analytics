@@ -1,17 +1,18 @@
 import { useState, useRef, useEffect } from 'react'
 import { Calendar, ChevronDown, Check } from 'lucide-react'
+import { useTranslation } from '@/lib/i18n'
 
-// Date presets like Google Analytics
-const PRESETS = [
-  { label: 'Idag', value: 'today', days: 0 },
-  { label: 'Igår', value: 'yesterday', days: 1 },
-  { label: 'Senaste 7 dagarna', value: 'last7', days: 7 },
-  { label: 'Senaste 14 dagarna', value: 'last14', days: 14 },
-  { label: 'Senaste 28 dagarna', value: 'last28', days: 28 },
-  { label: 'Senaste 30 dagarna', value: 'last30', days: 30 },
-  { label: 'Denna månad', value: 'thisMonth', days: null },
-  { label: 'Förra månaden', value: 'lastMonth', days: null },
-  { label: 'Senaste 90 dagarna', value: 'last90', days: 90 },
+// Date presets - values only, labels come from translations
+const PRESET_VALUES = [
+  { value: 'today', days: 0 },
+  { value: 'yesterday', days: 1 },
+  { value: 'last7', days: 7 },
+  { value: 'last14', days: 14 },
+  { value: 'last28', days: 28 },
+  { value: 'last30', days: 30 },
+  { value: 'thisMonth', days: null },
+  { value: 'lastMonth', days: null },
+  { value: 'last90', days: 90 },
 ]
 
 function getDateRange(preset) {
@@ -104,6 +105,7 @@ function formatDateISO(date) {
 }
 
 export function DateRangePicker({ value, onChange, compareEnabled }) {
+  const { t } = useTranslation()
   const [isOpen, setIsOpen] = useState(false)
   const [selectedPreset, setSelectedPreset] = useState(value || 'last30')
   const compare = compareEnabled || false // Controlled by parent (Dashboard header)
@@ -122,7 +124,7 @@ export function DateRangePicker({ value, onChange, compareEnabled }) {
   }, [])
 
   const currentRange = getDateRange(selectedPreset)
-  const currentPresetLabel = PRESETS.find(p => p.value === selectedPreset)?.label || 'Välj period'
+  const currentPresetLabel = t(`datePicker.presets.${selectedPreset}`) || t('datePicker.selectPeriod')
 
   // Get comparison period based on mode
   function getComparisonPeriod(startDate, endDate, mode) {
@@ -143,7 +145,7 @@ export function DateRangePicker({ value, onChange, compareEnabled }) {
       preset,
       startDate: formatDateISO(range.startDate),
       endDate: formatDateISO(range.endDate),
-      label: PRESETS.find(p => p.value === preset)?.label,
+      label: t(`datePicker.presets.${preset}`),
       compare,
       compareMode,
       previousStartDate: prevRange ? formatDateISO(prevRange.startDate) : null,
@@ -163,7 +165,7 @@ export function DateRangePicker({ value, onChange, compareEnabled }) {
         preset: selectedPreset,
         startDate: formatDateISO(range.startDate),
         endDate: formatDateISO(range.endDate),
-        label: PRESETS.find(p => p.value === selectedPreset)?.label,
+        label: t(`datePicker.presets.${selectedPreset}`),
         compare,
         compareMode: mode,
         previousStartDate: formatDateISO(prevRange.startDate),
@@ -194,8 +196,8 @@ export function DateRangePicker({ value, onChange, compareEnabled }) {
         <div className="absolute top-full right-0 mt-2 w-80 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-50 overflow-hidden">
           {/* Presets list */}
           <div className="p-2">
-            <p className="text-xs text-slate-500 uppercase tracking-wider px-2 py-1 mb-1">Snabbval</p>
-            {PRESETS.map((preset) => {
+            <p className="text-xs text-slate-500 uppercase tracking-wider px-2 py-1 mb-1">{t('datePicker.quickSelect')}</p>
+            {PRESET_VALUES.map((preset) => {
               const range = getDateRange(preset.value)
               const isSelected = selectedPreset === preset.value
 
@@ -211,7 +213,7 @@ export function DateRangePicker({ value, onChange, compareEnabled }) {
                 >
                   <div className="flex items-center gap-2">
                     {isSelected && <Check className="w-4 h-4" />}
-                    <span className={`text-sm ${isSelected ? '' : 'ml-6'}`}>{preset.label}</span>
+                    <span className={`text-sm ${isSelected ? '' : 'ml-6'}`}>{t(`datePicker.presets.${preset.value}`)}</span>
                   </div>
                   <span className="text-xs text-slate-500">
                     {formatDate(range.startDate).split(' ').slice(0, 2).join(' ')} – {formatDate(range.endDate).split(' ').slice(0, 2).join(' ')}
@@ -224,7 +226,7 @@ export function DateRangePicker({ value, onChange, compareEnabled }) {
           {/* Comparison mode selector (only shown when compare is enabled via header toggle) */}
           {compare && (
             <div className="border-t border-slate-700 p-3">
-              <p className="text-xs text-slate-500 uppercase tracking-wider mb-2">Jämförelseperiod</p>
+              <p className="text-xs text-slate-500 uppercase tracking-wider mb-2">{t('datePicker.comparisonPeriod')}</p>
               <div className="flex gap-2">
                 <button
                   onClick={() => handleCompareModeChange('mom')}
@@ -234,7 +236,7 @@ export function DateRangePicker({ value, onChange, compareEnabled }) {
                       : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
                   }`}
                 >
-                  Föregående period
+                  {t('datePicker.previousPeriod')}
                 </button>
                 <button
                   onClick={() => handleCompareModeChange('yoy')}
@@ -244,7 +246,7 @@ export function DateRangePicker({ value, onChange, compareEnabled }) {
                       : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
                   }`}
                 >
-                  Förra året (YoY)
+                  {t('datePicker.lastYear')}
                 </button>
               </div>
 

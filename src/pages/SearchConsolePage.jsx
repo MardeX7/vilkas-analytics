@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useGSC } from '@/hooks/useGSC'
 import { MetricCard, MetricCardGroup } from '@/components/MetricCard'
-import { DateRangePicker, getDateRange, formatDateISO } from '@/components/DateRangePicker'
+import { DateRangePicker, getDateRange, formatDateISO, getYearOverYearPeriod } from '@/components/DateRangePicker'
 import {
   GSCConnectCard,
   GSCDailyChart,
@@ -12,19 +12,29 @@ import {
 } from '@/components/GSCCharts'
 import { Search, RefreshCw, Download } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { useTranslation } from '@/lib/i18n'
 
-const defaultRange = getDateRange('last30')
-const defaultDateRange = {
-  preset: 'last30',
-  startDate: formatDateISO(defaultRange.startDate),
-  endDate: formatDateISO(defaultRange.endDate),
-  label: 'Senaste 30 dagarna'
+// Helper to create default date range with YoY comparison enabled
+function createDefaultDateRange() {
+  const range = getDateRange('last30')
+  const yoyRange = getYearOverYearPeriod(range.startDate, range.endDate)
+  return {
+    preset: 'last30',
+    startDate: formatDateISO(range.startDate),
+    endDate: formatDateISO(range.endDate),
+    label: null,
+    compare: true,
+    compareMode: 'yoy',
+    previousStartDate: formatDateISO(yoyRange.startDate),
+    previousEndDate: formatDateISO(yoyRange.endDate)
+  }
 }
 
 export function SearchConsolePage() {
-  const [dateRange, setDateRange] = useState(defaultDateRange)
+  const { t } = useTranslation()
+  const [dateRange, setDateRange] = useState(() => createDefaultDateRange())
   const [syncing, setSyncing] = useState(false)
-  const [comparisonMode, setComparisonMode] = useState('mom') // 'mom' or 'yoy'
+  const [comparisonMode, setComparisonMode] = useState('yoy') // 'mom' or 'yoy', default YoY
 
   const {
     dailySummary,
@@ -83,9 +93,9 @@ export function SearchConsolePage() {
           <div>
             <h1 className="text-2xl font-semibold text-foreground flex items-center gap-2">
               <Search className="w-6 h-6 text-primary" />
-              Google Search Console
+              {t('gsc.title')}
             </h1>
-            <p className="text-foreground-muted text-sm mt-1">Organisk söktrafik och sökordsprestanda</p>
+            <p className="text-foreground-muted text-sm mt-1">{t('gsc.subtitle')}</p>
           </div>
           <div className="flex items-center gap-3">
             <DateRangePicker
@@ -101,9 +111,9 @@ export function SearchConsolePage() {
                     ? 'bg-primary text-primary-foreground shadow-sm'
                     : 'text-foreground-muted hover:text-foreground'
                 }`}
-                title="Månad för månad"
+                title={t('comparison.momFull')}
               >
-                MoM
+                {t('comparison.mom')}
               </button>
               <button
                 onClick={() => setComparisonMode('yoy')}
@@ -112,9 +122,9 @@ export function SearchConsolePage() {
                     ? 'bg-primary text-primary-foreground shadow-sm'
                     : 'text-foreground-muted hover:text-foreground'
                 }`}
-                title="År för år"
+                title={t('comparison.yoyFull')}
               >
-                YoY
+                {t('comparison.yoy')}
               </button>
             </div>
             {connected && (
@@ -126,7 +136,7 @@ export function SearchConsolePage() {
                 className="bg-background-elevated border-border text-foreground-muted hover:bg-background-subtle hover:text-foreground"
               >
                 <Download className={`w-4 h-4 mr-2 ${syncing ? 'animate-spin' : ''}`} />
-                {syncing ? 'Synkar...' : 'Synka data'}
+                {syncing ? t('common.loading') : t('gsc.syncData')}
               </Button>
             )}
             <Button
@@ -147,32 +157,32 @@ export function SearchConsolePage() {
         ) : loading ? (
           <div className="text-center py-12">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-            <p className="text-foreground-muted text-sm">Laddar Search Console data...</p>
+            <p className="text-foreground-muted text-sm">{t('common.loading')}</p>
           </div>
         ) : (
           <>
             {/* KPI Cards */}
             <MetricCardGroup columns={4} className="mb-8">
               <MetricCard
-                label="Klick"
+                label={t('gsc.clicks')}
                 value={summary?.totalClicks || 0}
                 delta={clicksChange}
                 deltaLabel={comparisonEnabled ? comparisonMode.toUpperCase() : undefined}
               />
               <MetricCard
-                label="Visningar"
+                label={t('gsc.impressions')}
                 value={summary?.totalImpressions || 0}
                 delta={impressionsChange}
                 deltaLabel={comparisonEnabled ? comparisonMode.toUpperCase() : undefined}
               />
               <MetricCard
-                label="Snitt CTR"
+                label={t('gsc.ctr')}
                 value={`${((summary?.avgCtr || 0) * 100).toFixed(1)}%`}
                 delta={ctrChange}
                 deltaLabel={comparisonEnabled ? comparisonMode.toUpperCase() : undefined}
               />
               <MetricCard
-                label="Snittposition"
+                label={t('gsc.avgPosition')}
                 value={(summary?.avgPosition || 0).toFixed(1)}
                 delta={positionChange}
                 deltaLabel={comparisonEnabled ? comparisonMode.toUpperCase() : undefined}
@@ -206,13 +216,13 @@ export function SearchConsolePage() {
             ) : (
               <div className="bg-background-elevated/50 rounded-lg p-8 text-center border border-border">
                 <Search className="w-12 h-12 text-foreground-subtle mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-foreground mb-2">Ingen data ännu</h3>
+                <h3 className="text-lg font-medium text-foreground mb-2">{t('gsc.noData')}</h3>
                 <p className="text-foreground-muted mb-4">
-                  Klicka på "Synka data" för att hämta data från Google Search Console.
+                  {t('gsc.noDataDescription')}
                 </p>
                 <Button onClick={handleSync} disabled={syncing}>
                   <Download className={`w-4 h-4 mr-2 ${syncing ? 'animate-spin' : ''}`} />
-                  {syncing ? 'Synkar...' : 'Synka data nu'}
+                  {syncing ? t('common.loading') : t('gsc.syncDataNow')}
                 </Button>
               </div>
             )}

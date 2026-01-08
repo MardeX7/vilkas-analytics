@@ -7,10 +7,11 @@
  * Versio: 2.0 - KPI Index Engine
  */
 
-import { useState } from 'react'
-import { RefreshCw, AlertTriangle, TrendingUp, TrendingDown, Minus, ChevronRight, Package, Search, Truck, DollarSign } from 'lucide-react'
+import { useState, useMemo } from 'react'
+import { RefreshCw, AlertTriangle, TrendingUp, TrendingDown, Minus, ChevronRight, ChevronLeft, Package, Search, Truck, DollarSign } from 'lucide-react'
 import { useKPIDashboard } from '@/hooks/useKPIDashboard'
 import { KPIHistoryChart } from '@/components/SalesChart'
+import { useTranslation } from '@/lib/i18n'
 
 // Index icons
 const INDEX_ICONS = {
@@ -31,8 +32,10 @@ const INDEX_COLORS = {
 }
 
 export function IndicatorsPage() {
+  const { t, locale } = useTranslation()
   const [granularity, setGranularity] = useState('week')
   const [selectedIndex, setSelectedIndex] = useState(null)
+  const [periodOffset, setPeriodOffset] = useState(0)
 
   const {
     dashboard,
@@ -46,8 +49,58 @@ export function IndicatorsPage() {
     error,
     hasData,
     refresh,
-    triggerCalculation
-  } = useKPIDashboard({ granularity })
+    triggerCalculation,
+    totalPeriods,
+    currentPeriodIndex
+  } = useKPIDashboard({ granularity, periodOffset })
+
+  // Reset period offset when granularity changes
+  const handleGranularityChange = (newGranularity) => {
+    setGranularity(newGranularity)
+    setPeriodOffset(0)
+  }
+
+  // Navigation handlers
+  const canGoBack = periodOffset < totalPeriods - 1
+  const canGoForward = periodOffset > 0
+  const isLatest = periodOffset === 0
+
+  const goToPreviousPeriod = () => {
+    if (canGoBack) {
+      setPeriodOffset(prev => prev + 1)
+    }
+  }
+
+  const goToNextPeriod = () => {
+    if (canGoForward) {
+      setPeriodOffset(prev => prev - 1)
+    }
+  }
+
+  const goToLatest = () => {
+    setPeriodOffset(0)
+  }
+
+  // Format period label for display
+  const getPeriodLabel = useMemo(() => {
+    if (!dashboard?.period) return ''
+
+    const endDate = new Date(dashboard.period.end)
+
+    if (granularity === 'week') {
+      // Calculate ISO week number
+      const startOfYear = new Date(endDate.getFullYear(), 0, 1)
+      const days = Math.floor((endDate - startOfYear) / (24 * 60 * 60 * 1000))
+      const weekNumber = Math.ceil((days + startOfYear.getDay() + 1) / 7)
+      return t('kpi.navigation.weekNumber', { week: weekNumber }) + ` / ${endDate.getFullYear()}`
+    } else {
+      // Month name
+      const monthNames = locale === 'fi'
+        ? ['Tammikuu', 'Helmikuu', 'Maaliskuu', 'Huhtikuu', 'Toukokuu', 'Kesäkuu', 'Heinäkuu', 'Elokuu', 'Syyskuu', 'Lokakuu', 'Marraskuu', 'Joulukuu']
+        : ['Januari', 'Februari', 'Mars', 'April', 'Maj', 'Juni', 'Juli', 'Augusti', 'September', 'Oktober', 'November', 'December']
+      return `${monthNames[endDate.getMonth()]} ${endDate.getFullYear()}`
+    }
+  }, [dashboard?.period, granularity, locale, t])
 
   // Overall index (first in array)
   const overallIndex = indexes.find(i => i.id === 'overall')
@@ -59,7 +112,7 @@ export function IndicatorsPage() {
         <div className="animate-pulse flex flex-col items-center gap-4">
           <div className="w-20 h-20 rounded-full bg-background-elevated" />
           <div className="w-40 h-4 rounded bg-background-elevated" />
-          <p className="text-foreground-subtle text-sm">Ladataan indeksejä...</p>
+          <p className="text-foreground-subtle text-sm">{t('kpi.loading')}</p>
         </div>
       </div>
     )
@@ -73,35 +126,83 @@ export function IndicatorsPage() {
         <div className="flex items-center justify-between mb-10">
           <div>
             <h1 className="text-2xl font-semibold text-foreground">
-              KPI Dashboard
+              {t('kpi.title')}
             </h1>
             <p className="text-foreground-subtle text-sm mt-1">
-              Liiketoiminnan indeksit viikko/kuukausitasolla
+              {t('kpi.subtitle')}
             </p>
           </div>
 
           <div className="flex items-center gap-4">
+            {/* Period Navigation */}
+            {totalPeriods > 1 && (
+              <div className="flex items-center gap-2 bg-background-elevated rounded-lg border border-border px-2 py-1">
+                <button
+                  onClick={goToPreviousPeriod}
+                  disabled={!canGoBack}
+                  className={`p-1.5 rounded-md transition-colors ${
+                    canGoBack
+                      ? 'text-foreground-muted hover:text-foreground hover:bg-background-subtle'
+                      : 'text-foreground-subtle/30 cursor-not-allowed'
+                  }`}
+                  title={t('kpi.navigation.previous')}
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+
+                <div className="min-w-[140px] text-center">
+                  <span className="text-sm font-medium text-foreground">
+                    {getPeriodLabel}
+                  </span>
+                </div>
+
+                <button
+                  onClick={goToNextPeriod}
+                  disabled={!canGoForward}
+                  className={`p-1.5 rounded-md transition-colors ${
+                    canGoForward
+                      ? 'text-foreground-muted hover:text-foreground hover:bg-background-subtle'
+                      : 'text-foreground-subtle/30 cursor-not-allowed'
+                  }`}
+                  title={t('kpi.navigation.next')}
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+
+                {/* Jump to latest button */}
+                {!isLatest && (
+                  <button
+                    onClick={goToLatest}
+                    className="ml-1 px-2 py-1 text-xs font-medium text-primary hover:text-primary/80 transition-colors"
+                    title={t('kpi.navigation.latest')}
+                  >
+                    {t('kpi.navigation.latest')}
+                  </button>
+                )}
+              </div>
+            )}
+
             {/* Granularity Toggle */}
             <div className="flex bg-background-subtle rounded-lg p-1">
               <button
-                onClick={() => setGranularity('week')}
+                onClick={() => handleGranularityChange('week')}
                 className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${
                   granularity === 'week'
                     ? 'bg-primary text-primary-foreground shadow-sm'
                     : 'text-foreground-muted hover:text-foreground'
                 }`}
               >
-                Viikko
+                {t('kpi.granularity.week')}
               </button>
               <button
-                onClick={() => setGranularity('month')}
+                onClick={() => handleGranularityChange('month')}
                 className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${
                   granularity === 'month'
                     ? 'bg-primary text-primary-foreground shadow-sm'
                     : 'text-foreground-muted hover:text-foreground'
                 }`}
               >
-                Kuukausi
+                {t('kpi.granularity.month')}
               </button>
             </div>
 
@@ -109,7 +210,7 @@ export function IndicatorsPage() {
             <button
               onClick={refresh}
               className="p-2.5 rounded-lg bg-background-elevated text-foreground-muted hover:text-foreground hover:bg-background-subtle transition-colors border border-border"
-              title="Päivitä"
+              title={t('common.refresh')}
             >
               <RefreshCw className="w-5 h-5" />
             </button>
@@ -125,7 +226,7 @@ export function IndicatorsPage() {
 
         {/* No Data State */}
         {!hasData && !isLoading && (
-          <NoDataState onCalculate={triggerCalculation} />
+          <NoDataState onCalculate={triggerCalculation} t={t} />
         )}
 
         {/* Main Dashboard */}
@@ -136,7 +237,7 @@ export function IndicatorsPage() {
 
               {/* Overall Index - Large */}
               <div className="col-span-12 lg:col-span-5">
-                <OverallIndexCard index={overallIndex} alerts={alerts} />
+                <OverallIndexCard index={overallIndex} alerts={alerts} t={t} />
               </div>
 
               {/* 4 Sub-Indexes */}
@@ -154,7 +255,7 @@ export function IndicatorsPage() {
 
             {/* Alerts Banner */}
             {alerts.length > 0 && (
-              <AlertsBanner alerts={alerts} />
+              <AlertsBanner alerts={alerts} t={t} />
             )}
 
             {/* Index Detail (if selected) */}
@@ -162,12 +263,13 @@ export function IndicatorsPage() {
               <IndexDetail
                 index={indexes.find(i => i.id === selectedIndex)}
                 onClose={() => setSelectedIndex(null)}
+                t={t}
               />
             )}
 
             {/* Gross Profit Summary */}
             {profitSummary && (
-              <GrossProfitCard profitSummary={profitSummary} />
+              <GrossProfitCard profitSummary={profitSummary} t={t} />
             )}
 
             {/* KPI History Chart - changes based on selected index and granularity */}
@@ -176,8 +278,8 @@ export function IndicatorsPage() {
                 <KPIHistoryChart
                   data={history}
                   title={selectedIndex
-                    ? `${indexes.find(i => i.id === selectedIndex)?.name || 'Indeksi'} - ${granularity === 'week' ? '52 viikkoa' : '12 kuukautta'}`
-                    : `Kokonaisindeksi - ${granularity === 'week' ? '52 viikkoa' : '12 kuukautta'}`
+                    ? `${indexes.find(i => i.id === selectedIndex)?.name || t('kpi.index')} - ${granularity === 'week' ? t('kpi.weeksCount') : t('kpi.monthsCount')}`
+                    : `${t('kpi.overallIndex')} - ${granularity === 'week' ? t('kpi.weeksCount') : t('kpi.monthsCount')}`
                   }
                   indexKey={selectedIndex
                     ? (selectedIndex === 'ppi' ? 'product_profitability_index' :
@@ -197,20 +299,22 @@ export function IndicatorsPage() {
               {/* Top Profit Drivers */}
               <div className="col-span-12 lg:col-span-6">
                 <ProductsCard
-                  title="Top Profit Drivers"
-                  subtitle="Kannattavimmat tuotteet"
+                  title={t('kpi.products.topDrivers')}
+                  subtitle={t('kpi.products.topDriversDesc')}
                   products={topDrivers}
                   type="drivers"
+                  t={t}
                 />
               </div>
 
               {/* Capital Traps */}
               <div className="col-span-12 lg:col-span-6">
                 <ProductsCard
-                  title="Capital Traps"
-                  subtitle="Tuotteet joissa pääoma jumissa"
+                  title={t('kpi.products.capitalTraps')}
+                  subtitle={t('kpi.products.capitalTrapsDesc')}
                   products={capitalTraps}
                   type="traps"
+                  t={t}
                 />
               </div>
             </div>
@@ -219,10 +323,10 @@ export function IndicatorsPage() {
             {dashboard?.period && (
               <div className="mt-10 text-center">
                 <p className="text-foreground-subtle text-sm">
-                  Jakso: {dashboard.period.start} – {dashboard.period.end}
+                  {t('kpi.period.label')}: {dashboard.period.start} – {dashboard.period.end}
                   {dashboard.calculated_at && (
                     <span className="ml-2">
-                      | Laskettu: {new Date(dashboard.calculated_at).toLocaleString('fi-FI')}
+                      | {t('kpi.period.calculated')}: {new Date(dashboard.calculated_at).toLocaleString(locale)}
                     </span>
                   )}
                 </p>
@@ -238,7 +342,7 @@ export function IndicatorsPage() {
 /**
  * Overall Index Card - Large hero display
  */
-function OverallIndexCard({ index, alerts }) {
+function OverallIndexCard({ index, alerts, t }) {
   if (!index) return null
 
   const { value, delta, interpretation } = index
@@ -268,7 +372,7 @@ function OverallIndexCard({ index, alerts }) {
   return (
     <div className={`bg-gradient-to-br ${getBgGradient(interpretation?.level)} rounded-2xl p-8 h-full border border-card-border`}>
       <div className="flex items-center justify-between mb-6">
-        <p className="text-foreground-muted text-sm font-medium">Kokonaisindeksi</p>
+        <p className="text-foreground-muted text-sm font-medium">{t('kpi.overallIndex')}</p>
         {alerts.length > 0 && (
           <div className="flex items-center gap-1.5 bg-warning-muted text-warning px-2 py-1 rounded-lg">
             <AlertTriangle className="w-3.5 h-3.5" />
@@ -414,18 +518,18 @@ function DeltaBadge({ delta }) {
 /**
  * Alerts Banner
  */
-function AlertsBanner({ alerts }) {
+function AlertsBanner({ alerts, t }) {
   return (
     <div className="bg-warning-muted border border-warning/20 rounded-lg p-4 mb-6">
       <div className="flex items-center gap-3">
         <AlertTriangle className="w-5 h-5 text-warning" />
         <div>
           <p className="text-warning font-medium text-sm">
-            {alerts.length} hälytystä vaatii huomiota
+            {t('kpi.alerts.count', { count: alerts.length })}
           </p>
           <p className="text-warning/70 text-xs mt-0.5">
             {alerts.slice(0, 3).map(a => a.replace(/_/g, ' ')).join(', ')}
-            {alerts.length > 3 && ` +${alerts.length - 3} muuta`}
+            {alerts.length > 3 && ` ${t('kpi.alerts.more', { count: alerts.length - 3 })}`}
           </p>
         </div>
       </div>
@@ -436,7 +540,7 @@ function AlertsBanner({ alerts }) {
 /**
  * Index Detail Panel
  */
-function IndexDetail({ index, onClose }) {
+function IndexDetail({ index, onClose, t }) {
   if (!index) return null
 
   const { id, name, description, components } = index
@@ -463,7 +567,7 @@ function IndexDetail({ index, onClose }) {
           onClick={onClose}
           className="text-foreground-subtle hover:text-foreground text-sm"
         >
-          Sulje
+          {t('kpi.detail.close')}
         </button>
       </div>
 
@@ -474,11 +578,10 @@ function IndexDetail({ index, onClose }) {
             <AlertTriangle className="w-4 h-4 text-warning mt-0.5 flex-shrink-0" />
             <div>
               <p className="text-warning text-sm font-medium">
-                {missingComponents.length}/{totalComponents} komponenttia ilman dataa
+                {t('kpi.detail.missingData.title', { missing: missingComponents.length, total: totalComponents })}
               </p>
               <p className="text-warning/70 text-xs mt-0.5">
-                Indeksi lasketaan vain saatavilla olevien komponenttien perusteella.
-                Puuttuvat mittarit eivät vaikuta tulokseen negatiivisesti.
+                {t('kpi.detail.missingData.description')}
               </p>
             </div>
           </div>
@@ -488,16 +591,16 @@ function IndexDetail({ index, onClose }) {
       {/* Components Breakdown */}
       {components && Object.keys(components).length > 0 && (
         <div className="space-y-3">
-          <p className="text-foreground-muted text-sm font-medium mb-3">Komponentit</p>
+          <p className="text-foreground-muted text-sm font-medium mb-3">{t('kpi.detail.components')}</p>
           {Object.entries(components).map(([key, comp]) => (
-            <ComponentBar key={key} name={key} component={comp} />
+            <ComponentBar key={key} name={key} component={comp} t={t} />
           ))}
         </div>
       )}
 
       {/* No components */}
       {(!components || Object.keys(components).length === 0) && (
-        <p className="text-foreground-subtle text-sm">Komponenttitiedot eivät ole vielä saatavilla.</p>
+        <p className="text-foreground-subtle text-sm">{t('kpi.detail.noComponents')}</p>
       )}
     </div>
   )
@@ -589,13 +692,18 @@ const COMPONENT_META = {
  * Component Bar with tooltip
  * Näyttää "Ei dataa" jos komponentilla ei ole saatavilla olevaa dataa
  */
-function ComponentBar({ name, component }) {
+function ComponentBar({ name, component, t }) {
   if (!component) return null
 
   const { index, value, weight, available, reason } = component
+
+  // Get translated label and tooltip
+  const translatedLabel = t(`kpi.components.${name}.label`, { defaultValue: name.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) })
+  const translatedTooltip = t(`kpi.components.${name}.tooltip`, { defaultValue: '' })
+
   const meta = COMPONENT_META[name] || {
-    label: name.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
-    tooltip: '',
+    label: translatedLabel,
+    tooltip: translatedTooltip,
     valueFormat: (v) => v?.toFixed(1) ?? '—',
     unit: ''
   }
@@ -603,16 +711,16 @@ function ComponentBar({ name, component }) {
   // Jos data ei ole saatavilla, näytä "Ei dataa" -tila
   const isDataMissing = available === false || (index === null && value === 0)
 
-  const displayValue = isDataMissing ? 'Ei dataa' : meta.valueFormat(value)
+  const displayValue = isDataMissing ? t('kpi.components.noData') : meta.valueFormat(value)
 
   // Status text based on index
   const getStatusText = (idx) => {
-    if (idx === null || idx === undefined) return 'Ei dataa'
-    if (idx >= 80) return 'Erinomainen'
-    if (idx >= 60) return 'Hyvä'
-    if (idx >= 40) return 'Kohtalainen'
-    if (idx >= 20) return 'Heikko'
-    return 'Kriittinen'
+    if (idx === null || idx === undefined) return t('kpi.status.noData')
+    if (idx >= 80) return t('kpi.status.excellent')
+    if (idx >= 60) return t('kpi.status.good')
+    if (idx >= 40) return t('kpi.status.fair')
+    if (idx >= 20) return t('kpi.status.poor')
+    return t('kpi.status.critical')
   }
 
   return (
@@ -629,7 +737,7 @@ function ComponentBar({ name, component }) {
       {isDataMissing ? (
         <div className="flex-1 flex items-center">
           <div className="flex-1 h-2 bg-background-subtle/30 rounded-full" style={{ backgroundImage: 'repeating-linear-gradient(90deg, transparent, transparent 4px, rgba(100,116,139,0.15) 4px, rgba(100,116,139,0.15) 8px)' }} />
-          <span className="ml-2 text-foreground-subtle/50 text-xs whitespace-nowrap">Ei dataa</span>
+          <span className="ml-2 text-foreground-subtle/50 text-xs whitespace-nowrap">{t('kpi.components.noData')}</span>
         </div>
       ) : (
         <div className="flex-1 h-2 bg-background-subtle rounded-full overflow-hidden">
@@ -680,13 +788,13 @@ function ComponentBar({ name, component }) {
 /**
  * Products Card
  */
-function ProductsCard({ title, subtitle, products, type }) {
+function ProductsCard({ title, subtitle, products, type, t }) {
   if (!products || products.length === 0) {
     return (
       <div className="bg-background-elevated border border-card-border rounded-lg p-6">
         <h3 className="text-lg font-semibold text-foreground mb-1">{title}</h3>
         <p className="text-foreground-subtle text-sm mb-4">{subtitle}</p>
-        <p className="text-foreground-subtle text-sm">Ei dataa vielä saatavilla.</p>
+        <p className="text-foreground-subtle text-sm">{t('kpi.products.noData')}</p>
       </div>
     )
   }
@@ -733,7 +841,7 @@ function ProductsCard({ title, subtitle, products, type }) {
 /**
  * No Data State
  */
-function NoDataState({ onCalculate }) {
+function NoDataState({ onCalculate, t }) {
   const [isCalculating, setIsCalculating] = useState(false)
 
   const handleCalculate = async () => {
@@ -753,11 +861,10 @@ function NoDataState({ onCalculate }) {
         <span className="text-4xl">📊</span>
       </div>
       <h2 className="text-xl font-semibold text-foreground mb-2">
-        KPI-indeksit eivät ole vielä valmiita
+        {t('kpi.noData.title')}
       </h2>
       <p className="text-foreground-subtle mb-6 max-w-md mx-auto">
-        Laske ensimmäiset indeksit käynnistämällä KPI-laskenta.
-        Tämä voi kestää muutaman sekunnin.
+        {t('kpi.noData.description')}
       </p>
       <button
         onClick={handleCalculate}
@@ -771,10 +878,10 @@ function NoDataState({ onCalculate }) {
         {isCalculating ? (
           <span className="flex items-center gap-2">
             <RefreshCw className="w-4 h-4 animate-spin" />
-            Lasketaan...
+            {t('kpi.noData.calculating')}
           </span>
         ) : (
-          'Laske KPI-indeksit'
+          t('kpi.noData.button')
         )}
       </button>
     </div>
@@ -785,7 +892,7 @@ function NoDataState({ onCalculate }) {
  * Gross Profit Card - Myyntikate-yhteenveto
  * Näyttää myyntikatteen isolla ja YoY-vertailun
  */
-function GrossProfitCard({ profitSummary }) {
+function GrossProfitCard({ profitSummary, t }) {
   if (!profitSummary) return null
 
   const { revenue, cost, grossProfit, marginPercent, currency, period = '30 pv', yoy } = profitSummary
@@ -808,7 +915,7 @@ function GrossProfitCard({ profitSummary }) {
         <div className="flex items-center justify-between mb-4">
           <div>
             <p className="text-success/80 text-sm font-medium uppercase tracking-wide">
-              Myyntikate ({period})
+              {t('kpi.profit.title')} ({period})
             </p>
             <div className="flex items-baseline gap-3 mt-1">
               <span className="text-4xl font-bold text-foreground tabular-nums">
@@ -824,7 +931,7 @@ function GrossProfitCard({ profitSummary }) {
                     ? 'bg-success-muted text-success'
                     : 'bg-destructive-muted text-destructive'
                 }`}>
-                  {formatChange(yoy.grossProfitChange)} vs viime vuosi
+                  {formatChange(yoy.grossProfitChange)} {t('kpi.profit.vsLastYear')}
                 </span>
               )}
             </div>
@@ -834,7 +941,7 @@ function GrossProfitCard({ profitSummary }) {
               <p className="text-success text-2xl font-bold tabular-nums">
                 {marginPercent.toFixed(1)}%
               </p>
-              <p className="text-success/60 text-xs">kate-%</p>
+              <p className="text-success/60 text-xs">{t('kpi.profit.marginPercent')}</p>
             </div>
           </div>
         </div>
@@ -842,7 +949,7 @@ function GrossProfitCard({ profitSummary }) {
         {/* Revenue breakdown bar */}
         <div className="mt-6">
           <div className="flex justify-between text-sm mb-2">
-            <span className="text-foreground-muted">Myynti (netto)</span>
+            <span className="text-foreground-muted">{t('kpi.profit.salesNet')}</span>
             <div className="flex items-center gap-2">
               <span className="text-foreground font-medium tabular-nums">{formatNumber(revenue)} {currency}</span>
               {yoy && yoy.revenueChange !== null && (
@@ -862,7 +969,7 @@ function GrossProfitCard({ profitSummary }) {
 
         <div className="mt-3">
           <div className="flex justify-between text-sm mb-2">
-            <span className="text-foreground-muted">Ostot (netto)</span>
+            <span className="text-foreground-muted">{t('kpi.profit.purchasesNet')}</span>
             <span className="text-foreground font-medium tabular-nums">{formatNumber(cost)} {currency}</span>
           </div>
           <div className="h-3 bg-background-subtle rounded-full overflow-hidden">
@@ -875,7 +982,7 @@ function GrossProfitCard({ profitSummary }) {
 
         <div className="mt-4 pt-4 border-t border-border">
           <div className="flex justify-between items-center">
-            <span className="text-foreground-muted text-sm">= Myyntikate</span>
+            <span className="text-foreground-muted text-sm">= {t('kpi.profit.grossMargin')}</span>
             <span className="text-success font-bold text-lg tabular-nums">
               {formatNumber(grossProfit)} {currency}
             </span>
@@ -883,7 +990,7 @@ function GrossProfitCard({ profitSummary }) {
           {/* YoY comparison detail */}
           {yoy && yoy.grossProfit > 0 && (
             <div className="flex justify-between items-center mt-2 text-xs text-foreground-subtle tabular-nums">
-              <span>Viime vuosi sama periodi</span>
+              <span>{t('kpi.profit.lastYearSamePeriod')}</span>
               <span>{formatNumber(yoy.grossProfit)} {currency}</span>
             </div>
           )}
