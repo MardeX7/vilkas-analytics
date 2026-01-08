@@ -15,6 +15,7 @@ export function MetricCard({
   value,
   delta,
   deltaLabel,
+  previousValue, // Absolute value from comparison period
   suffix = '',
   prefix = '',
   invertDelta = false,
@@ -93,7 +94,7 @@ export function MetricCard({
 
       {/* Delta */}
       {hasDelta && (
-        <div className="flex items-center gap-1.5 mt-2">
+        <div className="flex items-center gap-1.5 mt-2 flex-wrap">
           {isPositive && <TrendingUp className="w-3.5 h-3.5 text-success" />}
           {isNegative && <TrendingDown className="w-3.5 h-3.5 text-destructive" />}
           {isNeutral && <Minus className="w-3.5 h-3.5 text-foreground-subtle" />}
@@ -110,6 +111,13 @@ export function MetricCard({
             {deltaValue > 0 && '+'}
             {deltaValue.toFixed(1)}%
           </span>
+
+          {/* Show previous absolute value in parentheses */}
+          {previousValue !== undefined && previousValue !== null && (
+            <span className="text-xs text-foreground-subtle tabular-nums">
+              ({prefix}{formatValue(previousValue)}{suffix})
+            </span>
+          )}
 
           {deltaLabel && (
             <span className="text-xs text-foreground-subtle ml-0.5">

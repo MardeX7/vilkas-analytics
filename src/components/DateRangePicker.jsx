@@ -103,10 +103,10 @@ function formatDateISO(date) {
   return date.toISOString().split('T')[0]
 }
 
-export function DateRangePicker({ value, onChange, compareEnabled, onCompareChange }) {
+export function DateRangePicker({ value, onChange, compareEnabled }) {
   const [isOpen, setIsOpen] = useState(false)
   const [selectedPreset, setSelectedPreset] = useState(value || 'last30')
-  const [compare, setCompare] = useState(compareEnabled || false)
+  const compare = compareEnabled || false // Controlled by parent (Dashboard header)
   const [compareMode, setCompareMode] = useState('mom') // 'mom' = Month over Month, 'yoy' = Year over Year
   const dropdownRef = useRef(null)
 
@@ -145,26 +145,6 @@ export function DateRangePicker({ value, onChange, compareEnabled, onCompareChan
       endDate: formatDateISO(range.endDate),
       label: PRESETS.find(p => p.value === preset)?.label,
       compare,
-      compareMode,
-      previousStartDate: prevRange ? formatDateISO(prevRange.startDate) : null,
-      previousEndDate: prevRange ? formatDateISO(prevRange.endDate) : null
-    })
-  }
-
-  function handleCompareChange(checked) {
-    setCompare(checked)
-    onCompareChange?.(checked)
-
-    // Re-emit the current selection with compare info
-    const range = getDateRange(selectedPreset)
-    const prevRange = checked ? getComparisonPeriod(range.startDate, range.endDate, compareMode) : null
-
-    onChange?.({
-      preset: selectedPreset,
-      startDate: formatDateISO(range.startDate),
-      endDate: formatDateISO(range.endDate),
-      label: PRESETS.find(p => p.value === selectedPreset)?.label,
-      compare: checked,
       compareMode,
       previousStartDate: prevRange ? formatDateISO(prevRange.startDate) : null,
       previousEndDate: prevRange ? formatDateISO(prevRange.endDate) : null
@@ -241,21 +221,11 @@ export function DateRangePicker({ value, onChange, compareEnabled, onCompareChan
             })}
           </div>
 
-          {/* Comparison toggle */}
-          <div className="border-t border-slate-700 p-3">
-            <label className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={compare}
-                onChange={(e) => handleCompareChange(e.target.checked)}
-                className="rounded border-slate-600 bg-slate-700 text-cyan-500 focus:ring-cyan-500 focus:ring-offset-0"
-              />
-              <span>Jämför med tidigare period</span>
-            </label>
-
-            {/* Comparison mode selector */}
-            {compare && (
-              <div className="mt-3 ml-6 flex gap-2">
+          {/* Comparison mode selector (only shown when compare is enabled via header toggle) */}
+          {compare && (
+            <div className="border-t border-slate-700 p-3">
+              <p className="text-xs text-slate-500 uppercase tracking-wider mb-2">Jämförelseperiod</p>
+              <div className="flex gap-2">
                 <button
                   onClick={() => handleCompareModeChange('mom')}
                   className={`px-3 py-1.5 text-xs rounded-md transition-colors ${
@@ -277,14 +247,14 @@ export function DateRangePicker({ value, onChange, compareEnabled, onCompareChan
                   Förra året (YoY)
                 </button>
               </div>
-            )}
 
-            {compare && prevPeriod && (
-              <p className="text-xs text-slate-500 mt-2 ml-6">
-                vs. {formatDate(prevPeriod.startDate)} – {formatDate(prevPeriod.endDate)}
-              </p>
-            )}
-          </div>
+              {prevPeriod && (
+                <p className="text-xs text-slate-500 mt-2">
+                  vs. {formatDate(prevPeriod.startDate)} – {formatDate(prevPeriod.endDate)}
+                </p>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>

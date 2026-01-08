@@ -386,7 +386,11 @@ export function useAnalytics(dateRange = null) {
           ...itemsPerOrder,
           currency: 'SEK'
         },
-        previousSummary: previousSummary ? { ...previousSummary, currency: 'SEK' } : null,
+        previousSummary: previousSummary ? {
+          ...previousSummary,
+          marginPercent: previousGrossMargin?.marginPercent || 0,
+          currency: 'SEK'
+        } : null,
         comparison
       })
     } catch (err) {

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useAnalytics } from '@/hooks/useAnalytics'
 import { useGA4 } from '@/hooks/useGA4'
 import { useCategories } from '@/hooks/useCategories'
-import { MetricCard, MetricCardGroup, MetricCardSkeleton } from '@/components/MetricCard'
+import { MetricCard, MetricCardGroup } from '@/components/MetricCard'
 import { DailySalesChart, WeekdayChart, HourlyChart } from '@/components/SalesChart'
 import { TopProducts } from '@/components/TopProducts'
 import { CategoryChart } from '@/components/CategoryChart'
@@ -33,6 +33,7 @@ export function Dashboard() {
     weekdayAnalysis,
     hourlyAnalysis,
     summary,
+    previousSummary,
     comparison,
     loading,
     error,
@@ -88,9 +89,27 @@ export function Dashboard() {
             <p className="text-foreground-muted text-sm mt-1">Realtidsanalytik för din webshop</p>
           </div>
           <div className="flex items-center gap-3">
+            {/* Compare toggle - always visible in header */}
+            <label className="flex items-center gap-2 text-sm text-foreground-muted cursor-pointer">
+              <input
+                type="checkbox"
+                checked={dateRange.compare || false}
+                onChange={(e) => {
+                  const newCompare = e.target.checked
+                  // Trigger DateRangePicker's onChange with compare flag
+                  setDateRange(prev => ({
+                    ...prev,
+                    compare: newCompare
+                  }))
+                }}
+                className="rounded border-border bg-background-elevated text-primary focus:ring-primary focus:ring-offset-0"
+              />
+              <span>Jämför</span>
+            </label>
             <DateRangePicker
               value={dateRange.preset}
               onChange={setDateRange}
+              compareEnabled={dateRange.compare}
             />
             <Button
               onClick={refresh}
@@ -123,8 +142,9 @@ export function Dashboard() {
           <MetricCard
             label="Försäljning"
             value={summary?.totalRevenue || 0}
-            suffix="kr"
+            suffix=" kr"
             delta={comparison?.revenue}
+            previousValue={dateRange.compare ? previousSummary?.totalRevenue : undefined}
             deltaLabel={dateRange.compare ? 'vs förra' : undefined}
           />
           <MetricCard
@@ -132,19 +152,22 @@ export function Dashboard() {
             value={(summary?.marginPercent || 0).toFixed(1)}
             suffix="%"
             delta={comparison?.margin}
+            previousValue={dateRange.compare ? previousSummary?.marginPercent?.toFixed(1) : undefined}
             deltaLabel={dateRange.compare ? 'vs förra' : undefined}
           />
           <MetricCard
             label="Antal ordrar"
             value={summary?.orderCount || 0}
             delta={comparison?.orders}
+            previousValue={dateRange.compare ? previousSummary?.orderCount : undefined}
             deltaLabel={dateRange.compare ? 'vs förra' : undefined}
           />
           <MetricCard
             label="Snittordervärde"
             value={Math.round(summary?.avgOrderValue || 0)}
-            suffix="kr"
+            suffix=" kr"
             delta={comparison?.aov}
+            previousValue={dateRange.compare ? Math.round(previousSummary?.avgOrderValue || 0) : undefined}
             deltaLabel={dateRange.compare ? 'vs förra' : undefined}
           />
           <MetricCard
@@ -161,6 +184,7 @@ export function Dashboard() {
             label="Unika kunder"
             value={summary?.uniqueCustomers || 0}
             delta={comparison?.customers}
+            previousValue={dateRange.compare ? previousSummary?.uniqueCustomers : undefined}
             deltaLabel={dateRange.compare ? 'vs förra' : undefined}
           />
           <MetricCard
@@ -168,6 +192,7 @@ export function Dashboard() {
             value={(summary?.returningCustomerPercent || 0).toFixed(1)}
             suffix="%"
             delta={comparison?.returningCustomers}
+            previousValue={dateRange.compare ? previousSummary?.returningCustomerPercent?.toFixed(1) : undefined}
             deltaLabel={dateRange.compare ? 'vs förra' : undefined}
           />
           <MetricCard
