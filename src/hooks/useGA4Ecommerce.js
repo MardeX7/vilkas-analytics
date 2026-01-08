@@ -39,10 +39,12 @@ export function useGA4Ecommerce(dateRange = null) {
     setError(null)
 
     try {
+      // E-commerce data: Try with date range first, fallback to all data
+      // This is because GA4 E-commerce data may have gaps or not be available for recent dates
       const startDate = dateRange?.startDate
       const endDate = dateRange?.endDate
 
-      // Fetch aggregated product data - use SHOP_ID (shops.id)
+      // First try: with date range filter
       let query = supabase
         .from('ga4_ecommerce')
         .select('*')
@@ -52,9 +54,21 @@ export function useGA4Ecommerce(dateRange = null) {
       if (startDate) query = query.gte('date', startDate)
       if (endDate) query = query.lte('date', endDate)
 
-      const { data: rawData, error: queryError } = await query
-
+      let { data: rawData, error: queryError } = await query
       if (queryError) throw queryError
+
+      // Fallback: if no data found with date range, fetch ALL available data
+      if (!rawData || rawData.length === 0) {
+        const { data: allData, error: allError } = await supabase
+          .from('ga4_ecommerce')
+          .select('*')
+          .eq('store_id', SHOP_ID)
+          .order('items_viewed', { ascending: false })
+
+        if (!allError) {
+          rawData = allData
+        }
+      }
 
       if (!rawData || rawData.length === 0) {
         setData({
@@ -164,7 +178,15 @@ export function useGA4Ecommerce(dateRange = null) {
   }, [fetchEcommerceData])
 
   // Sync E-commerce data function
+  // Always sync last 365 days for comprehensive product data
   const syncEcommerce = async (startDate, endDate) => {
+    // For E-commerce, we want to fetch a full year of data
+    // to ensure we have comprehensive product performance metrics
+    const oneYearAgo = new Date()
+    oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1)
+    const syncStartDate = oneYearAgo.toISOString().split('T')[0]
+    const syncEndDate = new Date().toISOString().split('T')[0]
+
     const response = await fetch('/api/ga4/sync-ecommerce', {
       method: 'POST',
       headers: {
@@ -172,8 +194,8 @@ export function useGA4Ecommerce(dateRange = null) {
       },
       body: JSON.stringify({
         store_id: STORE_ID,
-        start_date: startDate,
-        end_date: endDate
+        start_date: syncStartDate,
+        end_date: syncEndDate
       })
     })
     const result = await response.json()
