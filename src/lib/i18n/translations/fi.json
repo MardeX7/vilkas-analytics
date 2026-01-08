@@ -282,6 +282,8 @@
   },
   "charts": {
     "dailySales": "Päivittäinen myynti",
+    "dailyMargin": "Päivittäinen myyntikate",
+    "grossProfit": "Kate",
     "salesByWeekday": "Myynti viikonpäivittäin",
     "salesByHour": "Myynti tunneittain",
     "topProducts": "Myydyimmät tuotteet",

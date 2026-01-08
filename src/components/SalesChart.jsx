@@ -113,15 +113,80 @@ export function DailySalesChart({ data, previousData = null, compare = false }) 
   )
 }
 
+export function DailyMarginChart({ data }) {
+  const { t, locale } = useTranslation()
+  // Reverse to show oldest first
+  const chartData = [...data].reverse().map(d => ({
+    date: new Date(d.sale_date).toLocaleDateString(locale, { month: 'short', day: 'numeric' }),
+    grossProfit: d.gross_profit,
+    marginPercent: d.margin_percent
+  }))
+
+  return (
+    <Card className="bg-background-elevated border-card-border">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-foreground text-base font-medium">{t('charts.dailyMargin')}</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="h-64">
+          <ResponsiveContainer width="100%" height="100%">
+            <ComposedChart data={chartData}>
+              <defs>
+                <linearGradient id="colorMargin" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor={COLORS.success} stopOpacity={0.25}/>
+                  <stop offset="95%" stopColor={COLORS.success} stopOpacity={0}/>
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke={COLORS.grid} vertical={false} />
+              <XAxis dataKey="date" stroke={COLORS.muted} fontSize={11} tickLine={false} axisLine={false} />
+              <YAxis stroke={COLORS.muted} fontSize={11} tickLine={false} axisLine={false} tickFormatter={(v) => `${(v/1000).toFixed(0)}k`} />
+              <Tooltip
+                contentStyle={{ backgroundColor: COLORS.tooltip, border: `1px solid ${COLORS.grid}`, borderRadius: '8px' }}
+                labelStyle={{ color: COLORS.text }}
+                formatter={(value, name) => {
+                  if (name === 'grossProfit') return [`${value?.toLocaleString()} SEK`, t('charts.grossProfit')]
+                  return [value, name]
+                }}
+              />
+              <Area
+                type="monotone"
+                dataKey="grossProfit"
+                stroke={COLORS.success}
+                strokeWidth={2}
+                fillOpacity={1}
+                fill="url(#colorMargin)"
+              />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
 export function WeekdayChart({ data }) {
   const { t } = useTranslation()
   const weekdayKeys = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
 
-  const chartData = data.map(d => ({
-    name: t(`weekdays.${weekdayKeys[d.day_of_week]}`) || d.weekday_name,
-    revenue: d.total_revenue,
-    orders: d.order_count
-  }))
+  // Aggregate by day_of_week (handle multiple currencies)
+  const aggregated = {}
+  data.forEach(d => {
+    const dow = d.day_of_week
+    if (!aggregated[dow]) {
+      aggregated[dow] = { day_of_week: dow, total_revenue: 0, order_count: 0 }
+    }
+    aggregated[dow].total_revenue += d.total_revenue || 0
+    aggregated[dow].order_count += d.order_count || 0
+  })
+
+  // Convert to sorted array (0=Sunday ... 6=Saturday)
+  const chartData = Object.values(aggregated)
+    .sort((a, b) => a.day_of_week - b.day_of_week)
+    .map(d => ({
+      name: t(`weekdays.${weekdayKeys[d.day_of_week]}`),
+      revenue: d.total_revenue,
+      orders: d.order_count
+    }))
 
   return (
     <Card className="bg-background-elevated border-card-border">
@@ -151,11 +216,26 @@ export function WeekdayChart({ data }) {
 
 export function HourlyChart({ data }) {
   const { t } = useTranslation()
-  const chartData = data.map(d => ({
-    hour: `${String(d.hour_of_day).padStart(2, '0')}:00`,
-    revenue: d.total_revenue,
-    orders: d.order_count
-  }))
+
+  // Aggregate by hour_of_day (handle multiple currencies)
+  const aggregated = {}
+  data.forEach(d => {
+    const hour = d.hour_of_day
+    if (!aggregated[hour]) {
+      aggregated[hour] = { hour_of_day: hour, total_revenue: 0, order_count: 0 }
+    }
+    aggregated[hour].total_revenue += d.total_revenue || 0
+    aggregated[hour].order_count += d.order_count || 0
+  })
+
+  // Convert to sorted array (0-23)
+  const chartData = Object.values(aggregated)
+    .sort((a, b) => a.hour_of_day - b.hour_of_day)
+    .map(d => ({
+      hour: `${String(d.hour_of_day).padStart(2, '0')}:00`,
+      revenue: d.total_revenue,
+      orders: d.order_count
+    }))
 
   return (
     <Card className="bg-background-elevated border-card-border">

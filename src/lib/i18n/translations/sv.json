@@ -282,6 +282,8 @@
   },
   "charts": {
     "dailySales": "Daglig försäljning",
+    "dailyMargin": "Daglig bruttomarginal",
+    "grossProfit": "Bruttomarginal",
     "salesByWeekday": "Försäljning per veckodag",
     "salesByHour": "Försäljning per timme",
     "topProducts": "Bästsäljande produkter",

@@ -66,69 +66,140 @@ async function fetchPeriodSummary(startDate, endDate) {
   }
 }
 
-// Helper to fetch gross margin data from KPI snapshots
-// Uses pre-calculated data from kpi_index_snapshots.raw_metrics.core
-// Falls back to snapshot closest to the requested period
+// Helper to fetch gross margin data - REAL-TIME calculation from orders + products.cost_price
 async function fetchGrossMargin(startDate, endDate) {
-  // Get snapshots for both week and month granularity to find best match
-  const { data: snapshots } = await supabase
-    .from('kpi_index_snapshots')
-    .select('period_start, period_end, granularity, raw_metrics')
+  let query = supabase
+    .from('orders')
+    .select(`
+      id,
+      grand_total,
+      order_line_items (
+        quantity,
+        total_price,
+        product_id
+      )
+    `)
     .eq('store_id', STORE_ID)
-    .order('period_end', { ascending: false })
-    .limit(24) // ~6 months of weekly + monthly snapshots
+    .neq('status', 'cancelled')
 
-  if (!snapshots || snapshots.length === 0) {
+  if (startDate) query = query.gte('creation_date', startDate)
+  if (endDate) query = query.lte('creation_date', endDate + 'T23:59:59')
+
+  const { data: orders } = await query
+
+  if (!orders || orders.length === 0) {
     return { grossProfit: 0, marginPercent: 0, totalCost: 0, totalRevenue: 0 }
   }
 
-  // Find the snapshot that best matches the requested period
-  // Prefer weekly for shorter periods, monthly for longer
-  let bestSnapshot = null
+  // Get all product_ids from order_line_items
+  const productIds = new Set()
+  orders.forEach(o => {
+    o.order_line_items?.forEach(item => {
+      if (item.product_id) productIds.add(item.product_id)
+    })
+  })
 
-  if (startDate && endDate) {
-    const start = new Date(startDate)
-    const end = new Date(endDate)
-    const daysDiff = Math.ceil((end - start) / (1000 * 60 * 60 * 24))
+  // Fetch cost_price for all products in one query
+  const { data: products } = await supabase
+    .from('products')
+    .select('id, cost_price')
+    .in('id', Array.from(productIds))
 
-    // For periods <= 14 days, prefer weekly; for longer, prefer monthly
-    const preferredGranularity = daysDiff <= 14 ? 'week' : (daysDiff <= 45 ? 'week' : 'month')
+  const costMap = new Map()
+  products?.forEach(p => {
+    if (p.cost_price) costMap.set(p.id, p.cost_price)
+  })
 
-    // Find snapshot that overlaps with the requested period
-    for (const snap of snapshots) {
-      if (snap.granularity === preferredGranularity && snap.raw_metrics?.core) {
-        const snapStart = new Date(snap.period_start)
-        const snapEnd = new Date(snap.period_end)
+  // Calculate totals
+  let totalRevenue = 0
+  let totalCost = 0
 
-        // Check if periods overlap
-        if (start <= snapEnd && end >= snapStart) {
-          bestSnapshot = snap
-          break
-        }
-      }
-    }
+  orders.forEach(o => {
+    o.order_line_items?.forEach(item => {
+      const qty = item.quantity || 1
+      const price = item.total_price || 0
+      const costPrice = costMap.get(item.product_id) || 0
 
-    // Fallback: take the latest snapshot with core data
-    if (!bestSnapshot) {
-      bestSnapshot = snapshots.find(s => s.raw_metrics?.core)
-    }
-  } else {
-    // No date range specified, use latest snapshot with core data
-    bestSnapshot = snapshots.find(s => s.raw_metrics?.core)
+      totalRevenue += price
+      totalCost += costPrice * qty
+    })
+  })
+
+  const grossProfit = totalRevenue - totalCost
+  const marginPercent = totalRevenue > 0 ? (grossProfit / totalRevenue) * 100 : 0
+
+  return { grossProfit, marginPercent, totalCost, totalRevenue }
+}
+
+// Helper to fetch daily gross margin data
+async function fetchDailyMargin(startDate, endDate) {
+  let query = supabase
+    .from('orders')
+    .select(`
+      id,
+      creation_date,
+      order_line_items (
+        quantity,
+        total_price,
+        product_id
+      )
+    `)
+    .eq('store_id', STORE_ID)
+    .neq('status', 'cancelled')
+
+  if (startDate) query = query.gte('creation_date', startDate)
+  if (endDate) query = query.lte('creation_date', endDate + 'T23:59:59')
+
+  const { data: orders } = await query
+
+  if (!orders || orders.length === 0) {
+    return []
   }
 
-  if (bestSnapshot?.raw_metrics?.core) {
-    const core = bestSnapshot.raw_metrics.core
-    return {
-      grossProfit: core.gross_profit || 0,
-      marginPercent: core.margin_percent || 0,
-      totalCost: (core.total_revenue || 0) - (core.gross_profit || 0),
-      totalRevenue: core.total_revenue || 0
-    }
-  }
+  // Get all product_ids
+  const productIds = new Set()
+  orders.forEach(o => {
+    o.order_line_items?.forEach(item => {
+      if (item.product_id) productIds.add(item.product_id)
+    })
+  })
 
-  // Fallback: return zeros if no snapshot available
-  return { grossProfit: 0, marginPercent: 0, totalCost: 0, totalRevenue: 0 }
+  // Fetch cost_price for all products
+  const { data: products } = await supabase
+    .from('products')
+    .select('id, cost_price')
+    .in('id', Array.from(productIds))
+
+  const costMap = new Map()
+  products?.forEach(p => {
+    if (p.cost_price) costMap.set(p.id, p.cost_price)
+  })
+
+  // Group by date
+  const dailyData = {}
+  orders.forEach(o => {
+    const date = o.creation_date.split('T')[0]
+    if (!dailyData[date]) {
+      dailyData[date] = { revenue: 0, cost: 0 }
+    }
+    o.order_line_items?.forEach(item => {
+      const qty = item.quantity || 1
+      const price = item.total_price || 0
+      const costPrice = costMap.get(item.product_id) || 0
+      dailyData[date].revenue += price
+      dailyData[date].cost += costPrice * qty
+    })
+  })
+
+  // Convert to array with margin calculation
+  return Object.entries(dailyData)
+    .map(([date, data]) => ({
+      sale_date: date,
+      total_revenue: data.revenue,
+      gross_profit: data.revenue - data.cost,
+      margin_percent: data.revenue > 0 ? ((data.revenue - data.cost) / data.revenue) * 100 : 0
+    }))
+    .sort((a, b) => b.sale_date.localeCompare(a.sale_date))
 }
 
 // Helper to fetch average items per order
@@ -168,6 +239,7 @@ export function useAnalytics(dateRange = null) {
   const [error, setError] = useState(null)
   const [data, setData] = useState({
     dailySales: [],
+    dailyMargin: [],
     previousDailySales: [],
     weeklySales: [],
     monthlySales: [],
@@ -263,7 +335,8 @@ export function useAnalytics(dateRange = null) {
         previousDailyRes,
         grossMargin,
         previousGrossMargin,
-        itemsPerOrder
+        itemsPerOrder,
+        dailyMarginData
       ] = await Promise.all([
         dailyQuery,
         supabase.from('v_weekly_sales').select('*').eq('store_id', STORE_ID).order('week_start', { ascending: false }).limit(12),
@@ -278,7 +351,8 @@ export function useAnalytics(dateRange = null) {
         previousDailyQuery || Promise.resolve({ data: null }),
         fetchGrossMargin(startDate, endDate),
         compare && previousStartDate ? fetchGrossMargin(previousStartDate, previousEndDate) : Promise.resolve(null),
-        fetchItemsPerOrder(startDate, endDate)
+        fetchItemsPerOrder(startDate, endDate),
+        fetchDailyMargin(startDate, endDate)
       ])
 
       // Aggregate top products from orders
@@ -366,6 +440,7 @@ export function useAnalytics(dateRange = null) {
 
       setData({
         dailySales: dailyRes.data || [],
+        dailyMargin: dailyMarginData || [],
         previousDailySales: previousDailyRes?.data || [],
         weeklySales: weeklyRes.data || [],
         monthlySales: monthlyRes.data || [],

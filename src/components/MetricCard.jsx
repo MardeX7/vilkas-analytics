@@ -16,6 +16,7 @@ export function MetricCard({
   delta,
   deltaLabel,
   previousValue, // Absolute value from comparison period
+  subValue, // Additional info shown below value (e.g., "123 456 kr")
   suffix = '',
   prefix = '',
   invertDelta = false,
@@ -91,6 +92,13 @@ export function MetricCard({
           </span>
         )}
       </div>
+
+      {/* Sub value (e.g., gross profit in currency) */}
+      {subValue && (
+        <p className="text-xs text-foreground-subtle mt-0.5 tabular-nums">
+          ({subValue})
+        </p>
+      )}
 
       {/* Delta */}
       {hasDelta && (

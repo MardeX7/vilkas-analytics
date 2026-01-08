@@ -4,7 +4,7 @@ import { useGA4 } from '@/hooks/useGA4'
 import { useCategories } from '@/hooks/useCategories'
 import { useTranslation } from '@/lib/i18n'
 import { MetricCard, MetricCardGroup } from '@/components/MetricCard'
-import { DailySalesChart, WeekdayChart, HourlyChart } from '@/components/SalesChart'
+import { DailySalesChart, DailyMarginChart, WeekdayChart, HourlyChart } from '@/components/SalesChart'
 import { TopProducts } from '@/components/TopProducts'
 import { CategoryChart } from '@/components/CategoryChart'
 import { PaymentMethodsChart, ShippingMethodsChart } from '@/components/PaymentMethods'
@@ -36,6 +36,7 @@ export function Dashboard() {
 
   const {
     dailySales,
+    dailyMargin,
     previousDailySales,
     topProducts,
     paymentMethods,
@@ -216,6 +217,7 @@ export function Dashboard() {
             label={t('dashboard.metrics.grossMargin')}
             value={(summary?.marginPercent || 0).toFixed(1)}
             suffix="%"
+            subValue={summary?.grossProfit ? `${Math.round(summary.grossProfit).toLocaleString(language === 'fi' ? 'fi-FI' : 'sv-SE')} kr` : undefined}
             delta={comparison?.margin}
             previousValue={dateRange.compare ? previousSummary?.marginPercent?.toFixed(1) : undefined}
             deltaLabel={dateRange.compare ? comparisonMode.toUpperCase() : undefined}
@@ -333,13 +335,18 @@ export function Dashboard() {
           </div>
         </div>
 
-        {/* Charts Row 1 */}
+        {/* Charts Row 1 - Daily Sales & Daily Margin */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
           <DailySalesChart
             data={dailySales}
             previousData={previousDailySales}
             compare={dateRange.compare}
           />
+          <DailyMarginChart data={dailyMargin} />
+        </div>
+
+        {/* Charts Row 1.5 - Top Products */}
+        <div className="grid grid-cols-1 gap-6 mb-6">
           <TopProducts products={topProducts} />
         </div>
 
