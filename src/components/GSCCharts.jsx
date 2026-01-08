@@ -8,38 +8,49 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  BarChart,
-  Bar,
   PieChart,
   Pie,
   Cell
 } from 'recharts'
-import { Search, ExternalLink, Globe, Smartphone, Monitor, Tablet } from 'lucide-react'
+import { Search, Globe, Smartphone, Monitor, Tablet } from 'lucide-react'
 
-const DEVICE_COLORS = {
-  'DESKTOP': '#06b6d4',
-  'MOBILE': '#8b5cf6',
-  'TABLET': '#22c55e'
+// Billackering brand colors
+const COLORS = {
+  primary: '#01a7da',
+  secondary: '#8b5cf6',
+  success: '#22c55e',
+  warning: '#eee000',
+  destructive: '#d92d33',
+  muted: '#6b7685',
+  grid: '#1a2230',
+  tooltip: '#0d1117',
+  text: '#f8fafc',
 }
 
-const COUNTRY_COLORS = ['#06b6d4', '#8b5cf6', '#22c55e', '#f59e0b', '#ef4444', '#ec4899', '#14b8a6', '#6366f1']
+const DEVICE_COLORS = {
+  'DESKTOP': COLORS.primary,
+  'MOBILE': COLORS.secondary,
+  'TABLET': COLORS.success
+}
+
+const COUNTRY_COLORS = [COLORS.primary, COLORS.secondary, COLORS.success, '#f59e0b', COLORS.destructive, '#ec4899', '#14b8a6', '#6366f1']
 
 // GSC Connect Card (shown when not connected)
 export function GSCConnectCard({ onConnect }) {
   return (
-    <Card className="bg-slate-800/50 border-slate-700">
+    <Card className="bg-background-elevated border-card-border">
       <CardContent className="pt-6">
         <div className="text-center py-8">
-          <div className="p-4 bg-slate-700/50 rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">
-            <Search className="w-8 h-8 text-slate-400" />
+          <div className="p-4 bg-background-subtle rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">
+            <Search className="w-8 h-8 text-foreground-subtle" />
           </div>
-          <h3 className="text-lg font-medium text-white mb-2">Connect Google Search Console</h3>
-          <p className="text-sm text-slate-400 mb-6 max-w-md mx-auto">
+          <h3 className="text-lg font-medium text-foreground mb-2">Connect Google Search Console</h3>
+          <p className="text-sm text-foreground-muted mb-6 max-w-md mx-auto">
             Se vilka sökord som driver trafik till din webshop. Anslut Google Search Console för att se klick, visningar och positioner.
           </p>
           <Button
             onClick={onConnect}
-            className="bg-cyan-600 hover:bg-cyan-700 text-white"
+            className="bg-primary hover:bg-primary/90 text-primary-foreground"
           >
             <Search className="w-4 h-4 mr-2" />
             Anslut Search Console
@@ -71,10 +82,10 @@ export function GSCDailyChart({ data, previousData = [], comparisonEnabled = fal
   const showComparison = comparisonEnabled && previousData && previousData.length > 0
 
   return (
-    <Card className="bg-slate-800/50 border-slate-700">
-      <CardHeader>
-        <CardTitle className="text-white text-lg flex items-center gap-2">
-          <Search className="w-5 h-5 text-cyan-400" />
+    <Card className="bg-background-elevated border-card-border">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-foreground text-base font-medium flex items-center gap-2">
+          <Search className="w-5 h-5 text-primary" />
           Sökprestanda
         </CardTitle>
       </CardHeader>
@@ -84,20 +95,20 @@ export function GSCDailyChart({ data, previousData = [], comparisonEnabled = fal
             <AreaChart data={chartData}>
               <defs>
                 <linearGradient id="colorClicks" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.3}/>
-                  <stop offset="95%" stopColor="#06b6d4" stopOpacity={0}/>
+                  <stop offset="5%" stopColor={COLORS.primary} stopOpacity={0.25}/>
+                  <stop offset="95%" stopColor={COLORS.primary} stopOpacity={0}/>
                 </linearGradient>
                 <linearGradient id="colorImpressions" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3}/>
-                  <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0}/>
+                  <stop offset="5%" stopColor={COLORS.secondary} stopOpacity={0.25}/>
+                  <stop offset="95%" stopColor={COLORS.secondary} stopOpacity={0}/>
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-              <XAxis dataKey="date" stroke="#94a3b8" fontSize={11} />
-              <YAxis stroke="#94a3b8" fontSize={12} />
+              <CartesianGrid strokeDasharray="3 3" stroke={COLORS.grid} vertical={false} />
+              <XAxis dataKey="date" stroke={COLORS.muted} fontSize={11} tickLine={false} axisLine={false} />
+              <YAxis stroke={COLORS.muted} fontSize={11} tickLine={false} axisLine={false} />
               <Tooltip
-                contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '8px' }}
-                labelStyle={{ color: '#f8fafc' }}
+                contentStyle={{ backgroundColor: COLORS.tooltip, border: `1px solid ${COLORS.grid}`, borderRadius: '8px' }}
+                labelStyle={{ color: COLORS.text }}
               />
               {/* Previous period data (dashed lines) */}
               {showComparison && (
@@ -106,7 +117,7 @@ export function GSCDailyChart({ data, previousData = [], comparisonEnabled = fal
                     type="monotone"
                     dataKey="prevClicks"
                     name="Klick (föreg.)"
-                    stroke="#06b6d4"
+                    stroke={COLORS.primary}
                     strokeWidth={1.5}
                     strokeDasharray="5 5"
                     fillOpacity={0}
@@ -116,7 +127,7 @@ export function GSCDailyChart({ data, previousData = [], comparisonEnabled = fal
                     type="monotone"
                     dataKey="prevImpressions"
                     name="Visningar (föreg.)"
-                    stroke="#8b5cf6"
+                    stroke={COLORS.secondary}
                     strokeWidth={1.5}
                     strokeDasharray="5 5"
                     fillOpacity={0}
@@ -129,7 +140,7 @@ export function GSCDailyChart({ data, previousData = [], comparisonEnabled = fal
                 type="monotone"
                 dataKey="clicks"
                 name="Klick"
-                stroke="#06b6d4"
+                stroke={COLORS.primary}
                 strokeWidth={2}
                 fillOpacity={1}
                 fill="url(#colorClicks)"
@@ -138,7 +149,7 @@ export function GSCDailyChart({ data, previousData = [], comparisonEnabled = fal
                 type="monotone"
                 dataKey="impressions"
                 name="Visningar"
-                stroke="#8b5cf6"
+                stroke={COLORS.secondary}
                 strokeWidth={2}
                 fillOpacity={1}
                 fill="url(#colorImpressions)"
@@ -148,17 +159,17 @@ export function GSCDailyChart({ data, previousData = [], comparisonEnabled = fal
         </div>
         <div className="flex justify-center gap-6 mt-4 text-sm">
           <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-cyan-500"></div>
-            <span className="text-slate-400">Klick</span>
+            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS.primary }}></div>
+            <span className="text-foreground-muted">Klick</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-violet-500"></div>
-            <span className="text-slate-400">Visningar</span>
+            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS.secondary }}></div>
+            <span className="text-foreground-muted">Visningar</span>
           </div>
           {showComparison && (
             <div className="flex items-center gap-2">
-              <div className="w-6 h-0 border border-dashed border-slate-400"></div>
-              <span className="text-slate-500">Föreg. period</span>
+              <div className="w-6 h-0 border border-dashed border-foreground-subtle"></div>
+              <span className="text-foreground-subtle">Föreg. period</span>
             </div>
           )}
         </div>
@@ -170,39 +181,39 @@ export function GSCDailyChart({ data, previousData = [], comparisonEnabled = fal
 // Top Queries Table
 export function GSCTopQueries({ queries }) {
   return (
-    <Card className="bg-slate-800/50 border-slate-700">
-      <CardHeader>
-        <CardTitle className="text-white text-lg">Top sökord</CardTitle>
+    <Card className="bg-background-elevated border-card-border">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-foreground text-base font-medium">Top sökord</CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="space-y-2 max-h-80 overflow-y-auto">
+        <div className="space-y-1 max-h-80 overflow-y-auto">
           {queries.slice(0, 15).map((q, index) => (
             <div
               key={q.query}
-              className="flex items-center justify-between p-2 rounded-lg hover:bg-slate-700/50 transition-colors"
+              className="flex items-center justify-between p-2 rounded-lg hover:bg-background-subtle transition-colors"
             >
               <div className="flex items-center gap-3 flex-1 min-w-0">
-                <span className="text-sm text-slate-500 w-5">{index + 1}.</span>
-                <span className="text-sm text-white truncate" title={q.query}>
+                <span className="text-sm text-foreground-subtle w-5">{index + 1}.</span>
+                <span className="text-sm text-foreground truncate" title={q.query}>
                   {q.query}
                 </span>
               </div>
               <div className="flex items-center gap-4 text-sm">
                 <div className="text-right w-16">
-                  <span className="text-cyan-400 font-medium">{q.clicks}</span>
-                  <span className="text-slate-500 text-xs ml-1">klick</span>
+                  <span className="text-primary font-medium tabular-nums">{q.clicks}</span>
+                  <span className="text-foreground-subtle text-xs ml-1">klick</span>
                 </div>
                 <div className="text-right w-16">
-                  <span className="text-slate-400">{(q.ctr * 100).toFixed(1)}%</span>
+                  <span className="text-foreground-muted tabular-nums">{(q.ctr * 100).toFixed(1)}%</span>
                 </div>
                 <div className="text-right w-12">
-                  <span className="text-slate-400">{q.position.toFixed(1)}</span>
+                  <span className="text-foreground-muted tabular-nums">{q.position.toFixed(1)}</span>
                 </div>
               </div>
             </div>
           ))}
         </div>
-        <div className="flex justify-end gap-4 mt-4 text-xs text-slate-500 pr-2">
+        <div className="flex justify-end gap-4 mt-4 text-xs text-foreground-subtle pr-2">
           <span>CTR</span>
           <span>Pos</span>
         </div>
@@ -224,36 +235,36 @@ export function GSCTopPages({ pages }) {
   }
 
   return (
-    <Card className="bg-slate-800/50 border-slate-700">
-      <CardHeader>
-        <CardTitle className="text-white text-lg">Top sidor</CardTitle>
+    <Card className="bg-background-elevated border-card-border">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-foreground text-base font-medium">Top sidor</CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="space-y-2 max-h-80 overflow-y-auto">
+        <div className="space-y-1 max-h-80 overflow-y-auto">
           {pages.slice(0, 15).map((p, index) => (
             <div
               key={p.page}
-              className="flex items-center justify-between p-2 rounded-lg hover:bg-slate-700/50 transition-colors"
+              className="flex items-center justify-between p-2 rounded-lg hover:bg-background-subtle transition-colors"
             >
               <div className="flex items-center gap-3 flex-1 min-w-0">
-                <span className="text-sm text-slate-500 w-5">{index + 1}.</span>
-                <span className="text-sm text-white truncate" title={p.page}>
+                <span className="text-sm text-foreground-subtle w-5">{index + 1}.</span>
+                <span className="text-sm text-foreground truncate" title={p.page}>
                   {formatPath(p.page)}
                 </span>
               </div>
               <div className="flex items-center gap-4 text-sm">
                 <div className="text-right w-16">
-                  <span className="text-cyan-400 font-medium">{p.clicks}</span>
-                  <span className="text-slate-500 text-xs ml-1">klick</span>
+                  <span className="text-primary font-medium tabular-nums">{p.clicks}</span>
+                  <span className="text-foreground-subtle text-xs ml-1">klick</span>
                 </div>
                 <div className="text-right w-20">
-                  <span className="text-slate-400">{p.impressions.toLocaleString()}</span>
+                  <span className="text-foreground-muted tabular-nums">{p.impressions.toLocaleString()}</span>
                 </div>
               </div>
             </div>
           ))}
         </div>
-        <div className="flex justify-end gap-4 mt-4 text-xs text-slate-500 pr-2">
+        <div className="flex justify-end gap-4 mt-4 text-xs text-foreground-subtle pr-2">
           <span>Visningar</span>
         </div>
       </CardContent>
@@ -272,9 +283,9 @@ export function GSCDeviceChart({ devices }) {
   const total = devices.reduce((sum, d) => sum + d.clicks, 0)
 
   return (
-    <Card className="bg-slate-800/50 border-slate-700">
-      <CardHeader>
-        <CardTitle className="text-white text-lg">Enhetsfördelning</CardTitle>
+    <Card className="bg-background-elevated border-card-border">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-foreground text-base font-medium">Enhetsfördelning</CardTitle>
       </CardHeader>
       <CardContent>
         <div className="space-y-3">
@@ -284,26 +295,26 @@ export function GSCDeviceChart({ devices }) {
 
             return (
               <div key={device.device} className="flex items-center gap-3">
-                <div className="p-2 bg-slate-700/50 rounded-lg">
-                  <Icon className="w-4 h-4 text-slate-400" />
+                <div className="p-2 bg-background-subtle rounded-lg">
+                  <Icon className="w-4 h-4 text-foreground-muted" />
                 </div>
                 <div className="flex-1">
                   <div className="flex justify-between text-sm mb-1">
-                    <span className="text-white capitalize">{device.device.toLowerCase()}</span>
-                    <span className="text-slate-400">{percentage.toFixed(1)}%</span>
+                    <span className="text-foreground capitalize">{device.device.toLowerCase()}</span>
+                    <span className="text-foreground-muted tabular-nums">{percentage.toFixed(1)}%</span>
                   </div>
-                  <div className="h-2 bg-slate-700 rounded-full overflow-hidden">
+                  <div className="h-1.5 bg-background-subtle rounded-full overflow-hidden">
                     <div
                       className="h-full rounded-full"
                       style={{
                         width: `${percentage}%`,
-                        backgroundColor: DEVICE_COLORS[device.device] || '#06b6d4'
+                        backgroundColor: DEVICE_COLORS[device.device] || COLORS.primary
                       }}
                     />
                   </div>
                 </div>
                 <div className="text-right w-16">
-                  <span className="text-sm text-cyan-400 font-medium">{device.clicks}</span>
+                  <span className="text-sm text-primary font-medium tabular-nums">{device.clicks}</span>
                 </div>
               </div>
             )
@@ -325,10 +336,10 @@ export function GSCCountryChart({ countries }) {
   }))
 
   return (
-    <Card className="bg-slate-800/50 border-slate-700">
-      <CardHeader>
-        <CardTitle className="text-white text-lg flex items-center gap-2">
-          <Globe className="w-5 h-5 text-cyan-400" />
+    <Card className="bg-background-elevated border-card-border">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-foreground text-base font-medium flex items-center gap-2">
+          <Globe className="w-5 h-5 text-primary" />
           Länder
         </CardTitle>
       </CardHeader>
@@ -360,9 +371,9 @@ export function GSCCountryChart({ countries }) {
                     className="w-2 h-2 rounded-full"
                     style={{ backgroundColor: COUNTRY_COLORS[index % COUNTRY_COLORS.length] }}
                   />
-                  <span className="text-slate-300">{c.name}</span>
+                  <span className="text-foreground">{c.name}</span>
                 </div>
-                <span className="text-slate-400">{c.percentage}%</span>
+                <span className="text-foreground-muted tabular-nums">{c.percentage}%</span>
               </div>
             ))}
           </div>

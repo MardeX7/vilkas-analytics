@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { useGA4 } from '@/hooks/useGA4'
-import { KPICard } from '@/components/KPICard'
+import { MetricCard, MetricCardGroup } from '@/components/MetricCard'
 import { DateRangePicker, getDateRange, formatDateISO } from '@/components/DateRangePicker'
 import { Button } from '@/components/ui/button'
 import {
@@ -37,20 +37,20 @@ function formatDuration(seconds) {
   return `${mins}:${secs.toString().padStart(2, '0')}`
 }
 
-// Get channel color
+// Billackering brand-inspired channel colors
 function getChannelColor(channel) {
   const colors = {
     'Organic Search': '#22c55e',
-    'Direct': '#3b82f6',
-    'Paid Search': '#f59e0b',
+    'Direct': '#01a7da',     // Billackering blue
+    'Paid Search': '#eee000', // Billackering yellow
     'Paid Social': '#ec4899',
     'Organic Social': '#8b5cf6',
-    'Referral': '#06b6d4',
-    'Email': '#ef4444',
+    'Referral': '#14b8a6',
+    'Email': '#d92d33',       // Billackering red
     'Cross-network': '#f97316',
-    'Unassigned': '#6b7280'
+    'Unassigned': '#6b7685'
   }
-  return colors[channel] || '#6b7280'
+  return colors[channel] || '#6b7685'
 }
 
 export function GA4Page() {
@@ -107,12 +107,12 @@ export function GA4Page() {
   // Show error if any
   if (error) {
     return (
-      <div className="min-h-screen bg-slate-950 p-6">
+      <div className="min-h-screen bg-background p-6">
         <div className="max-w-md mx-auto mt-20">
-          <div className="bg-red-900/20 rounded-xl p-8 border border-red-800 text-center">
-            <h2 className="text-xl font-semibold text-red-400 mb-2">Fel vid laddning</h2>
-            <p className="text-slate-400 mb-4">{error}</p>
-            <Button onClick={refresh} className="bg-slate-700 hover:bg-slate-600">
+          <div className="bg-destructive-muted rounded-xl p-8 border border-destructive/30 text-center">
+            <h2 className="text-xl font-semibold text-destructive mb-2">Fel vid laddning</h2>
+            <p className="text-foreground-muted mb-4">{error}</p>
+            <Button onClick={refresh} className="bg-background-subtle hover:bg-background-elevated border border-border">
               Försök igen
             </Button>
           </div>
@@ -124,19 +124,19 @@ export function GA4Page() {
   // Not connected - show connect card
   if (!connected && !loading) {
     return (
-      <div className="min-h-screen bg-slate-950 p-6">
+      <div className="min-h-screen bg-background p-6">
         <div className="max-w-md mx-auto mt-20">
-          <div className="bg-slate-900 rounded-xl p-8 border border-slate-800 text-center">
-            <div className="w-16 h-16 bg-orange-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
-              <BarChart3 className="w-8 h-8 text-orange-400" />
+          <div className="bg-background-elevated rounded-xl p-8 border border-card-border text-center">
+            <div className="w-16 h-16 bg-primary-muted rounded-full flex items-center justify-center mx-auto mb-4">
+              <BarChart3 className="w-8 h-8 text-primary" />
             </div>
-            <h2 className="text-xl font-semibold text-white mb-2">
+            <h2 className="text-xl font-semibold text-foreground mb-2">
               Anslut Google Analytics
             </h2>
-            <p className="text-slate-400 mb-6">
+            <p className="text-foreground-muted mb-6">
               Anslut ditt GA4-konto för att se trafikdata, avvisningsfrekvens och landningssidor.
             </p>
-            <Button onClick={connectGA4} className="bg-orange-500 hover:bg-orange-600">
+            <Button onClick={connectGA4} className="bg-primary hover:bg-primary/90 text-primary-foreground">
               <Link2 className="w-4 h-4 mr-2" />
               Anslut GA4
             </Button>
@@ -150,112 +150,107 @@ export function GA4Page() {
   const totalSessions = (trafficSources || []).reduce((sum, s) => sum + (s.sessions || 0), 0)
 
   return (
-    <div className="min-h-screen bg-slate-950">
+    <div className="min-h-screen bg-background">
       {/* Header */}
-      <div className="border-b border-slate-800 bg-slate-900/50 sticky top-0 z-10 backdrop-blur-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div>
-              <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-                <BarChart3 className="w-6 h-6 text-orange-400" />
-                Google Analytics
-              </h1>
-              {propertyName && (
-                <p className="text-sm text-slate-400 mt-1">{propertyName}</p>
-              )}
-            </div>
-            <div className="flex items-center gap-3">
-              <DateRangePicker
-                value={dateRange?.preset || 'last30'}
-                onChange={setDateRange}
-              />
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleSync}
-                disabled={syncing || loading}
-                className="border-slate-700 text-slate-300 hover:bg-slate-800"
-              >
-                {syncing ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <RefreshCw className="w-4 h-4" />
-                )}
-              </Button>
-            </div>
+      <header className="border-b border-border bg-background-elevated/80 backdrop-blur-sm sticky top-0 z-10">
+        <div className="px-8 py-5 flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-semibold text-foreground flex items-center gap-2">
+              <BarChart3 className="w-6 h-6 text-primary" />
+              Google Analytics
+            </h1>
+            {propertyName && (
+              <p className="text-foreground-muted text-sm mt-1">{propertyName}</p>
+            )}
           </div>
-
-          {/* Comparison toggle */}
-          <div className="flex gap-2 mt-3">
-            <button
-              onClick={() => setComparisonMode('mom')}
-              className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
-                comparisonMode === 'mom'
-                  ? 'bg-orange-500/20 text-orange-300 border border-orange-500/30'
-                  : 'bg-slate-800 text-slate-400 border border-slate-700 hover:bg-slate-700'
-              }`}
+          <div className="flex items-center gap-3">
+            <DateRangePicker
+              value={dateRange?.preset || 'last30'}
+              onChange={setDateRange}
+            />
+            {/* MoM/YoY Toggle */}
+            <div className="flex bg-background-subtle rounded-lg p-1">
+              <button
+                onClick={() => setComparisonMode('mom')}
+                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
+                  comparisonMode === 'mom'
+                    ? 'bg-primary text-primary-foreground shadow-sm'
+                    : 'text-foreground-muted hover:text-foreground'
+                }`}
+                title="Månad för månad"
+              >
+                MoM
+              </button>
+              <button
+                onClick={() => setComparisonMode('yoy')}
+                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
+                  comparisonMode === 'yoy'
+                    ? 'bg-primary text-primary-foreground shadow-sm'
+                    : 'text-foreground-muted hover:text-foreground'
+                }`}
+                title="År för år"
+              >
+                YoY
+              </button>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleSync}
+              disabled={syncing || loading}
+              className="bg-background-elevated border-border text-foreground-muted hover:bg-background-subtle hover:text-foreground"
             >
-              vs förra perioden
-            </button>
-            <button
-              onClick={() => setComparisonMode('yoy')}
-              className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
-                comparisonMode === 'yoy'
-                  ? 'bg-orange-500/20 text-orange-300 border border-orange-500/30'
-                  : 'bg-slate-800 text-slate-400 border border-slate-700 hover:bg-slate-700'
-              }`}
-            >
-              vs förra året
-            </button>
+              {syncing ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <RefreshCw className="w-4 h-4" />
+              )}
+            </Button>
           </div>
         </div>
-      </div>
+      </header>
 
       {/* Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
+      <main className="px-8 py-8 max-w-7xl mx-auto">
         {loading ? (
           <div className="flex items-center justify-center py-20">
-            <Loader2 className="w-8 h-8 animate-spin text-orange-400" />
+            <Loader2 className="w-8 h-8 animate-spin text-primary" />
           </div>
         ) : (
           <div className="space-y-6">
             {/* KPI Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <KPICard
-                title="Sessioner"
-                value={summary?.totalSessions?.toLocaleString() || '0'}
-                icon={Users}
-                change={sessionsChange}
-                color="orange"
+            <MetricCardGroup columns={4} className="mb-8">
+              <MetricCard
+                label="Sessioner"
+                value={summary?.totalSessions || 0}
+                delta={sessionsChange}
+                deltaLabel={comparisonEnabled ? comparisonMode.toUpperCase() : undefined}
               />
-              <KPICard
-                title="Engagerade sessioner"
-                value={summary?.totalEngagedSessions?.toLocaleString() || '0'}
-                icon={MousePointer}
-                color="blue"
+              <MetricCard
+                label="Engagerade sessioner"
+                value={summary?.totalEngagedSessions || 0}
               />
-              <KPICard
-                title="Avvisningsfrekvens"
+              <MetricCard
+                label="Avvisningsfrekvens"
                 value={`${((summary?.avgBounceRate || 0) * 100).toFixed(1)}%`}
-                icon={TrendingDown}
-                change={bounceChange}
-                color={summary?.avgBounceRate > 0.5 ? 'red' : 'green'}
+                delta={bounceChange}
+                deltaLabel={comparisonEnabled ? comparisonMode.toUpperCase() : undefined}
+                invertDelta={true}
               />
-              <KPICard
-                title="Genomsnittlig sessionstid"
+              <MetricCard
+                label="Snitt sessionstid"
                 value={formatDuration(summary?.avgSessionDuration || 0)}
-                icon={Clock}
-                change={durationChange}
-                color="purple"
+                delta={durationChange}
+                deltaLabel={comparisonEnabled ? comparisonMode.toUpperCase() : undefined}
               />
-            </div>
+            </MetricCardGroup>
 
             {/* Traffic Sources & Landing Pages */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Traffic Sources */}
-              <div className="bg-slate-900 rounded-xl border border-slate-800 p-6">
-                <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                  <Globe className="w-5 h-5 text-orange-400" />
+              <div className="bg-background-elevated rounded-lg border border-card-border p-5">
+                <h3 className="text-base font-medium text-foreground mb-4 flex items-center gap-2">
+                  <Globe className="w-5 h-5 text-primary" />
                   Trafikkällor
                 </h3>
                 <div className="space-y-3">
@@ -264,19 +259,19 @@ export function GA4Page() {
                     return (
                       <div key={i}>
                         <div className="flex items-center justify-between mb-1">
-                          <span className="text-sm text-slate-300">{source.channel}</span>
+                          <span className="text-sm text-foreground">{source.channel}</span>
                           <div className="flex items-center gap-3">
-                            <span className="text-sm text-slate-400">
+                            <span className="text-sm text-foreground-subtle tabular-nums">
                               {(source.bounce_rate * 100).toFixed(0)}% avv.
                             </span>
-                            <span className="text-sm font-medium text-white">
+                            <span className="text-sm font-medium text-foreground tabular-nums">
                               {source.sessions.toLocaleString()}
                             </span>
                           </div>
                         </div>
-                        <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
+                        <div className="h-1.5 bg-background-subtle rounded-full overflow-hidden">
                           <div
-                            className="h-full rounded-full transition-all"
+                            className="h-full rounded-full transition-all duration-500"
                             style={{
                               width: `${pct}%`,
                               backgroundColor: getChannelColor(source.channel)
@@ -290,9 +285,9 @@ export function GA4Page() {
               </div>
 
               {/* Landing Pages */}
-              <div className="bg-slate-900 rounded-xl border border-slate-800 p-6">
-                <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                  <Link2 className="w-5 h-5 text-orange-400" />
+              <div className="bg-background-elevated rounded-lg border border-card-border p-5">
+                <h3 className="text-base font-medium text-foreground mb-4 flex items-center gap-2">
+                  <Link2 className="w-5 h-5 text-primary" />
                   Landningssidor
                 </h3>
                 <div className="space-y-2 max-h-[400px] overflow-y-auto">
@@ -301,15 +296,15 @@ export function GA4Page() {
                     return (
                       <div
                         key={i}
-                        className="flex items-center justify-between py-2 border-b border-slate-800 last:border-0"
+                        className="flex items-center justify-between py-2 border-b border-border last:border-0"
                       >
                         <div className="flex-1 min-w-0 pr-4">
-                          <p className="text-sm text-slate-300 truncate">
+                          <p className="text-sm text-foreground truncate">
                             {page.page === '/' ? 'Startsida' : page.page}
                           </p>
                         </div>
                         <div className="flex items-center gap-4 flex-shrink-0">
-                          <div className={`flex items-center gap-1 text-sm ${bounceHigh ? 'text-red-400' : 'text-green-400'}`}>
+                          <div className={`flex items-center gap-1 text-sm ${bounceHigh ? 'text-destructive' : 'text-success'}`}>
                             {bounceHigh ? (
                               <ArrowUpRight className="w-3 h-3" />
                             ) : (
@@ -317,7 +312,7 @@ export function GA4Page() {
                             )}
                             {(page.bounce_rate * 100).toFixed(0)}%
                           </div>
-                          <span className="text-sm font-medium text-white w-16 text-right">
+                          <span className="text-sm font-medium text-foreground w-16 text-right tabular-nums">
                             {page.sessions.toLocaleString()}
                           </span>
                         </div>
@@ -328,10 +323,10 @@ export function GA4Page() {
               </div>
             </div>
 
-            {/* Daily Chart placeholder */}
-            <div className="bg-slate-900 rounded-xl border border-slate-800 p-6">
-              <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                <TrendingUp className="w-5 h-5 text-orange-400" />
+            {/* Daily Chart */}
+            <div className="bg-background-elevated rounded-lg border border-card-border p-5">
+              <h3 className="text-base font-medium text-foreground mb-4 flex items-center gap-2">
+                <TrendingUp className="w-5 h-5 text-primary" />
                 Daglig trafik
               </h3>
               <div className="h-64 flex items-center justify-center">
@@ -345,30 +340,30 @@ export function GA4Page() {
                         return (
                           <div
                             key={i}
-                            className="flex-1 bg-orange-500/60 hover:bg-orange-500 transition-colors rounded-t cursor-pointer group relative"
+                            className="flex-1 bg-primary/60 hover:bg-primary transition-colors rounded-t cursor-pointer group relative"
                             style={{ height: `${height}%`, minHeight: '4px' }}
                             title={`${day.date}: ${day.total_sessions} sessioner`}
                           >
-                            <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-10">
+                            <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 bg-background-subtle border border-border text-foreground text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-10">
                               {day.date}: {day.total_sessions}
                             </div>
                           </div>
                         )
                       })}
                     </div>
-                    <div className="flex justify-between mt-2 text-xs text-slate-500">
+                    <div className="flex justify-between mt-2 text-xs text-foreground-subtle">
                       <span>{dailySummary[dailySummary.length - 1]?.date}</span>
                       <span>{dailySummary[0]?.date}</span>
                     </div>
                   </div>
                 ) : (
-                  <p className="text-slate-500">Ingen data för vald period</p>
+                  <p className="text-foreground-subtle">Ingen data för vald period</p>
                 )}
               </div>
             </div>
           </div>
         )}
-      </div>
+      </main>
     </div>
   )
 }

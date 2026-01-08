@@ -1,7 +1,9 @@
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts'
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts'
 
-const COLORS = ['#06b6d4', '#8b5cf6', '#22c55e', '#f59e0b', '#ef4444', '#ec4899']
+// Billackering brand colors
+const COLORS = ['#01a7da', '#8b5cf6', '#22c55e', '#eee000', '#d92d33', '#ec4899']
+const TOOLTIP_STYLE = { backgroundColor: '#0d1117', border: '1px solid #1a2230', borderRadius: '8px' }
 
 export function PaymentMethodsChart({ data }) {
   const chartData = data.map(d => ({
@@ -12,9 +14,9 @@ export function PaymentMethodsChart({ data }) {
   }))
 
   return (
-    <Card className="bg-slate-800/50 border-slate-700">
-      <CardHeader>
-        <CardTitle className="text-white text-lg">Betalningsmetoder</CardTitle>
+    <Card className="bg-background-elevated border-card-border">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-foreground text-base font-medium">Betalningsmetoder</CardTitle>
       </CardHeader>
       <CardContent>
         <div className="h-48">
@@ -34,7 +36,7 @@ export function PaymentMethodsChart({ data }) {
                 ))}
               </Pie>
               <Tooltip
-                contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '8px' }}
+                contentStyle={TOOLTIP_STYLE}
                 formatter={(value, name, props) => [`${value} ordrar (${props.payload.percentage}%)`, props.payload.name]}
               />
             </PieChart>
@@ -48,12 +50,12 @@ export function PaymentMethodsChart({ data }) {
                   className="w-3 h-3 rounded-full"
                   style={{ backgroundColor: COLORS[index % COLORS.length] }}
                 />
-                <span className="text-slate-300 truncate max-w-32" title={item.name}>
+                <span className="text-foreground truncate max-w-32" title={item.name}>
                   {item.name?.substring(0, 20)}
                   {item.name?.length > 20 && '...'}
                 </span>
               </div>
-              <span className="text-white font-medium">{item.percentage}%</span>
+              <span className="text-foreground font-medium tabular-nums">{item.percentage}%</span>
             </div>
           ))}
         </div>
@@ -71,9 +73,9 @@ export function ShippingMethodsChart({ data }) {
   }))
 
   return (
-    <Card className="bg-slate-800/50 border-slate-700">
-      <CardHeader>
-        <CardTitle className="text-white text-lg">Fraktmetoder</CardTitle>
+    <Card className="bg-background-elevated border-card-border">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-foreground text-base font-medium">Fraktmetoder</CardTitle>
       </CardHeader>
       <CardContent>
         <div className="h-48">
@@ -93,7 +95,7 @@ export function ShippingMethodsChart({ data }) {
                 ))}
               </Pie>
               <Tooltip
-                contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '8px' }}
+                contentStyle={TOOLTIP_STYLE}
                 formatter={(value, name, props) => [`${value} ordrar (${props.payload.percentage}%)`, props.payload.name]}
               />
             </PieChart>
@@ -107,12 +109,12 @@ export function ShippingMethodsChart({ data }) {
                   className="w-3 h-3 rounded-full"
                   style={{ backgroundColor: COLORS[index % COLORS.length] }}
                 />
-                <span className="text-slate-300 truncate max-w-32" title={item.name}>
+                <span className="text-foreground truncate max-w-32" title={item.name}>
                   {item.name?.substring(0, 20)}
                   {item.name?.length > 20 && '...'}
                 </span>
               </div>
-              <span className="text-white font-medium">{item.percentage}%</span>
+              <span className="text-foreground font-medium tabular-nums">{item.percentage}%</span>
             </div>
           ))}
         </div>

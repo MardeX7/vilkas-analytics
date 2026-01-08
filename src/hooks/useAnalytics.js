@@ -8,7 +8,78 @@ const STORE_ID = 'a28836f6-9487-4b67-9194-e907eaf94b69'
 async function fetchPeriodSummary(startDate, endDate) {
   let query = supabase
     .from('orders')
-    .select('grand_total, billing_email, creation_date')
+    .select('grand_total, billing_email, creation_date, status, shipping_price, discount_amount')
+    .eq('store_id', STORE_ID)
+
+  if (startDate) query = query.gte('creation_date', startDate)
+  if (endDate) query = query.lte('creation_date', endDate + 'T23:59:59')
+
+  const { data: allOrders } = await query
+
+  if (!allOrders || allOrders.length === 0) {
+    return {
+      totalRevenue: 0, orderCount: 0, uniqueCustomers: 0, avgOrderValue: 0,
+      cancelledCount: 0, cancelledPercent: 0,
+      totalShipping: 0, shippingPercent: 0,
+      totalDiscount: 0, discountPercent: 0,
+      returningCustomerPercent: 0
+    }
+  }
+
+  // Separate cancelled vs non-cancelled
+  const cancelledOrders = allOrders.filter(o => o.status === 'cancelled')
+  const activeOrders = allOrders.filter(o => o.status !== 'cancelled')
+
+  const totalRevenue = activeOrders.reduce((sum, o) => sum + (o.grand_total || 0), 0)
+  const orderCount = activeOrders.length
+  const uniqueCustomers = new Set(activeOrders.map(o => o.billing_email).filter(Boolean)).size
+  const avgOrderValue = orderCount > 0 ? totalRevenue / orderCount : 0
+
+  // Cancelled orders metrics
+  const cancelledCount = cancelledOrders.length
+  const cancelledPercent = allOrders.length > 0 ? (cancelledCount / allOrders.length) * 100 : 0
+
+  // Shipping cost metrics
+  const totalShipping = activeOrders.reduce((sum, o) => sum + (o.shipping_price || 0), 0)
+  const shippingPercent = totalRevenue > 0 ? (totalShipping / totalRevenue) * 100 : 0
+
+  // Discount metrics
+  const totalDiscount = activeOrders.reduce((sum, o) => sum + (o.discount_amount || 0), 0)
+  const discountPercent = totalRevenue > 0 ? (totalDiscount / totalRevenue) * 100 : 0
+
+  // Returning customers - customers with more than 1 order
+  const customerOrderCount = {}
+  activeOrders.forEach(o => {
+    if (o.billing_email) {
+      customerOrderCount[o.billing_email] = (customerOrderCount[o.billing_email] || 0) + 1
+    }
+  })
+  const returningCustomers = Object.values(customerOrderCount).filter(count => count > 1).length
+  const returningCustomerPercent = uniqueCustomers > 0 ? (returningCustomers / uniqueCustomers) * 100 : 0
+
+  return {
+    totalRevenue, orderCount, uniqueCustomers, avgOrderValue,
+    cancelledCount, cancelledPercent,
+    totalShipping, shippingPercent,
+    totalDiscount, discountPercent,
+    returningCustomerPercent
+  }
+}
+
+// Helper to fetch gross margin data
+async function fetchGrossMargin(startDate, endDate) {
+  // Get orders with line items and product cost prices
+  let query = supabase
+    .from('orders')
+    .select(`
+      id, grand_total,
+      order_line_items (
+        quantity,
+        unit_price,
+        total_price,
+        product_id
+      )
+    `)
     .eq('store_id', STORE_ID)
     .neq('status', 'cancelled')
 
@@ -18,15 +89,82 @@ async function fetchPeriodSummary(startDate, endDate) {
   const { data: orders } = await query
 
   if (!orders || orders.length === 0) {
-    return { totalRevenue: 0, orderCount: 0, uniqueCustomers: 0, avgOrderValue: 0 }
+    return { grossProfit: 0, marginPercent: 0, totalCost: 0, totalRevenue: 0 }
   }
 
-  const totalRevenue = orders.reduce((sum, o) => sum + (o.grand_total || 0), 0)
-  const orderCount = orders.length
-  const uniqueCustomers = new Set(orders.map(o => o.billing_email).filter(Boolean)).size
-  const avgOrderValue = orderCount > 0 ? totalRevenue / orderCount : 0
+  // Get all product IDs to fetch cost prices
+  const productIds = new Set()
+  orders.forEach(o => {
+    o.order_line_items?.forEach(item => {
+      if (item.product_id) productIds.add(item.product_id)
+    })
+  })
 
-  return { totalRevenue, orderCount, uniqueCustomers, avgOrderValue }
+  // Fetch product cost prices
+  const { data: products } = await supabase
+    .from('products')
+    .select('id, cost_price')
+    .in('id', Array.from(productIds))
+
+  const costPriceMap = {}
+  products?.forEach(p => {
+    costPriceMap[p.id] = p.cost_price
+  })
+
+  // Calculate gross margin
+  let totalRevenue = 0
+  let totalCost = 0
+
+  orders.forEach(order => {
+    order.order_line_items?.forEach(item => {
+      const revenue = item.total_price || 0
+      // Use cost_price if available, otherwise estimate 60% of unit price
+      const costPrice = item.product_id && costPriceMap[item.product_id]
+        ? costPriceMap[item.product_id]
+        : (item.unit_price || 0) * 0.6
+      const cost = costPrice * (item.quantity || 1)
+
+      totalRevenue += revenue
+      totalCost += cost
+    })
+  })
+
+  const grossProfit = totalRevenue - totalCost
+  const marginPercent = totalRevenue > 0 ? (grossProfit / totalRevenue) * 100 : 0
+
+  return { grossProfit, marginPercent, totalCost, totalRevenue }
+}
+
+// Helper to fetch average items per order
+async function fetchItemsPerOrder(startDate, endDate) {
+  let query = supabase
+    .from('orders')
+    .select(`
+      id,
+      order_line_items (quantity)
+    `)
+    .eq('store_id', STORE_ID)
+    .neq('status', 'cancelled')
+
+  if (startDate) query = query.gte('creation_date', startDate)
+  if (endDate) query = query.lte('creation_date', endDate + 'T23:59:59')
+
+  const { data: orders } = await query
+
+  if (!orders || orders.length === 0) {
+    return { avgItemsPerOrder: 0, totalItems: 0 }
+  }
+
+  let totalItems = 0
+  orders.forEach(o => {
+    o.order_line_items?.forEach(item => {
+      totalItems += item.quantity || 0
+    })
+  })
+
+  const avgItemsPerOrder = orders.length > 0 ? totalItems / orders.length : 0
+
+  return { avgItemsPerOrder, totalItems }
 }
 
 export function useAnalytics(dateRange = null) {
@@ -126,7 +264,10 @@ export function useAnalytics(dateRange = null) {
         hourlyRes,
         currentSummary,
         previousSummary,
-        previousDailyRes
+        previousDailyRes,
+        grossMargin,
+        previousGrossMargin,
+        itemsPerOrder
       ] = await Promise.all([
         dailyQuery,
         supabase.from('v_weekly_sales').select('*').eq('store_id', STORE_ID).order('week_start', { ascending: false }).limit(12),
@@ -138,7 +279,10 @@ export function useAnalytics(dateRange = null) {
         supabase.from('v_hourly_analysis').select('*').eq('store_id', STORE_ID),
         fetchPeriodSummary(startDate, endDate),
         compare && previousStartDate ? fetchPeriodSummary(previousStartDate, previousEndDate) : Promise.resolve(null),
-        previousDailyQuery || Promise.resolve({ data: null })
+        previousDailyQuery || Promise.resolve({ data: null }),
+        fetchGrossMargin(startDate, endDate),
+        compare && previousStartDate ? fetchGrossMargin(previousStartDate, previousEndDate) : Promise.resolve(null),
+        fetchItemsPerOrder(startDate, endDate)
       ])
 
       // Aggregate top products from orders
@@ -210,6 +354,16 @@ export function useAnalytics(dateRange = null) {
             : 0,
           aov: previousSummary.avgOrderValue > 0
             ? ((currentSummary.avgOrderValue - previousSummary.avgOrderValue) / previousSummary.avgOrderValue) * 100
+            : 0,
+          // New metrics comparison
+          margin: previousGrossMargin?.marginPercent > 0
+            ? grossMargin.marginPercent - previousGrossMargin.marginPercent
+            : 0,
+          returningCustomers: previousSummary.returningCustomerPercent > 0
+            ? currentSummary.returningCustomerPercent - previousSummary.returningCustomerPercent
+            : 0,
+          cancelledPercent: previousSummary.cancelledPercent > 0
+            ? currentSummary.cancelledPercent - previousSummary.cancelledPercent
             : 0
         }
       }
@@ -228,6 +382,8 @@ export function useAnalytics(dateRange = null) {
         avgBasket: null,
         summary: {
           ...currentSummary,
+          ...grossMargin,
+          ...itemsPerOrder,
           currency: 'SEK'
         },
         previousSummary: previousSummary ? { ...previousSummary, currency: 'SEK' } : null,

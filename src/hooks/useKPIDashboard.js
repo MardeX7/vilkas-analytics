@@ -108,71 +108,149 @@ async function fetchKPIHistory(storeId, granularity, limit = 12) {
 
 /**
  * Hae myyntikatteen yhteenveto granulariteetin mukaan
+ * Sisältää YoY-vertailun (sama periodi viime vuonna)
  */
 async function fetchProfitSummary(storeId, granularity) {
   // For weekly granularity, get from latest snapshot's raw_metrics
   if (granularity === 'week') {
-    const { data: snapshot, error } = await supabase
+    // Get latest 2 years of weekly snapshots to find YoY comparison
+    const { data: snapshots, error } = await supabase
       .from('kpi_index_snapshots')
-      .select('raw_metrics')
+      .select('period_end, raw_metrics')
       .eq('store_id', storeId)
       .eq('granularity', 'week')
       .order('period_end', { ascending: false })
-      .limit(1)
-      .single()
+      .limit(104) // ~2 years of weeks
 
-    if (error || !snapshot?.raw_metrics?.profit_summary) {
-      // Fallback: calculate from raw_metrics core data
-      if (snapshot?.raw_metrics?.core) {
-        const core = snapshot.raw_metrics.core
-        return {
-          revenue: core.total_revenue || 0,
-          cost: (core.total_revenue || 0) - (core.gross_profit || 0),
-          grossProfit: core.gross_profit || 0,
-          marginPercent: core.margin_percent || 0,
-          currency: 'SEK',
-          period: '7 pv'
-        }
-      }
+    if (error || !snapshots || snapshots.length === 0) {
       return null
     }
 
-    const ps = snapshot.raw_metrics.profit_summary
+    const currentSnapshot = snapshots[0]
+    const currentCore = currentSnapshot?.raw_metrics?.core
+
+    if (!currentCore) return null
+
+    // Find same week last year
+    const currentDate = new Date(currentSnapshot.period_end)
+    const lastYearDate = new Date(currentDate)
+    lastYearDate.setFullYear(lastYearDate.getFullYear() - 1)
+
+    // Find closest snapshot to last year's date (within 7 days)
+    let lastYearSnapshot = null
+    for (const snap of snapshots) {
+      const snapDate = new Date(snap.period_end)
+      const diff = Math.abs(snapDate.getTime() - lastYearDate.getTime())
+      if (diff < 7 * 24 * 60 * 60 * 1000) { // Within 7 days
+        lastYearSnapshot = snap
+        break
+      }
+    }
+
+    const lastYearCore = lastYearSnapshot?.raw_metrics?.core
+
+    // Calculate YoY changes
+    const grossProfitYoY = lastYearCore?.gross_profit
+      ? ((currentCore.gross_profit - lastYearCore.gross_profit) / lastYearCore.gross_profit) * 100
+      : null
+    const revenueYoY = lastYearCore?.total_revenue
+      ? ((currentCore.total_revenue - lastYearCore.total_revenue) / lastYearCore.total_revenue) * 100
+      : null
+
     return {
-      revenue: ps.revenue,
-      cost: ps.cost,
-      grossProfit: ps.gross_profit,
-      marginPercent: ps.margin_percent,
+      revenue: currentCore.total_revenue || 0,
+      cost: (currentCore.total_revenue || 0) - (currentCore.gross_profit || 0),
+      grossProfit: currentCore.gross_profit || 0,
+      marginPercent: currentCore.margin_percent || 0,
       currency: 'SEK',
-      period: '7 pv'
+      period: '7 pv',
+      // YoY comparison data
+      yoy: lastYearCore ? {
+        grossProfit: lastYearCore.gross_profit || 0,
+        grossProfitChange: grossProfitYoY,
+        revenue: lastYearCore.total_revenue || 0,
+        revenueChange: revenueYoY,
+        marginPercent: lastYearCore.margin_percent || 0
+      } : null
     }
   }
 
-  // For monthly granularity, use product_profitability table
-  const { data, error } = await supabase
-    .from('product_profitability')
-    .select('revenue, cost, gross_profit')
+  // For monthly granularity, get from snapshots with YoY
+  const { data: snapshots, error } = await supabase
+    .from('kpi_index_snapshots')
+    .select('period_end, raw_metrics')
     .eq('store_id', storeId)
+    .eq('granularity', 'month')
+    .order('period_end', { ascending: false })
+    .limit(24) // ~2 years of months
 
-  if (error) {
-    console.warn('Failed to fetch profit summary:', error)
-    return null
+  if (error || !snapshots || snapshots.length === 0) {
+    // Fallback to product_profitability table (no YoY)
+    const { data, error: ppError } = await supabase
+      .from('product_profitability')
+      .select('revenue, cost, gross_profit')
+      .eq('store_id', storeId)
+
+    if (ppError || !data || data.length === 0) return null
+
+    const totalRevenue = data.reduce((sum, p) => sum + (p.revenue || 0), 0)
+    const totalCost = data.reduce((sum, p) => sum + (p.cost || 0), 0)
+    const totalGrossProfit = data.reduce((sum, p) => sum + (p.gross_profit || 0), 0)
+    const marginPercent = totalRevenue > 0 ? (totalGrossProfit / totalRevenue) * 100 : 0
+
+    return {
+      revenue: totalRevenue,
+      cost: totalCost,
+      grossProfit: totalGrossProfit,
+      marginPercent,
+      currency: 'SEK',
+      period: '30 pv',
+      yoy: null
+    }
   }
 
-  if (!data || data.length === 0) return null
+  const currentSnapshot = snapshots[0]
+  const currentCore = currentSnapshot?.raw_metrics?.core
 
-  const totalRevenue = data.reduce((sum, p) => sum + (p.revenue || 0), 0)
-  const totalCost = data.reduce((sum, p) => sum + (p.cost || 0), 0)
-  const totalGrossProfit = data.reduce((sum, p) => sum + (p.gross_profit || 0), 0)
-  const marginPercent = totalRevenue > 0 ? (totalGrossProfit / totalRevenue) * 100 : 0
+  if (!currentCore) return null
+
+  // Find same month last year
+  const currentDate = new Date(currentSnapshot.period_end)
+  const lastYearMonth = `${currentDate.getFullYear() - 1}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`
+
+  let lastYearSnapshot = null
+  for (const snap of snapshots) {
+    if (snap.period_end.startsWith(lastYearMonth)) {
+      lastYearSnapshot = snap
+      break
+    }
+  }
+
+  const lastYearCore = lastYearSnapshot?.raw_metrics?.core
+
+  // Calculate YoY changes
+  const grossProfitYoY = lastYearCore?.gross_profit
+    ? ((currentCore.gross_profit - lastYearCore.gross_profit) / lastYearCore.gross_profit) * 100
+    : null
+  const revenueYoY = lastYearCore?.total_revenue
+    ? ((currentCore.total_revenue - lastYearCore.total_revenue) / lastYearCore.total_revenue) * 100
+    : null
 
   return {
-    revenue: totalRevenue,
-    cost: totalCost,
-    grossProfit: totalGrossProfit,
-    marginPercent,
+    revenue: currentCore.total_revenue || 0,
+    cost: (currentCore.total_revenue || 0) - (currentCore.gross_profit || 0),
+    grossProfit: currentCore.gross_profit || 0,
+    marginPercent: currentCore.margin_percent || 0,
     currency: 'SEK',
-    period: '30 pv'
+    period: '30 pv',
+    // YoY comparison data
+    yoy: lastYearCore ? {
+      grossProfit: lastYearCore.gross_profit || 0,
+      grossProfitChange: grossProfitYoY,
+      revenue: lastYearCore.total_revenue || 0,
+      revenueChange: revenueYoY,
+      marginPercent: lastYearCore.margin_percent || 0
+    } : null
   }
 }
 

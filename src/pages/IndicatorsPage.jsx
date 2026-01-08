@@ -55,50 +55,50 @@ export function IndicatorsPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+      <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="animate-pulse flex flex-col items-center gap-4">
-          <div className="w-20 h-20 rounded-full bg-slate-800" />
-          <div className="w-40 h-4 rounded bg-slate-800" />
-          <p className="text-slate-500 text-sm">Ladataan indeksejä...</p>
+          <div className="w-20 h-20 rounded-full bg-background-elevated" />
+          <div className="w-40 h-4 rounded bg-background-elevated" />
+          <p className="text-foreground-subtle text-sm">Ladataan indeksejä...</p>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-slate-950">
+    <div className="min-h-screen bg-background">
       <div className="max-w-7xl mx-auto px-6 py-8">
 
         {/* Header */}
         <div className="flex items-center justify-between mb-10">
           <div>
-            <h1 className="text-2xl font-semibold text-white">
+            <h1 className="text-2xl font-semibold text-foreground">
               KPI Dashboard
             </h1>
-            <p className="text-slate-500 text-sm mt-1">
+            <p className="text-foreground-subtle text-sm mt-1">
               Liiketoiminnan indeksit viikko/kuukausitasolla
             </p>
           </div>
 
           <div className="flex items-center gap-4">
             {/* Granularity Toggle */}
-            <div className="flex bg-slate-900 rounded-xl p-1">
+            <div className="flex bg-background-subtle rounded-lg p-1">
               <button
                 onClick={() => setGranularity('week')}
-                className={`px-4 py-2 text-sm font-medium rounded-lg transition-all ${
+                className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${
                   granularity === 'week'
-                    ? 'bg-cyan-600 text-white shadow-sm'
-                    : 'text-slate-500 hover:text-slate-300'
+                    ? 'bg-primary text-primary-foreground shadow-sm'
+                    : 'text-foreground-muted hover:text-foreground'
                 }`}
               >
                 Viikko
               </button>
               <button
                 onClick={() => setGranularity('month')}
-                className={`px-4 py-2 text-sm font-medium rounded-lg transition-all ${
+                className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${
                   granularity === 'month'
-                    ? 'bg-cyan-600 text-white shadow-sm'
-                    : 'text-slate-500 hover:text-slate-300'
+                    ? 'bg-primary text-primary-foreground shadow-sm'
+                    : 'text-foreground-muted hover:text-foreground'
                 }`}
               >
                 Kuukausi
@@ -108,7 +108,7 @@ export function IndicatorsPage() {
             {/* Refresh */}
             <button
               onClick={refresh}
-              className="p-2.5 rounded-xl bg-slate-900 text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+              className="p-2.5 rounded-lg bg-background-elevated text-foreground-muted hover:text-foreground hover:bg-background-subtle transition-colors border border-border"
               title="Päivitä"
             >
               <RefreshCw className="w-5 h-5" />
@@ -118,8 +118,8 @@ export function IndicatorsPage() {
 
         {/* Error */}
         {error && (
-          <div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-4 mb-8">
-            <p className="text-red-400 text-sm">{error.message}</p>
+          <div className="bg-destructive-muted border border-destructive/20 rounded-lg p-4 mb-8">
+            <p className="text-destructive text-sm">{error.message}</p>
           </div>
         )}
 
@@ -218,7 +218,7 @@ export function IndicatorsPage() {
             {/* Period Info */}
             {dashboard?.period && (
               <div className="mt-10 text-center">
-                <p className="text-slate-600 text-sm">
+                <p className="text-foreground-subtle text-sm">
                   Jakso: {dashboard.period.start} – {dashboard.period.end}
                   {dashboard.calculated_at && (
                     <span className="ml-2">
@@ -245,32 +245,32 @@ function OverallIndexCard({ index, alerts }) {
 
   const getColorClass = (level) => {
     switch (level) {
-      case 'excellent': return 'text-emerald-400'
-      case 'good': return 'text-green-400'
-      case 'fair': return 'text-amber-400'
+      case 'excellent': return 'text-success'
+      case 'good': return 'text-success'
+      case 'fair': return 'text-warning'
       case 'poor': return 'text-orange-400'
-      case 'critical': return 'text-red-400'
-      default: return 'text-slate-400'
+      case 'critical': return 'text-destructive'
+      default: return 'text-foreground-subtle'
     }
   }
 
   const getBgGradient = (level) => {
     switch (level) {
-      case 'excellent': return 'from-emerald-500/10 to-emerald-500/5'
-      case 'good': return 'from-green-500/10 to-green-500/5'
-      case 'fair': return 'from-amber-500/10 to-amber-500/5'
+      case 'excellent': return 'from-success/10 to-success/5'
+      case 'good': return 'from-success/10 to-success/5'
+      case 'fair': return 'from-warning/10 to-warning/5'
       case 'poor': return 'from-orange-500/10 to-orange-500/5'
-      case 'critical': return 'from-red-500/10 to-red-500/5'
-      default: return 'from-slate-800 to-slate-900'
+      case 'critical': return 'from-destructive/10 to-destructive/5'
+      default: return 'from-background-elevated to-background'
     }
   }
 
   return (
-    <div className={`bg-gradient-to-br ${getBgGradient(interpretation?.level)} rounded-3xl p-8 h-full`}>
+    <div className={`bg-gradient-to-br ${getBgGradient(interpretation?.level)} rounded-2xl p-8 h-full border border-card-border`}>
       <div className="flex items-center justify-between mb-6">
-        <p className="text-slate-400 text-sm font-medium">Kokonaisindeksi</p>
+        <p className="text-foreground-muted text-sm font-medium">Kokonaisindeksi</p>
         {alerts.length > 0 && (
-          <div className="flex items-center gap-1.5 bg-amber-500/20 text-amber-400 px-2 py-1 rounded-lg">
+          <div className="flex items-center gap-1.5 bg-warning-muted text-warning px-2 py-1 rounded-lg">
             <AlertTriangle className="w-3.5 h-3.5" />
             <span className="text-xs font-medium">{alerts.length}</span>
           </div>
@@ -278,7 +278,7 @@ function OverallIndexCard({ index, alerts }) {
       </div>
 
       <div className="flex items-end gap-4 mb-4">
-        <span className={`text-8xl font-bold ${getColorClass(interpretation?.level)}`}>
+        <span className={`text-8xl font-bold tabular-nums ${getColorClass(interpretation?.level)}`}>
           {value ?? '—'}
         </span>
       </div>
@@ -294,18 +294,18 @@ function OverallIndexCard({ index, alerts }) {
 
       {/* Index Gauge */}
       <div className="mt-6">
-        <div className="h-3 bg-slate-800 rounded-full overflow-hidden">
+        <div className="h-3 bg-background-subtle rounded-full overflow-hidden">
           <div
             className={`h-full rounded-full transition-all duration-500 ${
-              interpretation?.level === 'excellent' ? 'bg-emerald-500' :
-              interpretation?.level === 'good' ? 'bg-green-500' :
-              interpretation?.level === 'fair' ? 'bg-amber-500' :
-              interpretation?.level === 'poor' ? 'bg-orange-500' : 'bg-red-500'
+              interpretation?.level === 'excellent' ? 'bg-success' :
+              interpretation?.level === 'good' ? 'bg-success' :
+              interpretation?.level === 'fair' ? 'bg-warning' :
+              interpretation?.level === 'poor' ? 'bg-orange-500' : 'bg-destructive'
             }`}
             style={{ width: `${value || 0}%` }}
           />
         </div>
-        <div className="flex justify-between mt-2 text-xs text-slate-600">
+        <div className="flex justify-between mt-2 text-xs text-foreground-subtle">
           <span>0</span>
           <span>50</span>
           <span>100</span>
@@ -328,18 +328,18 @@ function IndexCard({ index, onClick, isSelected }) {
   const getColorClasses = (color, level) => {
     if (level === 'critical' || level === 'poor') {
       return {
-        text: 'text-red-400',
-        bg: 'bg-red-500/10',
-        border: 'border-red-500/20'
+        text: 'text-destructive',
+        bg: 'bg-destructive-muted',
+        border: 'border-destructive/20'
       }
     }
 
     const colors = {
-      emerald: { text: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20' },
-      violet: { text: 'text-violet-400', bg: 'bg-violet-500/10', border: 'border-violet-500/20' },
-      amber: { text: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/20' },
-      blue: { text: 'text-blue-400', bg: 'bg-blue-500/10', border: 'border-blue-500/20' },
-      cyan: { text: 'text-cyan-400', bg: 'bg-cyan-500/10', border: 'border-cyan-500/20' }
+      emerald: { text: 'text-success', bg: 'bg-success-muted', border: 'border-success/20' },
+      violet: { text: 'text-purple-400', bg: 'bg-purple-500/10', border: 'border-purple-500/20' },
+      amber: { text: 'text-warning', bg: 'bg-warning-muted', border: 'border-warning/20' },
+      blue: { text: 'text-info', bg: 'bg-info-muted', border: 'border-info/20' },
+      cyan: { text: 'text-primary', bg: 'bg-primary-muted', border: 'border-primary/20' }
     }
     return colors[color] || colors.cyan
   }
@@ -351,22 +351,22 @@ function IndexCard({ index, onClick, isSelected }) {
       onClick={onClick}
       className={`
         group relative overflow-hidden cursor-pointer
-        bg-slate-900/50 hover:bg-slate-900
-        border ${isSelected ? 'border-cyan-500' : 'border-slate-800/50 hover:border-slate-700'}
-        rounded-2xl p-5 transition-all duration-200
+        bg-background-elevated hover:bg-background-subtle
+        border ${isSelected ? 'border-primary' : 'border-card-border hover:border-border'}
+        rounded-lg p-5 transition-all duration-200
       `}
     >
       {/* Icon */}
-      <div className={`w-10 h-10 rounded-xl ${colorClasses.bg} flex items-center justify-center mb-4`}>
+      <div className={`w-10 h-10 rounded-lg ${colorClasses.bg} flex items-center justify-center mb-4`}>
         <Icon className={`w-5 h-5 ${colorClasses.text}`} />
       </div>
 
       {/* Title */}
-      <p className="text-slate-400 text-sm font-medium mb-2">{name}</p>
+      <p className="text-foreground-muted text-sm font-medium mb-2">{name}</p>
 
       {/* Value */}
       <div className="flex items-baseline gap-2 mb-2">
-        <span className="text-4xl font-bold text-white">
+        <span className="text-4xl font-bold text-foreground tabular-nums">
           {value ?? '—'}
         </span>
       </div>
@@ -380,7 +380,7 @@ function IndexCard({ index, onClick, isSelected }) {
       </div>
 
       {/* Expand icon */}
-      <ChevronRight className="absolute top-5 right-5 w-4 h-4 text-slate-600 group-hover:text-slate-400 transition-colors" />
+      <ChevronRight className="absolute top-5 right-5 w-4 h-4 text-foreground-subtle group-hover:text-foreground-muted transition-colors" />
     </div>
   )
 }
@@ -391,7 +391,7 @@ function IndexCard({ index, onClick, isSelected }) {
 function DeltaBadge({ delta }) {
   if (delta === 0 || delta === null || delta === undefined) {
     return (
-      <span className="flex items-center gap-1 text-slate-500 text-sm">
+      <span className="flex items-center gap-1 text-foreground-subtle text-sm">
         <Minus className="w-3 h-3" />
         <span>0</span>
       </span>
@@ -402,8 +402,8 @@ function DeltaBadge({ delta }) {
   const Icon = isPositive ? TrendingUp : TrendingDown
 
   return (
-    <span className={`flex items-center gap-1 text-sm font-medium ${
-      isPositive ? 'text-emerald-400' : 'text-red-400'
+    <span className={`flex items-center gap-1 text-sm font-medium tabular-nums ${
+      isPositive ? 'text-success' : 'text-destructive'
     }`}>
       <Icon className="w-3.5 h-3.5" />
       <span>{isPositive ? '+' : ''}{delta.toFixed(0)}</span>
@@ -416,14 +416,14 @@ function DeltaBadge({ delta }) {
  */
 function AlertsBanner({ alerts }) {
   return (
-    <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-4 mb-6">
+    <div className="bg-warning-muted border border-warning/20 rounded-lg p-4 mb-6">
       <div className="flex items-center gap-3">
-        <AlertTriangle className="w-5 h-5 text-amber-400" />
+        <AlertTriangle className="w-5 h-5 text-warning" />
         <div>
-          <p className="text-amber-400 font-medium text-sm">
+          <p className="text-warning font-medium text-sm">
             {alerts.length} hälytystä vaatii huomiota
           </p>
-          <p className="text-amber-400/70 text-xs mt-0.5">
+          <p className="text-warning/70 text-xs mt-0.5">
             {alerts.slice(0, 3).map(a => a.replace(/_/g, ' ')).join(', ')}
             {alerts.length > 3 && ` +${alerts.length - 3} muuta`}
           </p>
@@ -450,18 +450,18 @@ function IndexDetail({ index, onClose }) {
   const hasMissingData = missingComponents.length > 0
 
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 mb-6">
+    <div className="bg-background-elevated border border-card-border rounded-lg p-6 mb-6">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
-          <Icon className="w-6 h-6 text-cyan-400" />
+          <Icon className="w-6 h-6 text-primary" />
           <div>
-            <h3 className="text-lg font-semibold text-white">{name}</h3>
-            <p className="text-slate-500 text-sm">{description}</p>
+            <h3 className="text-lg font-semibold text-foreground">{name}</h3>
+            <p className="text-foreground-subtle text-sm">{description}</p>
           </div>
         </div>
         <button
           onClick={onClose}
-          className="text-slate-500 hover:text-white text-sm"
+          className="text-foreground-subtle hover:text-foreground text-sm"
         >
           Sulje
         </button>
@@ -469,14 +469,14 @@ function IndexDetail({ index, onClose }) {
 
       {/* Data Quality Banner */}
       {hasMissingData && (
-        <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 mb-4">
+        <div className="bg-warning-muted border border-warning/20 rounded-lg p-3 mb-4">
           <div className="flex items-start gap-2">
-            <AlertTriangle className="w-4 h-4 text-amber-400 mt-0.5 flex-shrink-0" />
+            <AlertTriangle className="w-4 h-4 text-warning mt-0.5 flex-shrink-0" />
             <div>
-              <p className="text-amber-400 text-sm font-medium">
+              <p className="text-warning text-sm font-medium">
                 {missingComponents.length}/{totalComponents} komponenttia ilman dataa
               </p>
-              <p className="text-amber-400/70 text-xs mt-0.5">
+              <p className="text-warning/70 text-xs mt-0.5">
                 Indeksi lasketaan vain saatavilla olevien komponenttien perusteella.
                 Puuttuvat mittarit eivät vaikuta tulokseen negatiivisesti.
               </p>
@@ -488,7 +488,7 @@ function IndexDetail({ index, onClose }) {
       {/* Components Breakdown */}
       {components && Object.keys(components).length > 0 && (
         <div className="space-y-3">
-          <p className="text-slate-400 text-sm font-medium mb-3">Komponentit</p>
+          <p className="text-foreground-muted text-sm font-medium mb-3">Komponentit</p>
           {Object.entries(components).map(([key, comp]) => (
             <ComponentBar key={key} name={key} component={comp} />
           ))}
@@ -497,7 +497,7 @@ function IndexDetail({ index, onClose }) {
 
       {/* No components */}
       {(!components || Object.keys(components).length === 0) && (
-        <p className="text-slate-500 text-sm">Komponenttitiedot eivät ole vielä saatavilla.</p>
+        <p className="text-foreground-subtle text-sm">Komponenttitiedot eivät ole vielä saatavilla.</p>
       )}
     </div>
   )
@@ -619,7 +619,7 @@ function ComponentBar({ name, component }) {
     <div className="group relative flex items-center gap-4">
       {/* Label with tooltip trigger */}
       <div
-        className={`w-32 text-sm truncate cursor-help ${isDataMissing ? 'text-slate-600' : 'text-slate-400'}`}
+        className={`w-32 text-sm truncate cursor-help ${isDataMissing ? 'text-foreground-subtle/50' : 'text-foreground-muted'}`}
         title={meta.tooltip}
       >
         {meta.label}
@@ -628,15 +628,15 @@ function ComponentBar({ name, component }) {
       {/* Progress bar tai "Ei dataa" -tila */}
       {isDataMissing ? (
         <div className="flex-1 flex items-center">
-          <div className="flex-1 h-2 bg-slate-800/30 rounded-full" style={{ backgroundImage: 'repeating-linear-gradient(90deg, transparent, transparent 4px, rgba(100,116,139,0.15) 4px, rgba(100,116,139,0.15) 8px)' }} />
-          <span className="ml-2 text-slate-600 text-xs whitespace-nowrap">Ei dataa</span>
+          <div className="flex-1 h-2 bg-background-subtle/30 rounded-full" style={{ backgroundImage: 'repeating-linear-gradient(90deg, transparent, transparent 4px, rgba(100,116,139,0.15) 4px, rgba(100,116,139,0.15) 8px)' }} />
+          <span className="ml-2 text-foreground-subtle/50 text-xs whitespace-nowrap">Ei dataa</span>
         </div>
       ) : (
-        <div className="flex-1 h-2 bg-slate-800 rounded-full overflow-hidden">
+        <div className="flex-1 h-2 bg-background-subtle rounded-full overflow-hidden">
           <div
             className={`h-full rounded-full transition-all duration-300 ${
-              index >= 60 ? 'bg-emerald-500' :
-              index >= 40 ? 'bg-amber-500' : 'bg-red-500'
+              index >= 60 ? 'bg-success' :
+              index >= 40 ? 'bg-warning' : 'bg-destructive'
             }`}
             style={{ width: `${index || 0}%` }}
           />
@@ -644,29 +644,29 @@ function ComponentBar({ name, component }) {
       )}
 
       {/* Index score */}
-      <div className={`w-12 text-right text-sm font-medium ${isDataMissing ? 'text-slate-600' : 'text-slate-300'}`}>
+      <div className={`w-12 text-right text-sm font-medium tabular-nums ${isDataMissing ? 'text-foreground-subtle/50' : 'text-foreground'}`}>
         {isDataMissing ? '—' : (index?.toFixed(0) ?? '—')}
       </div>
 
       {/* Weight */}
-      <div className={`w-16 text-right text-xs ${isDataMissing ? 'text-slate-700' : 'text-slate-600'}`}>
+      <div className={`w-16 text-right text-xs tabular-nums ${isDataMissing ? 'text-foreground-subtle/30' : 'text-foreground-subtle'}`}>
         ({(weight * 100).toFixed(0)}%)
       </div>
 
       {/* Tooltip on hover */}
       <div className="absolute left-0 bottom-full mb-2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
-        <div className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 shadow-xl min-w-[200px]">
-          <p className="text-white text-sm font-medium mb-1">{meta.label}</p>
-          <p className="text-slate-400 text-xs mb-2">{meta.tooltip}</p>
+        <div className="bg-background-elevated border border-border rounded-lg px-3 py-2 shadow-xl min-w-[200px]">
+          <p className="text-foreground text-sm font-medium mb-1">{meta.label}</p>
+          <p className="text-foreground-muted text-xs mb-2">{meta.tooltip}</p>
           {isDataMissing && reason && (
-            <p className="text-amber-400/80 text-xs mb-2 italic">⚠️ {reason}</p>
+            <p className="text-warning/80 text-xs mb-2 italic">{reason}</p>
           )}
-          <div className="flex justify-between items-center pt-1 border-t border-slate-700">
-            <span className={`text-sm ${isDataMissing ? 'text-slate-500' : 'text-cyan-400'}`}>{displayValue}</span>
+          <div className="flex justify-between items-center pt-1 border-t border-border">
+            <span className={`text-sm ${isDataMissing ? 'text-foreground-subtle' : 'text-primary'}`}>{displayValue}</span>
             <span className={`text-xs ${
-              isDataMissing ? 'text-slate-600' :
-              index >= 60 ? 'text-emerald-400' :
-              index >= 40 ? 'text-amber-400' : 'text-red-400'
+              isDataMissing ? 'text-foreground-subtle' :
+              index >= 60 ? 'text-success' :
+              index >= 40 ? 'text-warning' : 'text-destructive'
             }`}>
               {getStatusText(index)}
             </span>
@@ -683,42 +683,42 @@ function ComponentBar({ name, component }) {
 function ProductsCard({ title, subtitle, products, type }) {
   if (!products || products.length === 0) {
     return (
-      <div className="bg-slate-900/50 border border-slate-800/50 rounded-2xl p-6">
-        <h3 className="text-lg font-semibold text-white mb-1">{title}</h3>
-        <p className="text-slate-500 text-sm mb-4">{subtitle}</p>
-        <p className="text-slate-600 text-sm">Ei dataa vielä saatavilla.</p>
+      <div className="bg-background-elevated border border-card-border rounded-lg p-6">
+        <h3 className="text-lg font-semibold text-foreground mb-1">{title}</h3>
+        <p className="text-foreground-subtle text-sm mb-4">{subtitle}</p>
+        <p className="text-foreground-subtle text-sm">Ei dataa vielä saatavilla.</p>
       </div>
     )
   }
 
   return (
-    <div className="bg-slate-900/50 border border-slate-800/50 rounded-2xl p-6">
-      <h3 className="text-lg font-semibold text-white mb-1">{title}</h3>
-      <p className="text-slate-500 text-sm mb-4">{subtitle}</p>
+    <div className="bg-background-elevated border border-card-border rounded-lg p-6">
+      <h3 className="text-lg font-semibold text-foreground mb-1">{title}</h3>
+      <p className="text-foreground-subtle text-sm mb-4">{subtitle}</p>
 
       <div className="space-y-3">
         {products.slice(0, 5).map((product, i) => (
           <div key={product.product_id || i} className="flex items-center gap-3">
             <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold ${
-              type === 'drivers' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'
+              type === 'drivers' ? 'bg-success-muted text-success' : 'bg-destructive-muted text-destructive'
             }`}>
               {i + 1}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-white text-sm truncate">
+              <p className="text-foreground text-sm truncate">
                 {product.products?.name || product.product_name || 'N/A'}
               </p>
-              <p className="text-slate-500 text-xs">
+              <p className="text-foreground-subtle text-xs">
                 {product.products?.product_number || product.sku || ''}
               </p>
             </div>
             <div className="text-right">
               {type === 'drivers' ? (
-                <p className="text-emerald-400 text-sm font-medium">
+                <p className="text-success text-sm font-medium tabular-nums">
                   {product.total_score?.toFixed(0) ?? '—'} pts
                 </p>
               ) : (
-                <p className="text-red-400 text-sm font-medium">
+                <p className="text-destructive text-sm font-medium tabular-nums">
                   {product.stock_days?.toFixed(0) ?? '—'} pv
                 </p>
               )}
@@ -749,23 +749,23 @@ function NoDataState({ onCalculate }) {
 
   return (
     <div className="text-center py-20">
-      <div className="w-24 h-24 rounded-full bg-slate-900 mx-auto mb-6 flex items-center justify-center">
+      <div className="w-24 h-24 rounded-full bg-background-elevated mx-auto mb-6 flex items-center justify-center">
         <span className="text-4xl">📊</span>
       </div>
-      <h2 className="text-xl font-semibold text-white mb-2">
+      <h2 className="text-xl font-semibold text-foreground mb-2">
         KPI-indeksit eivät ole vielä valmiita
       </h2>
-      <p className="text-slate-500 mb-6 max-w-md mx-auto">
+      <p className="text-foreground-subtle mb-6 max-w-md mx-auto">
         Laske ensimmäiset indeksit käynnistämällä KPI-laskenta.
         Tämä voi kestää muutaman sekunnin.
       </p>
       <button
         onClick={handleCalculate}
         disabled={isCalculating}
-        className={`px-6 py-3 rounded-xl font-medium transition-colors ${
+        className={`px-6 py-3 rounded-lg font-medium transition-colors ${
           isCalculating
-            ? 'bg-slate-800 text-slate-500 cursor-not-allowed'
-            : 'bg-cyan-600 text-white hover:bg-cyan-700'
+            ? 'bg-background-subtle text-foreground-subtle cursor-not-allowed'
+            : 'bg-primary text-primary-foreground hover:bg-primary/90'
         }`}
       >
         {isCalculating ? (
@@ -783,41 +783,58 @@ function NoDataState({ onCalculate }) {
 
 /**
  * Gross Profit Card - Myyntikate-yhteenveto
- * Näyttää myyntikatteen isolla ja graafin
+ * Näyttää myyntikatteen isolla ja YoY-vertailun
  */
 function GrossProfitCard({ profitSummary }) {
   if (!profitSummary) return null
 
-  const { revenue, cost, grossProfit, marginPercent, currency, period = '30 pv' } = profitSummary
+  const { revenue, cost, grossProfit, marginPercent, currency, period = '30 pv', yoy } = profitSummary
 
   // Format number with space as thousand separator (Swedish style)
   const formatNumber = (num) => {
     return Math.round(num).toLocaleString('sv-SE')
   }
 
+  // Format percentage change with + or - sign
+  const formatChange = (change) => {
+    if (change === null || change === undefined) return null
+    const sign = change >= 0 ? '+' : ''
+    return `${sign}${change.toFixed(1)}%`
+  }
+
   return (
     <div className="mt-10 mb-6">
-      <div className="bg-gradient-to-br from-emerald-900/30 to-slate-900 border border-emerald-500/20 rounded-2xl p-6">
+      <div className="bg-gradient-to-br from-success/10 to-background border border-success/20 rounded-lg p-6">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <p className="text-emerald-400/80 text-sm font-medium uppercase tracking-wide">
+            <p className="text-success/80 text-sm font-medium uppercase tracking-wide">
               Myyntikate ({period})
             </p>
             <div className="flex items-baseline gap-3 mt-1">
-              <span className="text-4xl font-bold text-white">
+              <span className="text-4xl font-bold text-foreground tabular-nums">
                 {formatNumber(grossProfit)}
               </span>
-              <span className="text-2xl text-emerald-400 font-medium">
+              <span className="text-2xl text-success font-medium">
                 {currency}
               </span>
+              {/* YoY change badge */}
+              {yoy && yoy.grossProfitChange !== null && (
+                <span className={`text-sm font-medium px-2 py-0.5 rounded-full tabular-nums ${
+                  yoy.grossProfitChange >= 0
+                    ? 'bg-success-muted text-success'
+                    : 'bg-destructive-muted text-destructive'
+                }`}>
+                  {formatChange(yoy.grossProfitChange)} vs viime vuosi
+                </span>
+              )}
             </div>
           </div>
           <div className="text-right">
-            <div className="bg-emerald-500/20 px-4 py-2 rounded-xl">
-              <p className="text-emerald-400 text-2xl font-bold">
+            <div className="bg-success-muted px-4 py-2 rounded-lg">
+              <p className="text-success text-2xl font-bold tabular-nums">
                 {marginPercent.toFixed(1)}%
               </p>
-              <p className="text-emerald-400/60 text-xs">kate-%</p>
+              <p className="text-success/60 text-xs">kate-%</p>
             </div>
           </div>
         </div>
@@ -825,12 +842,19 @@ function GrossProfitCard({ profitSummary }) {
         {/* Revenue breakdown bar */}
         <div className="mt-6">
           <div className="flex justify-between text-sm mb-2">
-            <span className="text-slate-400">Myynti (netto)</span>
-            <span className="text-white font-medium">{formatNumber(revenue)} {currency}</span>
+            <span className="text-foreground-muted">Myynti (netto)</span>
+            <div className="flex items-center gap-2">
+              <span className="text-foreground font-medium tabular-nums">{formatNumber(revenue)} {currency}</span>
+              {yoy && yoy.revenueChange !== null && (
+                <span className={`text-xs tabular-nums ${yoy.revenueChange >= 0 ? 'text-success' : 'text-destructive'}`}>
+                  ({formatChange(yoy.revenueChange)})
+                </span>
+              )}
+            </div>
           </div>
-          <div className="h-3 bg-slate-800 rounded-full overflow-hidden">
+          <div className="h-3 bg-background-subtle rounded-full overflow-hidden">
             <div
-              className="h-full bg-gradient-to-r from-emerald-500 to-emerald-400 rounded-full"
+              className="h-full bg-gradient-to-r from-success to-success/80 rounded-full"
               style={{ width: '100%' }}
             />
           </div>
@@ -838,24 +862,31 @@ function GrossProfitCard({ profitSummary }) {
 
         <div className="mt-3">
           <div className="flex justify-between text-sm mb-2">
-            <span className="text-slate-400">Ostot (netto)</span>
-            <span className="text-slate-300 font-medium">{formatNumber(cost)} {currency}</span>
+            <span className="text-foreground-muted">Ostot (netto)</span>
+            <span className="text-foreground font-medium tabular-nums">{formatNumber(cost)} {currency}</span>
           </div>
-          <div className="h-3 bg-slate-800 rounded-full overflow-hidden">
+          <div className="h-3 bg-background-subtle rounded-full overflow-hidden">
             <div
-              className="h-full bg-gradient-to-r from-red-500/60 to-red-400/60 rounded-full"
+              className="h-full bg-gradient-to-r from-destructive/60 to-destructive/40 rounded-full"
               style={{ width: `${(cost / revenue) * 100}%` }}
             />
           </div>
         </div>
 
-        <div className="mt-4 pt-4 border-t border-slate-700/50">
+        <div className="mt-4 pt-4 border-t border-border">
           <div className="flex justify-between items-center">
-            <span className="text-slate-400 text-sm">= Myyntikate</span>
-            <span className="text-emerald-400 font-bold text-lg">
+            <span className="text-foreground-muted text-sm">= Myyntikate</span>
+            <span className="text-success font-bold text-lg tabular-nums">
               {formatNumber(grossProfit)} {currency}
             </span>
           </div>
+          {/* YoY comparison detail */}
+          {yoy && yoy.grossProfit > 0 && (
+            <div className="flex justify-between items-center mt-2 text-xs text-foreground-subtle tabular-nums">
+              <span>Viime vuosi sama periodi</span>
+              <span>{formatNumber(yoy.grossProfit)} {currency}</span>
+            </div>
+          )}
         </div>
       </div>
     </div>

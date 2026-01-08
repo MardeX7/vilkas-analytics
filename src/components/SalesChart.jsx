@@ -14,6 +14,19 @@ import {
   Cell
 } from 'recharts'
 
+// Billackering brand colors
+const COLORS = {
+  primary: '#01a7da',     // Billackering blue
+  destructive: '#d92d33', // Billackering red
+  warning: '#eee000',     // Billackering yellow
+  success: '#22c55e',     // Green for positive
+  muted: '#6b7685',       // Subtle text/lines
+  grid: '#1a2230',        // Subtle grid lines
+  cardBg: '#141a22',      // Card background
+  tooltip: '#0d1117',     // Tooltip background
+  text: '#f8fafc',        // Primary text
+}
+
 export function DailySalesChart({ data, previousData = null, compare = false }) {
   // Reverse to show oldest first
   const currentData = [...data].reverse()
@@ -40,9 +53,9 @@ export function DailySalesChart({ data, previousData = null, compare = false }) 
   const showComparison = compare && previousData && previousData.length > 0
 
   return (
-    <Card className="bg-slate-800/50 border-slate-700">
-      <CardHeader>
-        <CardTitle className="text-white text-lg">Daglig försäljning</CardTitle>
+    <Card className="bg-background-elevated border-card-border">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-foreground text-base font-medium">Daglig försäljning</CardTitle>
       </CardHeader>
       <CardContent>
         <div className="h-64">
@@ -50,16 +63,16 @@ export function DailySalesChart({ data, previousData = null, compare = false }) 
             <ComposedChart data={chartData}>
               <defs>
                 <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.3}/>
-                  <stop offset="95%" stopColor="#06b6d4" stopOpacity={0}/>
+                  <stop offset="5%" stopColor={COLORS.primary} stopOpacity={0.25}/>
+                  <stop offset="95%" stopColor={COLORS.primary} stopOpacity={0}/>
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-              <XAxis dataKey="date" stroke="#94a3b8" fontSize={12} />
-              <YAxis stroke="#94a3b8" fontSize={12} tickFormatter={(v) => `${(v/1000).toFixed(0)}k`} />
+              <CartesianGrid strokeDasharray="3 3" stroke={COLORS.grid} vertical={false} />
+              <XAxis dataKey="date" stroke={COLORS.muted} fontSize={11} tickLine={false} axisLine={false} />
+              <YAxis stroke={COLORS.muted} fontSize={11} tickLine={false} axisLine={false} tickFormatter={(v) => `${(v/1000).toFixed(0)}k`} />
               <Tooltip
-                contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '8px' }}
-                labelStyle={{ color: '#f8fafc' }}
+                contentStyle={{ backgroundColor: COLORS.tooltip, border: `1px solid ${COLORS.grid}`, borderRadius: '8px' }}
+                labelStyle={{ color: COLORS.text }}
                 formatter={(value, name) => {
                   if (name === 'revenue') return [`${value?.toLocaleString()} SEK`, 'Nuvarande']
                   if (name === 'previousRevenue') return [`${value?.toLocaleString()} SEK`, 'Föregående']
@@ -75,7 +88,7 @@ export function DailySalesChart({ data, previousData = null, compare = false }) 
               <Area
                 type="monotone"
                 dataKey="revenue"
-                stroke="#06b6d4"
+                stroke={COLORS.primary}
                 strokeWidth={2}
                 fillOpacity={1}
                 fill="url(#colorRevenue)"
@@ -84,7 +97,7 @@ export function DailySalesChart({ data, previousData = null, compare = false }) 
                 <Line
                   type="monotone"
                   dataKey="previousRevenue"
-                  stroke="#64748b"
+                  stroke={COLORS.muted}
                   strokeWidth={2}
                   strokeDasharray="5 5"
                   dot={false}
@@ -108,23 +121,23 @@ export function WeekdayChart({ data }) {
   }))
 
   return (
-    <Card className="bg-slate-800/50 border-slate-700">
-      <CardHeader>
-        <CardTitle className="text-white text-lg">Försäljning per veckodag</CardTitle>
+    <Card className="bg-background-elevated border-card-border">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-foreground text-base font-medium">Försäljning per veckodag</CardTitle>
       </CardHeader>
       <CardContent>
         <div className="h-64">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-              <XAxis dataKey="name" stroke="#94a3b8" fontSize={11} />
-              <YAxis stroke="#94a3b8" fontSize={12} tickFormatter={(v) => `${(v/1000).toFixed(0)}k`} />
+              <CartesianGrid strokeDasharray="3 3" stroke={COLORS.grid} vertical={false} />
+              <XAxis dataKey="name" stroke={COLORS.muted} fontSize={11} tickLine={false} axisLine={false} />
+              <YAxis stroke={COLORS.muted} fontSize={11} tickLine={false} axisLine={false} tickFormatter={(v) => `${(v/1000).toFixed(0)}k`} />
               <Tooltip
-                contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '8px' }}
-                labelStyle={{ color: '#f8fafc' }}
+                contentStyle={{ backgroundColor: COLORS.tooltip, border: `1px solid ${COLORS.grid}`, borderRadius: '8px' }}
+                labelStyle={{ color: COLORS.text }}
                 formatter={(value) => [`${value.toLocaleString()} SEK`, 'Försäljning']}
               />
-              <Bar dataKey="revenue" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="revenue" fill={COLORS.primary} radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -141,23 +154,23 @@ export function HourlyChart({ data }) {
   }))
 
   return (
-    <Card className="bg-slate-800/50 border-slate-700">
-      <CardHeader>
-        <CardTitle className="text-white text-lg">Försäljning per timme</CardTitle>
+    <Card className="bg-background-elevated border-card-border">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-foreground text-base font-medium">Försäljning per timme</CardTitle>
       </CardHeader>
       <CardContent>
         <div className="h-64">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-              <XAxis dataKey="hour" stroke="#94a3b8" fontSize={10} interval={2} />
-              <YAxis stroke="#94a3b8" fontSize={12} tickFormatter={(v) => `${(v/1000).toFixed(0)}k`} />
+              <CartesianGrid strokeDasharray="3 3" stroke={COLORS.grid} vertical={false} />
+              <XAxis dataKey="hour" stroke={COLORS.muted} fontSize={10} tickLine={false} axisLine={false} interval={2} />
+              <YAxis stroke={COLORS.muted} fontSize={11} tickLine={false} axisLine={false} tickFormatter={(v) => `${(v/1000).toFixed(0)}k`} />
               <Tooltip
-                contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '8px' }}
-                labelStyle={{ color: '#f8fafc' }}
+                contentStyle={{ backgroundColor: COLORS.tooltip, border: `1px solid ${COLORS.grid}`, borderRadius: '8px' }}
+                labelStyle={{ color: COLORS.text }}
                 formatter={(value) => [`${value.toLocaleString()} SEK`, 'Försäljning']}
               />
-              <Bar dataKey="revenue" fill="#22c55e" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="revenue" fill={COLORS.success} radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -173,12 +186,12 @@ export function HourlyChart({ data }) {
 export function KPIHistoryChart({ data, title = 'Kehitys viimeisen 12 kk aikana', indexKey = 'overall_index', granularity = 'month' }) {
   if (!data || data.length === 0) {
     return (
-      <Card className="bg-slate-800/50 border-slate-700">
-        <CardHeader>
-          <CardTitle className="text-white text-lg">{title}</CardTitle>
+      <Card className="bg-background-elevated border-card-border">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-foreground text-base font-medium">{title}</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="h-64 flex items-center justify-center text-slate-400">
+          <div className="h-64 flex items-center justify-center text-foreground-muted">
             Ei historiaa
           </div>
         </CardContent>
@@ -188,11 +201,11 @@ export function KPIHistoryChart({ data, title = 'Kehitys viimeisen 12 kk aikana'
 
   // Get color based on index value
   const getBarColor = (value) => {
-    if (value >= 70) return '#22c55e' // green-500
-    if (value >= 50) return '#84cc16' // lime-500
-    if (value >= 40) return '#eab308' // yellow-500
-    if (value >= 30) return '#f97316' // orange-500
-    return '#ef4444' // red-500
+    if (value >= 70) return COLORS.success
+    if (value >= 50) return '#84cc16' // lime
+    if (value >= 40) return COLORS.warning
+    if (value >= 30) return '#f97316' // orange
+    return COLORS.destructive
   }
 
   // Get ISO week number from date
@@ -227,37 +240,37 @@ export function KPIHistoryChart({ data, title = 'Kehitys viimeisen 12 kk aikana'
   })
 
   return (
-    <Card className="bg-slate-800/50 border-slate-700">
-      <CardHeader>
-        <CardTitle className="text-white text-lg">{title}</CardTitle>
+    <Card className="bg-background-elevated border-card-border">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-foreground text-base font-medium">{title}</CardTitle>
       </CardHeader>
       <CardContent>
         <div className="h-64">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={chartData} margin={{ top: 5, right: 5, bottom: 5, left: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+              <CartesianGrid strokeDasharray="3 3" stroke={COLORS.grid} vertical={false} />
               <XAxis
                 dataKey="label"
-                stroke="#94a3b8"
+                stroke={COLORS.muted}
                 fontSize={11}
                 tickLine={false}
-                axisLine={{ stroke: '#334155' }}
+                axisLine={false}
                 interval={granularity === 'week' ? 3 : 0}
               />
               <YAxis
                 domain={[0, 100]}
-                stroke="#94a3b8"
-                fontSize={12}
+                stroke={COLORS.muted}
+                fontSize={11}
                 tickLine={false}
-                axisLine={{ stroke: '#334155' }}
+                axisLine={false}
               />
               <Tooltip
                 contentStyle={{
-                  backgroundColor: '#1e293b',
-                  border: '1px solid #334155',
+                  backgroundColor: COLORS.tooltip,
+                  border: `1px solid ${COLORS.grid}`,
                   borderRadius: '8px'
                 }}
-                labelStyle={{ color: '#f8fafc' }}
+                labelStyle={{ color: COLORS.text }}
                 formatter={(value) => [`${value}`, 'Index']}
                 labelFormatter={(label, payload) => {
                   if (payload && payload[0]) {
@@ -281,9 +294,9 @@ export function KPIHistoryChart({ data, title = 'Kehitys viimeisen 12 kk aikana'
         </div>
 
         {/* Legend */}
-        <div className="flex justify-center gap-4 mt-4 text-xs text-slate-400">
+        <div className="flex justify-center gap-4 mt-4 text-xs text-foreground-subtle">
           <div className="flex items-center gap-1">
-            <div className="w-3 h-3 rounded-sm bg-green-500" />
+            <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: COLORS.success }} />
             <span>70+ Utmärkt</span>
           </div>
           <div className="flex items-center gap-1">
@@ -291,7 +304,7 @@ export function KPIHistoryChart({ data, title = 'Kehitys viimeisen 12 kk aikana'
             <span>50-69 Bra</span>
           </div>
           <div className="flex items-center gap-1">
-            <div className="w-3 h-3 rounded-sm bg-yellow-500" />
+            <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: COLORS.warning }} />
             <span>40-49 Godkänt</span>
           </div>
           <div className="flex items-center gap-1">
@@ -299,7 +312,7 @@ export function KPIHistoryChart({ data, title = 'Kehitys viimeisen 12 kk aikana'
             <span>30-39 Svag</span>
           </div>
           <div className="flex items-center gap-1">
-            <div className="w-3 h-3 rounded-sm bg-red-500" />
+            <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: COLORS.destructive }} />
             <span>&lt;30 Kritisk</span>
           </div>
         </div>

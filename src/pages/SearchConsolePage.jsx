@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useGSC } from '@/hooks/useGSC'
-import { KPICard } from '@/components/KPICard'
+import { MetricCard, MetricCardGroup } from '@/components/MetricCard'
 import { DateRangePicker, getDateRange, formatDateISO } from '@/components/DateRangePicker'
 import {
   GSCConnectCard,
@@ -10,7 +10,7 @@ import {
   GSCDeviceChart,
   GSCCountryChart
 } from '@/components/GSCCharts'
-import { Search, MousePointer, Eye, Target, RefreshCw, Download } from 'lucide-react'
+import { Search, RefreshCw, Download } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 const defaultRange = getDateRange('last30')
@@ -76,16 +76,16 @@ export function SearchConsolePage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950">
+    <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="border-b border-slate-800 bg-slate-900/80 backdrop-blur-sm sticky top-0 z-10">
-        <div className="px-8 py-4 flex items-center justify-between">
+      <header className="border-b border-border bg-background-elevated/80 backdrop-blur-sm sticky top-0 z-10">
+        <div className="px-8 py-5 flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-              <Search className="w-6 h-6 text-cyan-400" />
+            <h1 className="text-2xl font-semibold text-foreground flex items-center gap-2">
+              <Search className="w-6 h-6 text-primary" />
               Google Search Console
             </h1>
-            <p className="text-slate-400 text-sm mt-1">Organisk söktrafik och sökordsprestanda</p>
+            <p className="text-foreground-muted text-sm mt-1">Organisk söktrafik och sökordsprestanda</p>
           </div>
           <div className="flex items-center gap-3">
             <DateRangePicker
@@ -93,13 +93,13 @@ export function SearchConsolePage() {
               onChange={setDateRange}
             />
             {/* MoM/YoY Toggle */}
-            <div className="flex bg-slate-800 rounded-lg p-1">
+            <div className="flex bg-background-subtle rounded-lg p-1">
               <button
                 onClick={() => setComparisonMode('mom')}
                 className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
                   comparisonMode === 'mom'
-                    ? 'bg-cyan-600 text-white shadow-sm'
-                    : 'text-slate-400 hover:text-slate-200'
+                    ? 'bg-primary text-primary-foreground shadow-sm'
+                    : 'text-foreground-muted hover:text-foreground'
                 }`}
                 title="Månad för månad"
               >
@@ -109,8 +109,8 @@ export function SearchConsolePage() {
                 onClick={() => setComparisonMode('yoy')}
                 className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
                   comparisonMode === 'yoy'
-                    ? 'bg-cyan-600 text-white shadow-sm'
-                    : 'text-slate-400 hover:text-slate-200'
+                    ? 'bg-primary text-primary-foreground shadow-sm'
+                    : 'text-foreground-muted hover:text-foreground'
                 }`}
                 title="År för år"
               >
@@ -123,7 +123,7 @@ export function SearchConsolePage() {
                 disabled={syncing}
                 variant="outline"
                 size="sm"
-                className="bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700"
+                className="bg-background-elevated border-border text-foreground-muted hover:bg-background-subtle hover:text-foreground"
               >
                 <Download className={`w-4 h-4 mr-2 ${syncing ? 'animate-spin' : ''}`} />
                 {syncing ? 'Synkar...' : 'Synka data'}
@@ -133,7 +133,7 @@ export function SearchConsolePage() {
               onClick={refresh}
               variant="outline"
               size="sm"
-              className="bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700"
+              className="bg-background-elevated border-border text-foreground-muted hover:bg-background-subtle hover:text-foreground"
             >
               <RefreshCw className="w-4 h-4" />
             </Button>
@@ -141,52 +141,44 @@ export function SearchConsolePage() {
         </div>
       </header>
 
-      <main className="px-8 py-8">
+      <main className="px-8 py-8 max-w-7xl mx-auto">
         {!connected ? (
           <GSCConnectCard onConnect={connectGSC} />
         ) : loading ? (
           <div className="text-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-400 mx-auto mb-4"></div>
-            <p className="text-slate-400 text-sm">Laddar Search Console data...</p>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+            <p className="text-foreground-muted text-sm">Laddar Search Console data...</p>
           </div>
         ) : (
           <>
             {/* KPI Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-              <KPICard
-                title="Klick"
+            <MetricCardGroup columns={4} className="mb-8">
+              <MetricCard
+                label="Klick"
                 value={summary?.totalClicks || 0}
-                icon={MousePointer}
-                change={clicksChange}
-                previousValue={previousSummary?.totalClicks}
-                comparisonMode={comparisonEnabled ? comparisonMode : null}
+                delta={clicksChange}
+                deltaLabel={comparisonEnabled ? comparisonMode.toUpperCase() : undefined}
               />
-              <KPICard
-                title="Visningar"
+              <MetricCard
+                label="Visningar"
                 value={summary?.totalImpressions || 0}
-                icon={Eye}
-                change={impressionsChange}
-                previousValue={previousSummary?.totalImpressions}
-                comparisonMode={comparisonEnabled ? comparisonMode : null}
+                delta={impressionsChange}
+                deltaLabel={comparisonEnabled ? comparisonMode.toUpperCase() : undefined}
               />
-              <KPICard
-                title="Snitt CTR"
+              <MetricCard
+                label="Snitt CTR"
                 value={`${((summary?.avgCtr || 0) * 100).toFixed(1)}%`}
-                icon={Target}
-                change={ctrChange}
-                comparisonMode={comparisonEnabled ? comparisonMode : null}
-                previousValue={previousSummary ? `${(previousSummary.avgCtr * 100).toFixed(1)}%` : null}
+                delta={ctrChange}
+                deltaLabel={comparisonEnabled ? comparisonMode.toUpperCase() : undefined}
               />
-              <KPICard
-                title="Snittposition"
+              <MetricCard
+                label="Snittposition"
                 value={(summary?.avgPosition || 0).toFixed(1)}
-                icon={Search}
-                change={positionChange}
-                previousValue={previousSummary?.avgPosition?.toFixed(1)}
-                invertColor={true}
-                comparisonMode={comparisonEnabled ? comparisonMode : null}
+                delta={positionChange}
+                deltaLabel={comparisonEnabled ? comparisonMode.toUpperCase() : undefined}
+                invertDelta={true}
               />
-            </div>
+            </MetricCardGroup>
 
             {dailySummary.length > 0 ? (
               <>
@@ -212,10 +204,10 @@ export function SearchConsolePage() {
                 </div>
               </>
             ) : (
-              <div className="bg-slate-800/30 rounded-lg p-8 text-center border border-slate-700/50">
-                <Search className="w-12 h-12 text-slate-600 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-white mb-2">Ingen data ännu</h3>
-                <p className="text-slate-400 mb-4">
+              <div className="bg-background-elevated/50 rounded-lg p-8 text-center border border-border">
+                <Search className="w-12 h-12 text-foreground-subtle mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-foreground mb-2">Ingen data ännu</h3>
+                <p className="text-foreground-muted mb-4">
                   Klicka på "Synka data" för att hämta data från Google Search Console.
                 </p>
                 <Button onClick={handleSync} disabled={syncing}>

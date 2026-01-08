@@ -7,6 +7,10 @@
  * - Paras kuukausi = 100, huonoin = 0
  * - Näyttää sesonkivaihtelun selvästi
  *
+ * DELTA: Year-over-Year (YoY) vertailu
+ * - Vertaa samaan kuukauteen viime vuonna
+ * - Huomioi sesonkivaihtelun automaattisesti
+ *
  * HIGH SEASON: Maaliskuu - Syyskuu
  */
 
@@ -189,10 +193,15 @@ async function generateHistory() {
   // ═══════════════════════════════════════════════════════════════════
 
   const snapshots = []
-  let previousSnapshot = null
 
-  console.log('Kuukausi  | Revenue  | Orders | GP      | Core | PPI | Overall')
-  console.log('----------|----------|--------|---------|------|-----|--------')
+  // Create a map for quick lookup of same month last year
+  const monthDataMap = {}
+  monthlyData.forEach(m => {
+    monthDataMap[m.month] = m
+  })
+
+  console.log('Kuukausi  | Revenue  | Orders | GP      | Core | PPI | Overall | YoY Δ')
+  console.log('----------|----------|--------|---------|------|-----|---------|-------')
 
   for (const data of monthlyData) {
     const { month, periodStart, periodEnd, orderCount, nettoRevenue, aov, grossProfit, marginPercent, marginEstimated, uniqueCustomers } = data
@@ -235,13 +244,38 @@ async function generateHistory() {
       oiIndex * 0.15        // Operations
     )
 
-    // Calculate deltas
+    // Calculate YoY deltas - compare to same month last year
+    const [yearStr, monthNumStr] = month.split('-')
+    const currentYear = parseInt(yearStr)
+    const lastYearMonth = `${currentYear - 1}-${monthNumStr}`
+    const lastYearData = monthDataMap[lastYearMonth]
+
+    // Calculate last year's indexes if we have data
+    let lastYearIndexes = null
+    if (lastYearData && lastYearData.orderCount >= 10) {
+      const lyRevenueIndex = scale(lastYearData.nettoRevenue, minRevenue, maxRevenue)
+      const lyOrdersIndex = scale(lastYearData.orderCount, minOrders, maxOrders)
+      const lyGrossProfitIndex = scale(lastYearData.grossProfit, minGrossProfit, maxGrossProfit)
+      const lyCoreIndex = Math.round(lyRevenueIndex * 0.40 + lyOrdersIndex * 0.30 + lyGrossProfitIndex * 0.30)
+      const lyPpiIndex = Math.max(0, Math.min(100, Math.round((lastYearData.marginPercent - 30) * (100 / 30))))
+      const lyOverallIndex = Math.round(lyCoreIndex * 0.50 + lyPpiIndex * 0.25 + spiIndex * 0.10 + oiIndex * 0.15)
+
+      lastYearIndexes = {
+        core: lyCoreIndex,
+        ppi: lyPpiIndex,
+        spi: spiIndex, // SEO placeholder stays same
+        oi: oiIndex,   // OI based on current stock
+        overall: lyOverallIndex
+      }
+    }
+
+    // YoY deltas - null if no comparable data
     const deltas = {
-      core: previousSnapshot ? coreIndex - previousSnapshot.core_index : 0,
-      ppi: previousSnapshot ? ppiIndex - previousSnapshot.product_profitability_index : 0,
-      spi: previousSnapshot ? spiIndex - previousSnapshot.seo_performance_index : 0,
-      oi: previousSnapshot ? oiIndex - previousSnapshot.operational_index : 0,
-      overall: previousSnapshot ? overallIndex - previousSnapshot.overall_index : 0
+      core: lastYearIndexes ? coreIndex - lastYearIndexes.core : null,
+      ppi: lastYearIndexes ? ppiIndex - lastYearIndexes.ppi : null,
+      spi: lastYearIndexes ? spiIndex - lastYearIndexes.spi : null,
+      oi: lastYearIndexes ? oiIndex - lastYearIndexes.oi : null,
+      overall: lastYearIndexes ? overallIndex - lastYearIndexes.overall : null
     }
 
     const snapshot = {
@@ -286,15 +320,16 @@ async function generateHistory() {
     }
 
     snapshots.push(snapshot)
-    previousSnapshot = snapshot
 
     const incompleteTag = isIncomplete ? ' *' : ''
+    const yoyDelta = deltas.overall !== null ? (deltas.overall >= 0 ? `+${deltas.overall}` : `${deltas.overall}`) : '  —'
     console.log(
-      `${month}  | ${Math.round(nettoRevenue).toLocaleString().padStart(8)} | ${String(orderCount).padStart(6)} | ${Math.round(grossProfit).toLocaleString().padStart(7)} | ${String(coreIndex).padStart(4)} | ${String(ppiIndex).padStart(3)} | ${String(overallIndex).padStart(7)}${incompleteTag}`
+      `${month}  | ${Math.round(nettoRevenue).toLocaleString().padStart(8)} | ${String(orderCount).padStart(6)} | ${Math.round(grossProfit).toLocaleString().padStart(7)} | ${String(coreIndex).padStart(4)} | ${String(ppiIndex).padStart(3)} | ${String(overallIndex).padStart(7)} | ${yoyDelta.padStart(5)}${incompleteTag}`
     )
   }
 
   console.log('\n* = incomplete month (<10 orders)')
+  console.log('YoY Δ = vertailu samaan kuukauteen viime vuonna')
 
   // Delete existing monthly history
   const { error: deleteError } = await supabase

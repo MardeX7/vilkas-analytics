@@ -6,6 +6,10 @@
  * SKAALAUS: Suhteellinen omaan historiaan
  * - Paras viikko = 100, huonoin = 0
  * - Näyttää sesonkivaihtelun selvästi
+ *
+ * DELTA: Year-over-Year (YoY) vertailu
+ * - Vertaa samaan viikkoon viime vuonna
+ * - Huomioi sesonkivaihtelun automaattisesti
  */
 
 require('dotenv').config({ path: '.env.local' })
@@ -221,10 +225,15 @@ async function generateWeeklyHistory() {
   // ═══════════════════════════════════════════════════════════════════
 
   const snapshots = []
-  let previousSnapshot = null
 
-  console.log('Viikko    | Revenue  | Orders | GP      | Core | PPI | Overall')
-  console.log('----------|----------|--------|---------|------|-----|--------')
+  // Create a map for quick lookup of same week last year
+  const weekDataMap = {}
+  weeklyData.forEach(w => {
+    weekDataMap[w.weekKey] = w
+  })
+
+  console.log('Viikko    | Revenue  | Orders | GP      | Core | PPI | Overall | YoY Δ')
+  console.log('----------|----------|--------|---------|------|-----|---------|-------')
 
   for (const data of weeklyData) {
     const { weekKey, periodStart, periodEnd, orderCount, nettoRevenue, aov, grossProfit, marginPercent, marginEstimated, uniqueCustomers } = data
@@ -265,13 +274,39 @@ async function generateWeeklyHistory() {
       oiIndex * 0.15
     )
 
-    // Calculate deltas
+    // Calculate YoY deltas - compare to same week last year
+    const [yearStr, weekStr] = weekKey.split('-W')
+    const currentYear = parseInt(yearStr)
+    const weekNum = parseInt(weekStr)
+    const lastYearWeekKey = `${currentYear - 1}-W${String(weekNum).padStart(2, '0')}`
+    const lastYearData = weekDataMap[lastYearWeekKey]
+
+    // Calculate last year's indexes if we have data
+    let lastYearIndexes = null
+    if (lastYearData && lastYearData.orderCount >= 3) {
+      const lyRevenueIndex = scale(lastYearData.nettoRevenue, minRevenue, maxRevenue)
+      const lyOrdersIndex = scale(lastYearData.orderCount, minOrders, maxOrders)
+      const lyGrossProfitIndex = scale(lastYearData.grossProfit, minGrossProfit, maxGrossProfit)
+      const lyCoreIndex = Math.round(lyRevenueIndex * 0.40 + lyOrdersIndex * 0.30 + lyGrossProfitIndex * 0.30)
+      const lyPpiIndex = Math.max(0, Math.min(100, Math.round((lastYearData.marginPercent - 30) * (100 / 30))))
+      const lyOverallIndex = Math.round(lyCoreIndex * 0.50 + lyPpiIndex * 0.25 + spiIndex * 0.10 + oiIndex * 0.15)
+
+      lastYearIndexes = {
+        core: lyCoreIndex,
+        ppi: lyPpiIndex,
+        spi: spiIndex, // SEO placeholder stays same
+        oi: oiIndex,   // OI based on current stock
+        overall: lyOverallIndex
+      }
+    }
+
+    // YoY deltas - null if no comparable data
     const deltas = {
-      core: previousSnapshot ? coreIndex - previousSnapshot.core_index : 0,
-      ppi: previousSnapshot ? ppiIndex - previousSnapshot.product_profitability_index : 0,
-      spi: previousSnapshot ? spiIndex - previousSnapshot.seo_performance_index : 0,
-      oi: previousSnapshot ? oiIndex - previousSnapshot.operational_index : 0,
-      overall: previousSnapshot ? overallIndex - previousSnapshot.overall_index : 0
+      core: lastYearIndexes ? coreIndex - lastYearIndexes.core : null,
+      ppi: lastYearIndexes ? ppiIndex - lastYearIndexes.ppi : null,
+      spi: lastYearIndexes ? spiIndex - lastYearIndexes.spi : null,
+      oi: lastYearIndexes ? oiIndex - lastYearIndexes.oi : null,
+      overall: lastYearIndexes ? overallIndex - lastYearIndexes.overall : null
     }
 
     const snapshot = {
@@ -316,15 +351,16 @@ async function generateWeeklyHistory() {
     }
 
     snapshots.push(snapshot)
-    previousSnapshot = snapshot
 
     const incompleteTag = isIncomplete ? ' *' : ''
+    const yoyDelta = deltas.overall !== null ? (deltas.overall >= 0 ? `+${deltas.overall}` : `${deltas.overall}`) : '  —'
     console.log(
-      `${weekKey} | ${Math.round(nettoRevenue).toLocaleString().padStart(8)} | ${String(orderCount).padStart(6)} | ${Math.round(grossProfit).toLocaleString().padStart(7)} | ${String(coreIndex).padStart(4)} | ${String(ppiIndex).padStart(3)} | ${String(overallIndex).padStart(7)}${incompleteTag}`
+      `${weekKey} | ${Math.round(nettoRevenue).toLocaleString().padStart(8)} | ${String(orderCount).padStart(6)} | ${Math.round(grossProfit).toLocaleString().padStart(7)} | ${String(coreIndex).padStart(4)} | ${String(ppiIndex).padStart(3)} | ${String(overallIndex).padStart(7)} | ${yoyDelta.padStart(5)}${incompleteTag}`
     )
   }
 
   console.log('\n* = incomplete week (<3 orders)')
+  console.log('YoY Δ = vertailu samaan viikkoon viime vuonna')
 
   // Delete existing weekly history
   const { error: deleteError } = await supabase

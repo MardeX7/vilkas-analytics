@@ -1,14 +1,16 @@
 import { useState } from 'react'
 import { useAnalytics } from '@/hooks/useAnalytics'
+import { useGA4 } from '@/hooks/useGA4'
 import { useCategories } from '@/hooks/useCategories'
-import { KPICard } from '@/components/KPICard'
+import { MetricCard, MetricCardGroup, MetricCardSkeleton } from '@/components/MetricCard'
 import { DailySalesChart, WeekdayChart, HourlyChart } from '@/components/SalesChart'
 import { TopProducts } from '@/components/TopProducts'
 import { CategoryChart } from '@/components/CategoryChart'
 import { PaymentMethodsChart, ShippingMethodsChart } from '@/components/PaymentMethods'
 import { DateRangePicker, getDateRange, formatDateISO } from '@/components/DateRangePicker'
-import { DollarSign, ShoppingCart, Users, TrendingUp, RefreshCw, BarChart3 } from 'lucide-react'
+import { RefreshCw, BarChart3, TrendingUp, Package, XCircle, Truck, Tag } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 
 // Default to last 30 days
 const defaultRange = getDateRange('last30')
@@ -37,15 +39,26 @@ export function Dashboard() {
     refresh
   } = useAnalytics(dateRange)
 
+  // GA4 data for sessions and conversion
+  const {
+    summary: ga4Summary,
+    connected: ga4Connected
+  } = useGA4(dateRange)
+
   // Get category data (default 30 days, could be linked to dateRange)
-  const { categories, loading: categoriesLoading } = useCategories(30)
+  const { categories } = useCategories(30)
+
+  // Calculate conversion rate (orders / sessions * 100)
+  const conversionRate = ga4Connected && ga4Summary?.totalSessions > 0
+    ? ((summary?.orderCount || 0) / ga4Summary.totalSessions) * 100
+    : null
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+      <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-400 mx-auto mb-4"></div>
-          <p className="text-slate-400">Laddar analytik...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-foreground-muted">Laddar analytik...</p>
         </div>
       </div>
     )
@@ -53,9 +66,9 @@ export function Dashboard() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+      <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
-          <p className="text-red-400 mb-4">Fel: {error}</p>
+          <p className="text-destructive mb-4">Fel: {error}</p>
           <Button onClick={refresh} variant="outline">Försök igen</Button>
         </div>
       </div>
@@ -63,16 +76,16 @@ export function Dashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950">
+    <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="border-b border-slate-800 bg-slate-900/80 backdrop-blur-sm sticky top-0 z-10">
-        <div className="px-8 py-4 flex items-center justify-between">
+      <header className="border-b border-border bg-background-elevated/80 backdrop-blur-sm sticky top-0 z-10">
+        <div className="px-8 py-5 flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-              <BarChart3 className="w-6 h-6 text-cyan-400" />
+            <h1 className="text-2xl font-semibold text-foreground flex items-center gap-2">
+              <BarChart3 className="w-6 h-6 text-primary" />
               Försäljning
             </h1>
-            <p className="text-slate-400 text-sm mt-1">Realtidsanalytik för din webshop</p>
+            <p className="text-foreground-muted text-sm mt-1">Realtidsanalytik för din webshop</p>
           </div>
           <div className="flex items-center gap-3">
             <DateRangePicker
@@ -83,7 +96,7 @@ export function Dashboard() {
               onClick={refresh}
               variant="outline"
               size="sm"
-              className="bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700"
+              className="bg-background-elevated border-border text-foreground-muted hover:bg-background-subtle hover:text-foreground"
             >
               <RefreshCw className="w-4 h-4" />
             </Button>
@@ -91,77 +104,129 @@ export function Dashboard() {
         </div>
       </header>
 
-      <main className="px-8 py-8">
+      <main className="px-8 py-8 max-w-7xl mx-auto">
         {/* Period indicator */}
-        <div className="mb-6 flex items-center justify-between">
+        <div className="mb-8 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <span className="text-slate-400 text-sm">Visar data för:</span>
-            <span className="inline-flex items-center px-3 py-1 rounded-full bg-cyan-500/20 text-cyan-400 text-sm font-medium">
+            <span className="text-foreground-subtle text-sm">Visar data för:</span>
+            <span className="inline-flex items-center px-3 py-1 rounded-full bg-primary-muted text-primary text-sm font-medium">
               {dateRange.label}
             </span>
           </div>
-          <span className="text-xs text-slate-500">
+          <span className="text-xs text-foreground-subtle">
             {dateRange.startDate} → {dateRange.endDate}
           </span>
         </div>
 
-        {/* KPI Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          <KPICard
-            title="Försäljning"
+        {/* KPI Cards - Top row: 5 core metrics */}
+        <MetricCardGroup columns={5} className="mb-6">
+          <MetricCard
+            label="Försäljning"
             value={summary?.totalRevenue || 0}
-            currency="SEK"
-            icon={DollarSign}
-            change={comparison?.revenue}
-            changeLabel={dateRange.compare ? 'vs förra' : undefined}
+            suffix="kr"
+            delta={comparison?.revenue}
+            deltaLabel={dateRange.compare ? 'vs förra' : undefined}
           />
-          <KPICard
-            title="Antal ordrar"
+          <MetricCard
+            label="Bruttomarginal"
+            value={(summary?.marginPercent || 0).toFixed(1)}
+            suffix="%"
+            delta={comparison?.margin}
+            deltaLabel={dateRange.compare ? 'vs förra' : undefined}
+          />
+          <MetricCard
+            label="Antal ordrar"
             value={summary?.orderCount || 0}
-            icon={ShoppingCart}
-            change={comparison?.orders}
-            changeLabel={dateRange.compare ? 'vs förra' : undefined}
+            delta={comparison?.orders}
+            deltaLabel={dateRange.compare ? 'vs förra' : undefined}
           />
-          <KPICard
-            title="Snittordervärde"
+          <MetricCard
+            label="Snittordervärde"
             value={Math.round(summary?.avgOrderValue || 0)}
-            currency="SEK"
-            icon={TrendingUp}
-            change={comparison?.aov}
-            changeLabel={dateRange.compare ? 'vs förra' : undefined}
+            suffix="kr"
+            delta={comparison?.aov}
+            deltaLabel={dateRange.compare ? 'vs förra' : undefined}
           />
-          <KPICard
-            title="Unika kunder"
-            value={summary?.uniqueCustomers || 0}
-            icon={Users}
-            change={comparison?.customers}
-            changeLabel={dateRange.compare ? 'vs förra' : undefined}
+          <MetricCard
+            label="Konvertering"
+            value={conversionRate !== null ? conversionRate.toFixed(2) : '—'}
+            suffix={conversionRate !== null ? '%' : ''}
+            deltaLabel={!ga4Connected ? 'Anslut GA4' : undefined}
           />
-        </div>
+        </MetricCardGroup>
 
-        {/* Quick stats */}
-        {dailySales.length > 0 && (
-          <div className="bg-slate-800/30 rounded-lg p-4 mb-8 border border-slate-700/50">
-            <div className="flex flex-wrap gap-6 text-sm">
-              <div>
-                <span className="text-slate-400">Dagar med data:</span>
-                <span className="text-white ml-2 font-medium">{dailySales.length}</span>
-              </div>
-              <div>
-                <span className="text-slate-400">Snitt/dag:</span>
-                <span className="text-white ml-2 font-medium">
-                  {Math.round((summary?.totalRevenue || 0) / Math.max(dailySales.length, 1)).toLocaleString('sv-SE')} SEK
-                </span>
-              </div>
-              <div>
-                <span className="text-slate-400">Ordrar/dag:</span>
-                <span className="text-white ml-2 font-medium">
-                  {((summary?.orderCount || 0) / Math.max(dailySales.length, 1)).toFixed(1)}
-                </span>
-              </div>
+        {/* KPI Cards - Second row: Customer & traffic metrics */}
+        <MetricCardGroup columns={4} className="mb-8">
+          <MetricCard
+            label="Unika kunder"
+            value={summary?.uniqueCustomers || 0}
+            delta={comparison?.customers}
+            deltaLabel={dateRange.compare ? 'vs förra' : undefined}
+          />
+          <MetricCard
+            label="Återkommande kunder"
+            value={(summary?.returningCustomerPercent || 0).toFixed(1)}
+            suffix="%"
+            delta={comparison?.returningCustomers}
+            deltaLabel={dateRange.compare ? 'vs förra' : undefined}
+          />
+          <MetricCard
+            label="Sessioner"
+            value={ga4Connected ? (ga4Summary?.totalSessions || 0) : '—'}
+            deltaLabel={!ga4Connected ? 'Anslut GA4' : undefined}
+          />
+          <MetricCard
+            label="Avvisningsfrekvens"
+            value={ga4Connected && ga4Summary?.avgBounceRate != null ? (ga4Summary.avgBounceRate * 100).toFixed(1) : '—'}
+            suffix={ga4Connected ? '%' : ''}
+            invertDelta={true}
+            deltaLabel={!ga4Connected ? 'Anslut GA4' : undefined}
+          />
+        </MetricCardGroup>
+
+        {/* Quick stats - Secondary metrics row */}
+        <div className="rounded-lg border border-border bg-background-elevated/50 p-4 mb-8">
+          <div className="flex flex-wrap gap-6 text-sm">
+            <div className="flex items-center gap-2">
+              <Package className="w-4 h-4 text-foreground-subtle" />
+              <span className="text-foreground-subtle">Produkter/order:</span>
+              <span className="text-foreground font-medium tabular-nums">
+                {(summary?.avgItemsPerOrder || 0).toFixed(1)}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <TrendingUp className="w-4 h-4 text-foreground-subtle" />
+              <span className="text-foreground-subtle">Snitt/dag:</span>
+              <span className="text-foreground font-medium tabular-nums">
+                {Math.round((summary?.totalRevenue || 0) / Math.max(dailySales.length, 1)).toLocaleString('sv-SE')} kr
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Truck className="w-4 h-4 text-foreground-subtle" />
+              <span className="text-foreground-subtle">Fraktkostnad:</span>
+              <span className="text-foreground font-medium tabular-nums">
+                {(summary?.shippingPercent || 0).toFixed(1)}%
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Tag className="w-4 h-4 text-foreground-subtle" />
+              <span className="text-foreground-subtle">Rabatter:</span>
+              <span className="text-foreground font-medium tabular-nums">
+                {(summary?.discountPercent || 0).toFixed(1)}%
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <XCircle className="w-4 h-4 text-foreground-subtle" />
+              <span className="text-foreground-subtle">Avbeställda:</span>
+              <span className={cn(
+                "font-medium tabular-nums",
+                (summary?.cancelledPercent || 0) > 5 ? "text-destructive" : "text-foreground"
+              )}>
+                {(summary?.cancelledPercent || 0).toFixed(1)}%
+              </span>
             </div>
           </div>
-        )}
+        </div>
 
         {/* Charts Row 1 */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
@@ -173,30 +238,24 @@ export function Dashboard() {
           <TopProducts products={topProducts} />
         </div>
 
-        {/* Charts Row 1.5 - Categories */}
+        {/* Charts Row 1.5 - Categories (single view) */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
           <CategoryChart
             categories={categories}
             maxItems={10}
             title="Topp kategorier (30 dagar)"
           />
-          {/* Second category view - filtered by parent category */}
-          <CategoryChart
-            categories={categories.filter(c => c.parent_category === 'Billack')}
-            maxItems={8}
-            title="Billack (underkategorier)"
-          />
+          <WeekdayChart data={weekdayAnalysis} />
         </div>
 
         {/* Charts Row 2 */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-          <WeekdayChart data={weekdayAnalysis} />
           <HourlyChart data={hourlyAnalysis} />
+          <PaymentMethodsChart data={paymentMethods} />
         </div>
 
-        {/* Charts Row 3 - Payment & Shipping */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <PaymentMethodsChart data={paymentMethods} />
+        {/* Charts Row 3 - Shipping */}
+        <div className="grid grid-cols-1 gap-6">
           <ShippingMethodsChart data={shippingMethods} />
         </div>
       </main>

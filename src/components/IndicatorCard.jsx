@@ -63,17 +63,17 @@ const INDICATOR_CONFIG = {
   }
 }
 
-// Color mappings for Tailwind
+// Color mappings using design tokens (Billackering brand)
 const COLOR_CLASSES = {
   cyan: {
-    bg: 'bg-cyan-500/20',
-    text: 'text-cyan-400',
-    border: 'border-cyan-500/30'
+    bg: 'bg-primary-muted',
+    text: 'text-primary',
+    border: 'border-primary/30'
   },
   green: {
-    bg: 'bg-green-500/20',
-    text: 'text-green-400',
-    border: 'border-green-500/30'
+    bg: 'bg-success-muted',
+    text: 'text-success',
+    border: 'border-success/30'
   },
   purple: {
     bg: 'bg-purple-500/20',
@@ -81,24 +81,24 @@ const COLOR_CLASSES = {
     border: 'border-purple-500/30'
   },
   blue: {
-    bg: 'bg-blue-500/20',
-    text: 'text-blue-400',
-    border: 'border-blue-500/30'
+    bg: 'bg-info-muted',
+    text: 'text-info',
+    border: 'border-info/30'
   },
   amber: {
-    bg: 'bg-amber-500/20',
-    text: 'text-amber-400',
-    border: 'border-amber-500/30'
+    bg: 'bg-warning-muted',
+    text: 'text-warning',
+    border: 'border-warning/30'
   },
   emerald: {
-    bg: 'bg-emerald-500/20',
-    text: 'text-emerald-400',
-    border: 'border-emerald-500/30'
+    bg: 'bg-success-muted',
+    text: 'text-success',
+    border: 'border-success/30'
   },
   red: {
-    bg: 'bg-red-500/20',
-    text: 'text-red-400',
-    border: 'border-red-500/30'
+    bg: 'bg-destructive-muted',
+    text: 'text-destructive',
+    border: 'border-destructive/30'
   }
 }
 
@@ -129,11 +129,11 @@ function formatValue(value, format, unit, locale = 'fi-FI') {
 function DirectionIcon({ direction, className = '' }) {
   switch (direction) {
     case 'up':
-      return <TrendingUp className={`${className} text-green-400`} />
+      return <TrendingUp className={`${className} text-success`} />
     case 'down':
-      return <TrendingDown className={`${className} text-red-400`} />
+      return <TrendingDown className={`${className} text-destructive`} />
     default:
-      return <Minus className={`${className} text-slate-400`} />
+      return <Minus className={`${className} text-foreground-subtle`} />
   }
 }
 
@@ -187,18 +187,18 @@ export function IndicatorCard({
   if (compact) {
     return (
       <div
-        className={`flex items-center gap-3 p-3 rounded-lg bg-slate-800/50 border ${colors.border} cursor-pointer hover:bg-slate-800 transition-colors`}
+        className={`flex items-center gap-3 p-3 rounded-lg bg-background-elevated border ${colors.border} cursor-pointer hover:bg-background-subtle transition-colors`}
         onClick={handleClick}
       >
         <div className={`p-2 rounded-lg ${colors.bg}`}>
           <Icon className={`w-4 h-4 ${colors.text}`} />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-xs text-slate-400 truncate">{title}</p>
-          <p className="text-sm font-semibold text-white">{displayValue}</p>
+          <p className="text-xs text-foreground-muted truncate">{title}</p>
+          <p className="text-sm font-semibold text-foreground">{displayValue}</p>
         </div>
         {indicator.alert_triggered && (
-          <AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0" />
+          <AlertTriangle className="w-4 h-4 text-warning flex-shrink-0" />
         )}
         <DirectionIcon direction={indicator.direction} className="w-4 h-4 flex-shrink-0" />
       </div>
@@ -207,8 +207,8 @@ export function IndicatorCard({
 
   return (
     <Card
-      className={`bg-slate-800/50 border-slate-700 cursor-pointer hover:border-slate-600 transition-colors ${
-        indicator.alert_triggered ? 'ring-1 ring-amber-500/50' : ''
+      className={`bg-background-elevated border-card-border cursor-pointer hover:border-border transition-colors ${
+        indicator.alert_triggered ? 'ring-1 ring-warning/50' : ''
       }`}
       onClick={handleClick}
     >
@@ -218,27 +218,27 @@ export function IndicatorCard({
             <div className={`p-2 rounded-lg ${colors.bg}`}>
               <Icon className={`w-5 h-5 ${colors.text}`} />
             </div>
-            <CardTitle className="text-sm font-medium text-slate-300">
+            <CardTitle className="text-sm font-medium text-foreground-muted">
               {title}
             </CardTitle>
           </div>
           {indicator.alert_triggered && (
-            <AlertTriangle className="w-5 h-5 text-amber-400" />
+            <AlertTriangle className="w-5 h-5 text-warning" />
           )}
         </div>
       </CardHeader>
       <CardContent>
         <div className="flex items-end justify-between">
           <div>
-            <p className="text-2xl font-bold text-white">
+            <p className="text-2xl font-bold text-foreground tabular-nums">
               {displayValue}
             </p>
             {hasChange && (
               <div className="flex items-center gap-1 mt-1">
                 <DirectionIcon direction={indicator.direction} className="w-4 h-4" />
-                <span className={`text-sm ${
-                  changeValue > 0 ? 'text-green-400' :
-                  changeValue < 0 ? 'text-red-400' : 'text-slate-400'
+                <span className={`text-sm tabular-nums ${
+                  changeValue > 0 ? 'text-success' :
+                  changeValue < 0 ? 'text-destructive' : 'text-foreground-subtle'
                 }`}>
                   {changeValue > 0 && '+'}{changeValue.toFixed(1)}%
                 </span>
@@ -246,14 +246,14 @@ export function IndicatorCard({
             )}
           </div>
           <div className={`px-2 py-1 rounded text-xs font-medium ${
-            indicator.priority === 'critical' ? 'bg-red-500/20 text-red-400' :
-            indicator.priority === 'high' ? 'bg-amber-500/20 text-amber-400' :
-            'bg-slate-700 text-slate-400'
+            indicator.priority === 'critical' ? 'bg-destructive-muted text-destructive' :
+            indicator.priority === 'high' ? 'bg-warning-muted text-warning' :
+            'bg-background-subtle text-foreground-subtle'
           }`}>
             {indicator.confidence}
           </div>
         </div>
-        <p className="text-xs text-slate-500 mt-3">
+        <p className="text-xs text-foreground-subtle mt-3">
           {description}
         </p>
       </CardContent>
@@ -273,7 +273,7 @@ export function IndicatorGrid({
 
   if (!indicators || indicators.length === 0) {
     return (
-      <div className="text-center py-8 text-slate-400">
+      <div className="text-center py-8 text-foreground-muted">
         {t('indicators.noData')}
       </div>
     )
@@ -307,7 +307,7 @@ export function AlertBadge({ count, onClick }) {
   return (
     <button
       onClick={onClick}
-      className="flex items-center gap-2 px-3 py-1.5 bg-amber-500/20 text-amber-400 rounded-full text-sm font-medium hover:bg-amber-500/30 transition-colors"
+      className="flex items-center gap-2 px-3 py-1.5 bg-warning-muted text-warning rounded-full text-sm font-medium hover:bg-warning/20 transition-colors"
     >
       <AlertTriangle className="w-4 h-4" />
       {label}

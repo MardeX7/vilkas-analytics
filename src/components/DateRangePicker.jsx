@@ -58,7 +58,7 @@ function getDateRange(preset) {
   return { startDate, endDate }
 }
 
-// Get previous period of same length
+// Get previous period of same length (MoM comparison)
 function getPreviousPeriod(startDate, endDate) {
   const start = new Date(startDate)
   const end = new Date(endDate)
@@ -71,6 +71,22 @@ function getPreviousPeriod(startDate, endDate) {
   const prevStart = new Date(prevEnd)
   prevStart.setDate(prevStart.getDate() - diffDays + 1)
   prevStart.setHours(0, 0, 0, 0)
+
+  return { startDate: prevStart, endDate: prevEnd }
+}
+
+// Get same period last year (YoY comparison)
+function getYearOverYearPeriod(startDate, endDate) {
+  const start = new Date(startDate)
+  const end = new Date(endDate)
+
+  const prevStart = new Date(start)
+  prevStart.setFullYear(prevStart.getFullYear() - 1)
+  prevStart.setHours(0, 0, 0, 0)
+
+  const prevEnd = new Date(end)
+  prevEnd.setFullYear(prevEnd.getFullYear() - 1)
+  prevEnd.setHours(23, 59, 59, 999)
 
   return { startDate: prevStart, endDate: prevEnd }
 }
@@ -91,6 +107,7 @@ export function DateRangePicker({ value, onChange, compareEnabled, onCompareChan
   const [isOpen, setIsOpen] = useState(false)
   const [selectedPreset, setSelectedPreset] = useState(value || 'last30')
   const [compare, setCompare] = useState(compareEnabled || false)
+  const [compareMode, setCompareMode] = useState('mom') // 'mom' = Month over Month, 'yoy' = Year over Year
   const dropdownRef = useRef(null)
 
   // Close on click outside
@@ -107,12 +124,20 @@ export function DateRangePicker({ value, onChange, compareEnabled, onCompareChan
   const currentRange = getDateRange(selectedPreset)
   const currentPresetLabel = PRESETS.find(p => p.value === selectedPreset)?.label || 'Välj period'
 
+  // Get comparison period based on mode
+  function getComparisonPeriod(startDate, endDate, mode) {
+    if (mode === 'yoy') {
+      return getYearOverYearPeriod(startDate, endDate)
+    }
+    return getPreviousPeriod(startDate, endDate)
+  }
+
   function handleSelect(preset) {
     setSelectedPreset(preset)
     setIsOpen(false)
 
     const range = getDateRange(preset)
-    const prevRange = compare ? getPreviousPeriod(range.startDate, range.endDate) : null
+    const prevRange = compare ? getComparisonPeriod(range.startDate, range.endDate, compareMode) : null
 
     onChange?.({
       preset,
@@ -120,6 +145,7 @@ export function DateRangePicker({ value, onChange, compareEnabled, onCompareChan
       endDate: formatDateISO(range.endDate),
       label: PRESETS.find(p => p.value === preset)?.label,
       compare,
+      compareMode,
       previousStartDate: prevRange ? formatDateISO(prevRange.startDate) : null,
       previousEndDate: prevRange ? formatDateISO(prevRange.endDate) : null
     })
@@ -131,7 +157,7 @@ export function DateRangePicker({ value, onChange, compareEnabled, onCompareChan
 
     // Re-emit the current selection with compare info
     const range = getDateRange(selectedPreset)
-    const prevRange = checked ? getPreviousPeriod(range.startDate, range.endDate) : null
+    const prevRange = checked ? getComparisonPeriod(range.startDate, range.endDate, compareMode) : null
 
     onChange?.({
       preset: selectedPreset,
@@ -139,12 +165,34 @@ export function DateRangePicker({ value, onChange, compareEnabled, onCompareChan
       endDate: formatDateISO(range.endDate),
       label: PRESETS.find(p => p.value === selectedPreset)?.label,
       compare: checked,
+      compareMode,
       previousStartDate: prevRange ? formatDateISO(prevRange.startDate) : null,
       previousEndDate: prevRange ? formatDateISO(prevRange.endDate) : null
     })
   }
 
-  const prevPeriod = compare ? getPreviousPeriod(currentRange.startDate, currentRange.endDate) : null
+  function handleCompareModeChange(mode) {
+    setCompareMode(mode)
+
+    if (compare) {
+      // Re-emit with new comparison mode
+      const range = getDateRange(selectedPreset)
+      const prevRange = getComparisonPeriod(range.startDate, range.endDate, mode)
+
+      onChange?.({
+        preset: selectedPreset,
+        startDate: formatDateISO(range.startDate),
+        endDate: formatDateISO(range.endDate),
+        label: PRESETS.find(p => p.value === selectedPreset)?.label,
+        compare,
+        compareMode: mode,
+        previousStartDate: formatDateISO(prevRange.startDate),
+        previousEndDate: formatDateISO(prevRange.endDate)
+      })
+    }
+  }
+
+  const prevPeriod = compare ? getComparisonPeriod(currentRange.startDate, currentRange.endDate, compareMode) : null
 
   return (
     <div className="relative" ref={dropdownRef}>
@@ -202,8 +250,35 @@ export function DateRangePicker({ value, onChange, compareEnabled, onCompareChan
                 onChange={(e) => handleCompareChange(e.target.checked)}
                 className="rounded border-slate-600 bg-slate-700 text-cyan-500 focus:ring-cyan-500 focus:ring-offset-0"
               />
-              <span>Jämför med föregående period</span>
+              <span>Jämför med tidigare period</span>
             </label>
+
+            {/* Comparison mode selector */}
+            {compare && (
+              <div className="mt-3 ml-6 flex gap-2">
+                <button
+                  onClick={() => handleCompareModeChange('mom')}
+                  className={`px-3 py-1.5 text-xs rounded-md transition-colors ${
+                    compareMode === 'mom'
+                      ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
+                      : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
+                  }`}
+                >
+                  Föregående period
+                </button>
+                <button
+                  onClick={() => handleCompareModeChange('yoy')}
+                  className={`px-3 py-1.5 text-xs rounded-md transition-colors ${
+                    compareMode === 'yoy'
+                      ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
+                      : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
+                  }`}
+                >
+                  Förra året (YoY)
+                </button>
+              </div>
+            )}
+
             {compare && prevPeriod && (
               <p className="text-xs text-slate-500 mt-2 ml-6">
                 vs. {formatDate(prevPeriod.startDate)} – {formatDate(prevPeriod.endDate)}
@@ -217,4 +292,4 @@ export function DateRangePicker({ value, onChange, compareEnabled, onCompareChan
 }
 
 // Export helpers for use in hooks
-export { getDateRange, formatDateISO, getPreviousPeriod }
+export { getDateRange, formatDateISO, getPreviousPeriod, getYearOverYearPeriod }

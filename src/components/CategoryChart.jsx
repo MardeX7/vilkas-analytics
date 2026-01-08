@@ -4,18 +4,18 @@
 
 import { TrendingUp, TrendingDown, Minus, Package } from 'lucide-react'
 
-// Color palette for categories
+// Billackering brand-inspired color palette - primary first, then variations
 const COLORS = [
-  '#22c55e', // green
+  '#01a7da', // Billackering blue (primary)
+  '#22c55e', // green (success)
+  '#eee000', // Billackering yellow
   '#3b82f6', // blue
+  '#8b5cf6', // purple
+  '#14b8a6', // teal
   '#f59e0b', // amber
   '#ec4899', // pink
-  '#8b5cf6', // purple
-  '#06b6d4', // cyan
-  '#ef4444', // red
-  '#f97316', // orange
   '#84cc16', // lime
-  '#14b8a6', // teal
+  '#f97316', // orange
 ]
 
 function formatCurrency(value) {
@@ -30,12 +30,12 @@ function formatCurrency(value) {
 export function CategoryChart({ categories, maxItems = 10, title = 'Kategorier' }) {
   if (!categories || categories.length === 0) {
     return (
-      <div className="bg-slate-900 rounded-xl border border-slate-800 p-6">
-        <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-          <Package className="w-5 h-5 text-cyan-400" />
+      <div className="bg-background-elevated rounded-lg border border-card-border p-5">
+        <h3 className="text-base font-medium text-foreground mb-4 flex items-center gap-2">
+          <Package className="w-5 h-5 text-primary" />
           {title}
         </h3>
-        <p className="text-slate-500 text-center py-8">Ingen kategoridata</p>
+        <p className="text-foreground-subtle text-center py-8">Ingen kategoridata</p>
       </div>
     )
   }
@@ -45,9 +45,9 @@ export function CategoryChart({ categories, maxItems = 10, title = 'Kategorier' 
   const maxRevenue = Math.max(...topCategories.map(c => parseFloat(c.revenue || 0)))
 
   return (
-    <div className="bg-slate-900 rounded-xl border border-slate-800 p-6">
-      <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-        <Package className="w-5 h-5 text-cyan-400" />
+    <div className="bg-background-elevated rounded-lg border border-card-border p-5">
+      <h3 className="text-base font-medium text-foreground mb-4 flex items-center gap-2">
+        <Package className="w-5 h-5 text-primary" />
         {title}
       </h3>
 
@@ -61,16 +61,16 @@ export function CategoryChart({ categories, maxItems = 10, title = 'Kategorier' 
           return (
             <div key={cat.category + index}>
               <div className="flex items-center justify-between mb-1">
-                <span className="text-sm text-slate-300 truncate max-w-[180px]">
+                <span className="text-sm text-foreground truncate max-w-[180px]">
                   {cat.display_name || cat.category}
                 </span>
                 <div className="flex items-center gap-3">
                   {/* Trend indicator */}
                   {trend !== null && (
-                    <span className={`flex items-center gap-1 text-xs ${
-                      trend > 0 ? 'text-green-400' :
-                      trend < 0 ? 'text-red-400' :
-                      'text-slate-500'
+                    <span className={`flex items-center gap-1 text-xs tabular-nums ${
+                      trend > 0 ? 'text-success' :
+                      trend < 0 ? 'text-destructive' :
+                      'text-foreground-subtle'
                     }`}>
                       {trend > 0 ? <TrendingUp className="w-3 h-3" /> :
                        trend < 0 ? <TrendingDown className="w-3 h-3" /> :
@@ -79,17 +79,17 @@ export function CategoryChart({ categories, maxItems = 10, title = 'Kategorier' 
                     </span>
                   )}
                   {/* Revenue share */}
-                  <span className="text-xs text-slate-500 w-12 text-right">
+                  <span className="text-xs text-foreground-subtle w-12 text-right tabular-nums">
                     {share}%
                   </span>
                   {/* Revenue amount */}
-                  <span className="text-sm font-medium text-white w-20 text-right">
+                  <span className="text-sm font-medium text-foreground w-20 text-right tabular-nums">
                     {formatCurrency(revenue)}
                   </span>
                 </div>
               </div>
               {/* Bar */}
-              <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
+              <div className="h-1.5 bg-background-subtle rounded-full overflow-hidden">
                 <div
                   className="h-full rounded-full transition-all duration-500"
                   style={{
@@ -105,7 +105,7 @@ export function CategoryChart({ categories, maxItems = 10, title = 'Kategorier' 
 
       {/* Summary footer */}
       {categories.length > maxItems && (
-        <p className="text-xs text-slate-500 mt-4 text-center">
+        <p className="text-xs text-foreground-subtle mt-4 text-center">
           +{categories.length - maxItems} fler kategorier
         </p>
       )}
