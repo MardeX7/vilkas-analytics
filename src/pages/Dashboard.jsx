@@ -343,26 +343,28 @@ export function Dashboard() {
           <TopProducts products={topProducts} />
         </div>
 
-        {/* Charts Row 1.5 - Categories (single view) */}
+        {/* Charts Row 1.5 - Sales by Time (weekday + hourly side by side) */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-          <CategoryChart
-            categories={categories}
-            maxItems={10}
-            title="Topp kategorier (30 dagar)"
-          />
           <WeekdayChart data={weekdayAnalysis} />
-        </div>
-
-        {/* Charts Row 2 */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
           <HourlyChart data={hourlyAnalysis} />
-          <PaymentMethodsChart data={paymentMethods} />
         </div>
 
-        {/* Charts Row 3 - Shipping */}
-        <div className="grid grid-cols-1 gap-6">
+        {/* Charts Row 2 - Payment & Shipping side by side */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+          <PaymentMethodsChart data={paymentMethods} />
           <ShippingMethodsChart data={shippingMethods} />
         </div>
+
+        {/* Charts Row 3 - Categories (only show if data exists) */}
+        {categories && categories.length > 0 && (
+          <div className="grid grid-cols-1 gap-6">
+            <CategoryChart
+              categories={categories}
+              maxItems={10}
+              title={t('charts.topCategories')}
+            />
+          </div>
+        )}
       </main>
     </div>
   )
