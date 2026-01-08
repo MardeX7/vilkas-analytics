@@ -91,13 +91,36 @@ async function generateWeeklyHistory() {
   const orders = allOrders
   console.log(`📋 Found ${orders.length} orders`)
 
-  // Get all products with cost_price
+  // Get all products with cost_price and stock_level
   const { data: products } = await supabase
     .from('products')
-    .select('id, cost_price, stock_level')
+    .select('id, product_number, cost_price, stock_level')
 
   const productMap = {}
   products?.forEach(p => { productMap[p.id] = p })
+
+  // Get all GSC data for SPI calculation
+  const { data: gscData } = await supabase
+    .from('gsc_search_analytics')
+    .select('date, impressions, clicks, position')
+    .order('date', { ascending: true })
+
+  // Group GSC data by date for quick lookup
+  const gscByDate = {}
+  gscData?.forEach(row => {
+    const date = row.date
+    if (!gscByDate[date]) {
+      gscByDate[date] = { impressions: 0, clicks: 0, positions: [], count: 0 }
+    }
+    gscByDate[date].impressions += row.impressions || 0
+    gscByDate[date].clicks += row.clicks || 0
+    if (row.position) {
+      gscByDate[date].positions.push(row.position)
+      gscByDate[date].count++
+    }
+  })
+
+  console.log(`🔍 Found GSC data for ${Object.keys(gscByDate).length} days`)
 
   // Get all line items
   const { data: lineItems } = await supabase
@@ -176,9 +199,13 @@ async function generateWeeklyHistory() {
     const grossProfit = totalSalesNetto - totalCost
     const marginPercent = totalSalesNetto > 0 ? (grossProfit / totalSalesNetto) * 100 : 0
 
+    // Collect order IDs for OI calculation later
+    const orderIds = weekOrders.map(o => o.id)
+
     weeklyData.push({
       weekKey,
       periodStart,
+      orderIds,
       periodEnd,
       orderCount,
       nettoRevenue,
@@ -236,7 +263,7 @@ async function generateWeeklyHistory() {
   console.log('----------|----------|--------|---------|------|-----|---------|-------')
 
   for (const data of weeklyData) {
-    const { weekKey, periodStart, periodEnd, orderCount, nettoRevenue, aov, grossProfit, marginPercent, marginEstimated, uniqueCustomers } = data
+    const { weekKey, periodStart, periodEnd, orderIds, orderCount, nettoRevenue, aov, grossProfit, marginPercent, marginEstimated, uniqueCustomers } = data
 
     // Skip incomplete weeks for index calculation
     const isIncomplete = orderCount < 3
@@ -258,12 +285,62 @@ async function generateWeeklyHistory() {
     // 30% margin = 0, 60% margin = 100
     const ppiIndex = isIncomplete ? 0 : Math.max(0, Math.min(100, Math.round((marginPercent - 30) * (100 / 30))))
 
-    // SPI - SEO Performance Index (placeholder until GSC data)
-    const spiIndex = 50
+    // SPI - SEO Performance Index (from GSC data)
+    // Calculate weekly GSC metrics
+    let weekImpressions = 0
+    let weekClicks = 0
+    let weekPositions = []
+
+    // Loop through each day in this week to get GSC data
+    const startDate = new Date(periodStart)
+    const endDate = new Date(periodEnd)
+    for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+      const dateStr = d.toISOString().split('T')[0]
+      const dayData = gscByDate[dateStr]
+      if (dayData) {
+        weekImpressions += dayData.impressions
+        weekClicks += dayData.clicks
+        weekPositions = weekPositions.concat(dayData.positions)
+      }
+    }
+
+    // Calculate SPI components
+    const weekCtr = weekImpressions > 0 ? (weekClicks / weekImpressions) * 100 : 0
+    const weekAvgPosition = weekPositions.length > 0
+      ? weekPositions.reduce((a, b) => a + b, 0) / weekPositions.length
+      : 50 // Default to middle position if no data
+
+    // SPI: CTR (40%) + Position (60%)
+    // CTR: 0% = 0, 10% = 100
+    // Position: 1 = 100, 50 = 0
+    const ctrIndex = Math.min(100, Math.round(weekCtr * 10))
+    const positionIndex = Math.max(0, Math.round(100 - (weekAvgPosition - 1) * 2))
+
+    const spiIndex = weekImpressions > 0
+      ? Math.round(ctrIndex * 0.4 + positionIndex * 0.6)
+      : 50 // Default if no GSC data
 
     // OI - Operational Index
-    const outOfStockPercent = products?.filter(p => p.stock_level === 0).length / (products?.length || 1) * 100
-    const stockIndex = Math.max(0, 100 - outOfStockPercent)
+    // Count sold products in this week that are currently out of stock
+    // This shows "sales velocity vs stock" relationship
+    const soldProductNumbers = new Set()
+    orderIds.forEach(orderId => {
+      const items = lineItemsByOrder[orderId] || []
+      items.forEach(item => {
+        if (item.product_number) soldProductNumbers.add(item.product_number)
+      })
+    })
+
+    // Find stock status of products sold this week
+    const soldProductsStock = products?.filter(p => soldProductNumbers.has(p.product_number)) || []
+    const soldInStock = soldProductsStock.filter(p => p.stock_level > 0).length
+    const soldOutOfStock = soldProductsStock.filter(p => p.stock_level === 0).length
+    const soldTotal = soldProductsStock.length
+
+    // Calculate stock availability for sold products
+    // Higher = better (more sold products in stock)
+    const stockAvailability = soldTotal > 0 ? (soldInStock / soldTotal) * 100 : 50
+    const stockIndex = Math.round(stockAvailability)
     const oiIndex = Math.round(stockIndex * 0.7 + 15)
 
     // OVERALL INDEX
@@ -343,9 +420,17 @@ async function generateWeeklyHistory() {
       ppi_components: {
         margin: { value: marginPercent, index: ppiIndex, weight: 1.0 }
       },
-      spi_components: {},
+      spi_components: {
+        impressions: { value: weekImpressions, weight: 0 },
+        clicks: { value: weekClicks, weight: 0 },
+        ctr: { value: weekCtr, index: ctrIndex, weight: 0.4 },
+        position: { value: weekAvgPosition, index: positionIndex, weight: 0.6 }
+      },
       oi_components: {
-        stock: { value: 100 - outOfStockPercent, index: stockIndex, weight: 0.70 }
+        sold_products: { value: soldTotal, weight: 0 },
+        in_stock: { value: soldInStock, weight: 0 },
+        out_of_stock: { value: soldOutOfStock, weight: 0 },
+        stock_availability: { value: stockAvailability, index: stockIndex, weight: 0.70 }
       },
       alerts: []
     }
