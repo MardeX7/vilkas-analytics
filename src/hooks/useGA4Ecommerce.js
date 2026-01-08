@@ -1,7 +1,9 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 
-// Kovakoodattu store_id (billackering)
+// Kovakoodattu shop_id (billackering) - this is shops.id UUID
+const SHOP_ID = '3b93e9b1-d64c-4686-a14a-bec535495f71'
+// ga4_tokens.store_id for API calls
 const STORE_ID = 'a28836f6-9487-4b67-9194-e907eaf94b69'
 
 /**
@@ -40,11 +42,11 @@ export function useGA4Ecommerce(dateRange = null) {
       const startDate = dateRange?.startDate
       const endDate = dateRange?.endDate
 
-      // Fetch aggregated product data
+      // Fetch aggregated product data - use SHOP_ID (shops.id)
       let query = supabase
         .from('ga4_ecommerce')
         .select('*')
-        .eq('store_id', STORE_ID)
+        .eq('store_id', SHOP_ID)
         .order('items_viewed', { ascending: false })
 
       if (startDate) query = query.gte('date', startDate)

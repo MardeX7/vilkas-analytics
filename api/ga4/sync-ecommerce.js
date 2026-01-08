@@ -31,6 +31,19 @@ export default async function handler(req, res) {
       return res.status(404).json({ error: 'GA4 not connected' })
     }
 
+    // Get the actual shop UUID (ga4_ecommerce.store_id references shops.id)
+    const { data: shopData, error: shopError } = await supabase
+      .from('shops')
+      .select('id')
+      .eq('store_id', store_id)
+      .single()
+
+    if (shopError || !shopData) {
+      return res.status(404).json({ error: 'Shop not found' })
+    }
+
+    const shopId = shopData.id  // This is the UUID that ga4_ecommerce expects
+
     let accessToken = tokenData.access_token
 
     // Check if token expired, refresh if needed
@@ -53,8 +66,8 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: reportData.error.message || 'GA4 E-commerce API error' })
     }
 
-    // Transform and insert data
-    const records = transformEcommerceData(reportData, store_id, tokenData.property_id)
+    // Transform and insert data - use shopId (shops.id) not store_id
+    const records = transformEcommerceData(reportData, shopId, tokenData.property_id)
 
     if (records.length === 0) {
       return res.json({
@@ -69,7 +82,7 @@ export default async function handler(req, res) {
     await supabase
       .from('ga4_ecommerce')
       .delete()
-      .eq('store_id', store_id)
+      .eq('store_id', shopId)
       .gte('date', startDate)
       .lte('date', endDate)
 
