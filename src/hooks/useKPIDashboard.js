@@ -138,8 +138,11 @@ async function fetchKPIHistory(storeId, granularity, limit = 12) {
 /**
  * Hae myyntikatteen yhteenveto granulariteetin mukaan
  * Sisältää YoY-vertailun (sama periodi viime vuonna)
+ * @param {string} storeId
+ * @param {string} granularity
+ * @param {number} periodOffset - 0 = uusin, 1 = edellinen, jne.
  */
-async function fetchProfitSummary(storeId, granularity) {
+async function fetchProfitSummary(storeId, granularity, periodOffset = 0) {
   // For weekly granularity, get from latest snapshot's raw_metrics
   if (granularity === 'week') {
     // Get latest 2 years of weekly snapshots to find YoY comparison
@@ -155,7 +158,9 @@ async function fetchProfitSummary(storeId, granularity) {
       return null
     }
 
-    const currentSnapshot = snapshots[0]
+    // Select snapshot based on periodOffset
+    const currentIndex = Math.min(periodOffset, snapshots.length - 1)
+    const currentSnapshot = snapshots[currentIndex]
     const currentCore = currentSnapshot?.raw_metrics?.core
 
     if (!currentCore) return null
@@ -214,7 +219,7 @@ async function fetchProfitSummary(storeId, granularity) {
     .limit(24) // ~2 years of months
 
   if (error || !snapshots || snapshots.length === 0) {
-    // Fallback to product_profitability table (no YoY)
+    // Fallback to product_profitability table (no YoY, no offset support)
     const { data, error: ppError } = await supabase
       .from('product_profitability')
       .select('revenue, cost, gross_profit')
@@ -238,7 +243,9 @@ async function fetchProfitSummary(storeId, granularity) {
     }
   }
 
-  const currentSnapshot = snapshots[0]
+  // Select snapshot based on periodOffset
+  const currentIndex = Math.min(periodOffset, snapshots.length - 1)
+  const currentSnapshot = snapshots[currentIndex]
   const currentCore = currentSnapshot?.raw_metrics?.core
 
   if (!currentCore) return null
@@ -414,12 +421,12 @@ export function useKPIDashboard({
     enabled: !!dashboard
   })
 
-  // Profit Summary query (myyntikate yhteenveto) - follows granularity
+  // Profit Summary query (myyntikate yhteenveto) - follows granularity AND periodOffset
   const {
     data: profitSummary
   } = useQuery({
-    queryKey: ['kpi-profit-summary', storeId, granularity],
-    queryFn: () => fetchProfitSummary(storeId, granularity),
+    queryKey: ['kpi-profit-summary', storeId, granularity, periodOffset],
+    queryFn: () => fetchProfitSummary(storeId, granularity, periodOffset),
     staleTime: 10 * 60 * 1000,
     cacheTime: 60 * 60 * 1000,
     enabled: !!dashboard
