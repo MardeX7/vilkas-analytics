@@ -115,86 +115,97 @@ export function Dashboard() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
+      {/* Header - Responsive: stacks on mobile */}
       <header className="border-b border-border bg-background-elevated/80 backdrop-blur-sm sticky top-0 z-10">
-        <div className="px-8 py-5 flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-semibold text-foreground flex items-center gap-2">
-              <BarChart3 className="w-6 h-6 text-primary" />
-              {t('dashboard.title')}
-            </h1>
-            <p className="text-foreground-muted text-sm mt-1">{t('dashboard.subtitle')}</p>
-          </div>
-          <div className="flex items-center gap-3">
-            <DateRangePicker
-              value={dateRange.preset}
-              onChange={setDateRange}
-            />
-            {/* MoM/YoY Toggle - GA4 style */}
-            <div className="flex bg-background-subtle rounded-lg p-1">
-              <button
-                onClick={() => {
-                  setComparisonMode('mom')
-                  const currentRange = getDateRange(dateRange.preset || 'last30')
-                  const prevRange = getPreviousPeriod(currentRange.startDate, currentRange.endDate)
-                  setDateRange(prev => ({
-                    ...prev,
-                    compare: true,
-                    compareMode: 'mom',
-                    previousStartDate: formatDateISO(prevRange.startDate),
-                    previousEndDate: formatDateISO(prevRange.endDate)
-                  }))
-                }}
-                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
-                  comparisonMode === 'mom'
-                    ? 'bg-primary text-primary-foreground shadow-sm'
-                    : 'text-foreground-muted hover:text-foreground'
-                }`}
-                title={t('comparison.momFull')}
-              >
-                {t('comparison.mom')}
-              </button>
-              <button
-                onClick={() => {
-                  setComparisonMode('yoy')
-                  const currentRange = getDateRange(dateRange.preset || 'last30')
-                  const prevRange = getYearOverYearPeriod(currentRange.startDate, currentRange.endDate)
-                  setDateRange(prev => ({
-                    ...prev,
-                    compare: true,
-                    compareMode: 'yoy',
-                    previousStartDate: formatDateISO(prevRange.startDate),
-                    previousEndDate: formatDateISO(prevRange.endDate)
-                  }))
-                }}
-                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
-                  comparisonMode === 'yoy'
-                    ? 'bg-primary text-primary-foreground shadow-sm'
-                    : 'text-foreground-muted hover:text-foreground'
-                }`}
-                title={t('comparison.yoyFull')}
-              >
-                {t('comparison.yoy')}
-              </button>
+        <div className="px-4 sm:px-6 lg:px-8 py-4 sm:py-5">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            {/* Title */}
+            <div className="flex-shrink-0">
+              <h1 className="text-lg sm:text-xl lg:text-2xl font-semibold text-foreground flex items-center gap-2">
+                <BarChart3 className="w-5 h-5 sm:w-6 sm:h-6 text-primary flex-shrink-0" />
+                <span className="truncate">{t('dashboard.title')}</span>
+              </h1>
+              <p className="text-foreground-muted text-xs sm:text-sm mt-1 hidden sm:block">{t('dashboard.subtitle')}</p>
             </div>
-            <Button
-              onClick={refresh}
-              variant="outline"
-              size="sm"
-              className="bg-background-elevated border-border text-foreground-muted hover:bg-background-subtle hover:text-foreground"
-            >
-              <RefreshCw className="w-4 h-4" />
-            </Button>
+
+            {/* Controls - wrap on mobile */}
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+              {/* Date picker */}
+              <div className="order-1">
+                <DateRangePicker
+                  value={dateRange.preset}
+                  onChange={setDateRange}
+                />
+              </div>
+
+              {/* MoM/YoY Toggle - GA4 style */}
+              <div className="flex bg-background-subtle rounded-lg p-0.5 sm:p-1 order-2">
+                <button
+                  onClick={() => {
+                    setComparisonMode('mom')
+                    const currentRange = getDateRange(dateRange.preset || 'last30')
+                    const prevRange = getPreviousPeriod(currentRange.startDate, currentRange.endDate)
+                    setDateRange(prev => ({
+                      ...prev,
+                      compare: true,
+                      compareMode: 'mom',
+                      previousStartDate: formatDateISO(prevRange.startDate),
+                      previousEndDate: formatDateISO(prevRange.endDate)
+                    }))
+                  }}
+                  className={`px-2 sm:px-3 py-1 sm:py-1.5 text-xs sm:text-sm font-medium rounded-md transition-all ${
+                    comparisonMode === 'mom'
+                      ? 'bg-primary text-primary-foreground shadow-sm'
+                      : 'text-foreground-muted hover:text-foreground'
+                  }`}
+                  title={t('comparison.momFull')}
+                >
+                  {t('comparison.mom')}
+                </button>
+                <button
+                  onClick={() => {
+                    setComparisonMode('yoy')
+                    const currentRange = getDateRange(dateRange.preset || 'last30')
+                    const prevRange = getYearOverYearPeriod(currentRange.startDate, currentRange.endDate)
+                    setDateRange(prev => ({
+                      ...prev,
+                      compare: true,
+                      compareMode: 'yoy',
+                      previousStartDate: formatDateISO(prevRange.startDate),
+                      previousEndDate: formatDateISO(prevRange.endDate)
+                    }))
+                  }}
+                  className={`px-2 sm:px-3 py-1 sm:py-1.5 text-xs sm:text-sm font-medium rounded-md transition-all ${
+                    comparisonMode === 'yoy'
+                      ? 'bg-primary text-primary-foreground shadow-sm'
+                      : 'text-foreground-muted hover:text-foreground'
+                  }`}
+                  title={t('comparison.yoyFull')}
+                >
+                  {t('comparison.yoy')}
+                </button>
+              </div>
+
+              {/* Refresh button */}
+              <Button
+                onClick={refresh}
+                variant="outline"
+                size="sm"
+                className="bg-background-elevated border-border text-foreground-muted hover:bg-background-subtle hover:text-foreground p-2 order-3"
+              >
+                <RefreshCw className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              </Button>
+            </div>
           </div>
         </div>
       </header>
 
-      <main className="px-8 py-8 max-w-7xl mx-auto">
-        {/* Period indicator */}
-        <div className="mb-8 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <span className="text-foreground-subtle text-sm">{t('dashboard.showingDataFor')}</span>
-            <span className="inline-flex items-center px-3 py-1 rounded-full bg-primary-muted text-primary text-sm font-medium">
+      <main className="px-4 sm:px-6 lg:px-8 py-6 sm:py-8 max-w-7xl mx-auto">
+        {/* Period indicator - responsive */}
+        <div className="mb-6 sm:mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+            <span className="text-foreground-subtle text-xs sm:text-sm">{t('dashboard.showingDataFor')}</span>
+            <span className="inline-flex items-center px-2 sm:px-3 py-0.5 sm:py-1 rounded-full bg-primary-muted text-primary text-xs sm:text-sm font-medium">
               {dateRange.label}
             </span>
           </div>

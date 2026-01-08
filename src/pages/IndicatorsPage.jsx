@@ -120,27 +120,29 @@ export function IndicatorsPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="max-w-7xl mx-auto px-6 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
 
-        {/* Header */}
-        <div className="flex items-center justify-between mb-10">
-          <div>
-            <h1 className="text-2xl font-semibold text-foreground">
+        {/* Header - Responsive: stacks on mobile, row on desktop */}
+        <div className="flex flex-col gap-4 mb-10 lg:flex-row lg:items-center lg:justify-between">
+          {/* Title section - always visible */}
+          <div className="flex-shrink-0">
+            <h1 className="text-xl sm:text-2xl font-semibold text-foreground">
               {t('kpi.title')}
             </h1>
-            <p className="text-foreground-subtle text-sm mt-1">
+            <p className="text-foreground-subtle text-xs sm:text-sm mt-1">
               {t('kpi.subtitle')}
             </p>
           </div>
 
-          <div className="flex items-center gap-4">
+          {/* Controls - wraps on mobile */}
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3 lg:gap-4">
             {/* Period Navigation */}
             {totalPeriods > 1 && (
-              <div className="flex items-center gap-2 bg-background-elevated rounded-lg border border-border px-2 py-1">
+              <div className="flex items-center gap-1 sm:gap-2 bg-background-elevated rounded-lg border border-border px-1.5 sm:px-2 py-1 order-1">
                 <button
                   onClick={goToPreviousPeriod}
                   disabled={!canGoBack}
-                  className={`p-1.5 rounded-md transition-colors ${
+                  className={`p-1 sm:p-1.5 rounded-md transition-colors ${
                     canGoBack
                       ? 'text-foreground-muted hover:text-foreground hover:bg-background-subtle'
                       : 'text-foreground-subtle/30 cursor-not-allowed'
@@ -150,8 +152,8 @@ export function IndicatorsPage() {
                   <ChevronLeft className="w-4 h-4" />
                 </button>
 
-                <div className="min-w-[140px] text-center">
-                  <span className="text-sm font-medium text-foreground">
+                <div className="min-w-[100px] sm:min-w-[140px] text-center">
+                  <span className="text-xs sm:text-sm font-medium text-foreground whitespace-nowrap">
                     {getPeriodLabel}
                   </span>
                 </div>
@@ -159,7 +161,7 @@ export function IndicatorsPage() {
                 <button
                   onClick={goToNextPeriod}
                   disabled={!canGoForward}
-                  className={`p-1.5 rounded-md transition-colors ${
+                  className={`p-1 sm:p-1.5 rounded-md transition-colors ${
                     canGoForward
                       ? 'text-foreground-muted hover:text-foreground hover:bg-background-subtle'
                       : 'text-foreground-subtle/30 cursor-not-allowed'
@@ -169,11 +171,11 @@ export function IndicatorsPage() {
                   <ChevronRight className="w-4 h-4" />
                 </button>
 
-                {/* Jump to latest button */}
+                {/* Jump to latest button - hidden on very small screens */}
                 {!isLatest && (
                   <button
                     onClick={goToLatest}
-                    className="ml-1 px-2 py-1 text-xs font-medium text-primary hover:text-primary/80 transition-colors"
+                    className="hidden xs:block ml-0.5 sm:ml-1 px-1.5 sm:px-2 py-1 text-xs font-medium text-primary hover:text-primary/80 transition-colors"
                     title={t('kpi.navigation.latest')}
                   >
                     {t('kpi.navigation.latest')}
@@ -183,10 +185,10 @@ export function IndicatorsPage() {
             )}
 
             {/* Granularity Toggle */}
-            <div className="flex bg-background-subtle rounded-lg p-1">
+            <div className="flex bg-background-subtle rounded-lg p-0.5 sm:p-1 order-2">
               <button
                 onClick={() => handleGranularityChange('week')}
-                className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${
+                className={`px-2.5 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium rounded-md transition-all ${
                   granularity === 'week'
                     ? 'bg-primary text-primary-foreground shadow-sm'
                     : 'text-foreground-muted hover:text-foreground'
@@ -196,7 +198,7 @@ export function IndicatorsPage() {
               </button>
               <button
                 onClick={() => handleGranularityChange('month')}
-                className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${
+                className={`px-2.5 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium rounded-md transition-all ${
                   granularity === 'month'
                     ? 'bg-primary text-primary-foreground shadow-sm'
                     : 'text-foreground-muted hover:text-foreground'
@@ -209,10 +211,10 @@ export function IndicatorsPage() {
             {/* Refresh */}
             <button
               onClick={refresh}
-              className="p-2.5 rounded-lg bg-background-elevated text-foreground-muted hover:text-foreground hover:bg-background-subtle transition-colors border border-border"
+              className="p-2 sm:p-2.5 rounded-lg bg-background-elevated text-foreground-muted hover:text-foreground hover:bg-background-subtle transition-colors border border-border order-3"
               title={t('common.refresh')}
             >
-              <RefreshCw className="w-5 h-5" />
+              <RefreshCw className="w-4 h-4 sm:w-5 sm:h-5" />
             </button>
           </div>
         </div>

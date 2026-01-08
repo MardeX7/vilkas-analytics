@@ -101,71 +101,85 @@ export function SearchConsolePage() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
+      {/* Header - Responsive: stacks on mobile */}
       <header className="border-b border-border bg-background-elevated/80 backdrop-blur-sm sticky top-0 z-10">
-        <div className="px-8 py-5 flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-semibold text-foreground flex items-center gap-2">
-              <Search className="w-6 h-6 text-primary" />
-              {t('gsc.title')}
-            </h1>
-            <p className="text-foreground-muted text-sm mt-1">{t('gsc.subtitle')}</p>
-          </div>
-          <div className="flex items-center gap-3">
-            <DateRangePicker
-              value={dateRange.preset}
-              onChange={setDateRange}
-            />
-            {/* MoM/YoY Toggle */}
-            <div className="flex bg-background-subtle rounded-lg p-1">
-              <button
-                onClick={() => setComparisonMode('mom')}
-                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
-                  comparisonMode === 'mom'
-                    ? 'bg-primary text-primary-foreground shadow-sm'
-                    : 'text-foreground-muted hover:text-foreground'
-                }`}
-                title={t('comparison.momFull')}
-              >
-                {t('comparison.mom')}
-              </button>
-              <button
-                onClick={() => setComparisonMode('yoy')}
-                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
-                  comparisonMode === 'yoy'
-                    ? 'bg-primary text-primary-foreground shadow-sm'
-                    : 'text-foreground-muted hover:text-foreground'
-                }`}
-                title={t('comparison.yoyFull')}
-              >
-                {t('comparison.yoy')}
-              </button>
+        <div className="px-4 sm:px-6 lg:px-8 py-4 sm:py-5">
+          {/* Mobile: Stack vertically, Desktop: Side by side */}
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            {/* Title */}
+            <div className="flex-shrink-0">
+              <h1 className="text-lg sm:text-xl lg:text-2xl font-semibold text-foreground flex items-center gap-2">
+                <Search className="w-5 h-5 sm:w-6 sm:h-6 text-primary flex-shrink-0" />
+                <span className="truncate">{t('gsc.title')}</span>
+              </h1>
+              <p className="text-foreground-muted text-xs sm:text-sm mt-1 hidden sm:block">{t('gsc.subtitle')}</p>
             </div>
-            {connected && (
-              <Button
-                onClick={handleSync}
-                disabled={syncing}
-                variant="outline"
-                size="sm"
-                className="bg-background-elevated border-border text-foreground-muted hover:bg-background-subtle hover:text-foreground"
-              >
-                <Download className={`w-4 h-4 mr-2 ${syncing ? 'animate-spin' : ''}`} />
-                {syncing ? t('common.loading') : t('gsc.syncData')}
-              </Button>
-            )}
-            <Button
-              onClick={refresh}
-              variant="outline"
-              size="sm"
-              className="bg-background-elevated border-border text-foreground-muted hover:bg-background-subtle hover:text-foreground"
-            >
-              <RefreshCw className="w-4 h-4" />
-            </Button>
+
+            {/* Controls - wrap on mobile */}
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+              {/* Date picker */}
+              <div className="order-1">
+                <DateRangePicker
+                  value={dateRange.preset}
+                  onChange={setDateRange}
+                />
+              </div>
+
+              {/* MoM/YoY Toggle */}
+              <div className="flex bg-background-subtle rounded-lg p-0.5 sm:p-1 order-2">
+                <button
+                  onClick={() => setComparisonMode('mom')}
+                  className={`px-2 sm:px-3 py-1 sm:py-1.5 text-xs sm:text-sm font-medium rounded-md transition-all ${
+                    comparisonMode === 'mom'
+                      ? 'bg-primary text-primary-foreground shadow-sm'
+                      : 'text-foreground-muted hover:text-foreground'
+                  }`}
+                  title={t('comparison.momFull')}
+                >
+                  {t('comparison.mom')}
+                </button>
+                <button
+                  onClick={() => setComparisonMode('yoy')}
+                  className={`px-2 sm:px-3 py-1 sm:py-1.5 text-xs sm:text-sm font-medium rounded-md transition-all ${
+                    comparisonMode === 'yoy'
+                      ? 'bg-primary text-primary-foreground shadow-sm'
+                      : 'text-foreground-muted hover:text-foreground'
+                  }`}
+                  title={t('comparison.yoyFull')}
+                >
+                  {t('comparison.yoy')}
+                </button>
+              </div>
+
+              {/* Action buttons */}
+              <div className="flex items-center gap-2 order-3">
+                {connected && (
+                  <Button
+                    onClick={handleSync}
+                    disabled={syncing}
+                    variant="outline"
+                    size="sm"
+                    className="bg-background-elevated border-border text-foreground-muted hover:bg-background-subtle hover:text-foreground text-xs sm:text-sm px-2 sm:px-3"
+                  >
+                    <Download className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${syncing ? 'animate-spin' : ''}`} />
+                    <span className="hidden sm:inline ml-2">{syncing ? t('common.loading') : t('gsc.syncData')}</span>
+                  </Button>
+                )}
+                <Button
+                  onClick={refresh}
+                  variant="outline"
+                  size="sm"
+                  className="bg-background-elevated border-border text-foreground-muted hover:bg-background-subtle hover:text-foreground p-2 sm:p-2"
+                >
+                  <RefreshCw className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                </Button>
+              </div>
+            </div>
           </div>
         </div>
       </header>
 
-      <main className="px-8 py-8 max-w-7xl mx-auto">
+      <main className="px-4 sm:px-6 lg:px-8 py-6 sm:py-8 max-w-7xl mx-auto">
         {!connected ? (
           <GSCConnectCard onConnect={connectGSC} />
         ) : loading ? (
