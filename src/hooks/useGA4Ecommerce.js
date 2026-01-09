@@ -41,11 +41,11 @@ export function useGA4Ecommerce(dateRange = null) {
       const endDate = dateRange?.endDate
 
       // First try: with date range filter
-      // NOTE: ga4_ecommerce uses 'store_id' column but references shops.id (SHOP_ID)
+      // NOTE: ga4_ecommerce uses 'store_id' column but stores SHOP_ID value (shops.id)
       let query = supabase
         .from('ga4_ecommerce')
         .select('*')
-        .eq('shop_id', SHOP_ID)
+        .eq('store_id', SHOP_ID)
         .order('items_viewed', { ascending: false })
 
       if (startDate) query = query.gte('date', startDate)
@@ -59,7 +59,7 @@ export function useGA4Ecommerce(dateRange = null) {
         const { data: allData, error: allError } = await supabase
           .from('ga4_ecommerce')
           .select('*')
-          .eq('shop_id', SHOP_ID)
+          .eq('store_id', SHOP_ID)
           .order('items_viewed', { ascending: false })
 
         if (!allError) {

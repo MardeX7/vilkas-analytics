@@ -39,7 +39,8 @@ async function syncGA4() {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        dateRanges: [{ startDate: '2024-12-01', endDate: '2025-01-09' }],
+        // Use last 40 days from today to cover current period
+        dateRanges: [{ startDate: new Date(Date.now() - 40 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], endDate: new Date().toISOString().split('T')[0] }],
         dimensions: [
           { name: 'date' },
           { name: 'sessionSource' },
