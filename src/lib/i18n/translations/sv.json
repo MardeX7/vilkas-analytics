@@ -60,7 +60,7 @@
     "yourAccount": "Inloggad"
   },
   "nav": {
-    "dashboard": "Dashboard",
+    "dashboard": "Webbutik",
     "searchConsole": "Search Console",
     "indicators": "Indikatorer",
     "insights": "Analyser",
@@ -257,7 +257,10 @@
       "avgPerDay": "Snitt/dag",
       "shippingCost": "Fraktkostnad",
       "discounts": "Rabatter",
-      "cancelled": "Avbeställda"
+      "cancelled": "Avbeställda",
+      "kitShare": "Paket",
+      "margin": "marginal",
+      "marginPerOrder": "Marginal/order"
     },
     "connectGA4": "Anslut GA4",
     "vsPrevious": "vs förra"
@@ -340,7 +343,23 @@
     "totalKeywords": "Unika sökord",
     "page1Keywords": "Sida 1 nyckelord",
     "ofTotal": "av totalt",
-    "rankingDistribution": "Positionsfördelning"
+    "rankingDistribution": "Positionsfördelning",
+    "riskRadar": {
+      "title": "Risk Radar",
+      "subtitle": "Tidiga varningar för SEO-problem",
+      "decliningPages": "Fallande sidor",
+      "decliningPagesDesc": "Klick ↓ & position ↓ 2 veckor i rad",
+      "snippetProblems": "Snippet-problem",
+      "snippetProblemsDesc": "CTR-fall utan positionsfall (titel/beskrivning)",
+      "competitorThreats": "Konkurrenshot",
+      "competitorThreatsDesc": "Positionsfall utan visningsfall",
+      "noIssues": "Inga problem upptäckta",
+      "clicks": "klick",
+      "position": "position",
+      "ctr": "CTR",
+      "impressions": "visningar",
+      "weeks": "veckor"
+    }
   },
   "ga4": {
     "title": "Google Analytics",

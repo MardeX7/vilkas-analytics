@@ -1,8 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
-
-// Kovakoodattu store_id (billackering)
-const STORE_ID = 'a28836f6-9487-4b67-9194-e907eaf94b69'
+import { STORE_ID } from '@/config/storeConfig'
 
 // Helper to fetch summary for a period
 async function fetchPeriodSummary(startDate, endDate) {
@@ -67,6 +65,7 @@ async function fetchPeriodSummary(startDate, endDate) {
 }
 
 // Helper to fetch gross margin data - REAL-TIME calculation from orders + products.cost_price
+// Uses product_number (SKU) for matching since most line items don't have product_id
 async function fetchGrossMargin(startDate, endDate) {
   let query = supabase
     .from('orders')
@@ -76,7 +75,8 @@ async function fetchGrossMargin(startDate, endDate) {
       order_line_items (
         quantity,
         total_price,
-        product_id
+        product_id,
+        product_number
       )
     `)
     .eq('store_id', STORE_ID)
@@ -91,23 +91,27 @@ async function fetchGrossMargin(startDate, endDate) {
     return { grossProfit: 0, marginPercent: 0, totalCost: 0, totalRevenue: 0 }
   }
 
-  // Get all product_ids from order_line_items
-  const productIds = new Set()
+  // Collect all product_numbers (SKUs) from line items
+  const productNumbers = new Set()
   orders.forEach(o => {
     o.order_line_items?.forEach(item => {
-      if (item.product_id) productIds.add(item.product_id)
+      if (item.product_number) productNumbers.add(item.product_number)
     })
   })
 
-  // Fetch cost_price for all products in one query
+  // Fetch cost_price for all products by product_number (SKU)
   const { data: products } = await supabase
     .from('products')
-    .select('id, cost_price')
-    .in('id', Array.from(productIds))
+    .select('id, product_number, cost_price')
+    .eq('store_id', STORE_ID)
+    .in('product_number', Array.from(productNumbers))
 
-  const costMap = new Map()
+  // Build cost map by product_number (SKU)
+  const costMapBySku = new Map()
   products?.forEach(p => {
-    if (p.cost_price) costMap.set(p.id, p.cost_price)
+    if (p.cost_price && p.product_number) {
+      costMapBySku.set(p.product_number, p.cost_price)
+    }
   })
 
   // Calculate totals
@@ -118,7 +122,8 @@ async function fetchGrossMargin(startDate, endDate) {
     o.order_line_items?.forEach(item => {
       const qty = item.quantity || 1
       const price = item.total_price || 0
-      const costPrice = costMap.get(item.product_id) || 0
+      // Look up cost by SKU (product_number)
+      const costPrice = costMapBySku.get(item.product_number) || 0
 
       totalRevenue += price
       totalCost += costPrice * qty
@@ -132,6 +137,7 @@ async function fetchGrossMargin(startDate, endDate) {
 }
 
 // Helper to fetch daily gross margin data
+// Uses product_number (SKU) for matching since most line items don't have product_id
 async function fetchDailyMargin(startDate, endDate) {
   let query = supabase
     .from('orders')
@@ -141,7 +147,7 @@ async function fetchDailyMargin(startDate, endDate) {
       order_line_items (
         quantity,
         total_price,
-        product_id
+        product_number
       )
     `)
     .eq('store_id', STORE_ID)
@@ -156,23 +162,26 @@ async function fetchDailyMargin(startDate, endDate) {
     return []
   }
 
-  // Get all product_ids
-  const productIds = new Set()
+  // Collect all product_numbers (SKUs)
+  const productNumbers = new Set()
   orders.forEach(o => {
     o.order_line_items?.forEach(item => {
-      if (item.product_id) productIds.add(item.product_id)
+      if (item.product_number) productNumbers.add(item.product_number)
     })
   })
 
-  // Fetch cost_price for all products
+  // Fetch cost_price for all products by SKU
   const { data: products } = await supabase
     .from('products')
-    .select('id, cost_price')
-    .in('id', Array.from(productIds))
+    .select('product_number, cost_price')
+    .eq('store_id', STORE_ID)
+    .in('product_number', Array.from(productNumbers))
 
-  const costMap = new Map()
+  const costMapBySku = new Map()
   products?.forEach(p => {
-    if (p.cost_price) costMap.set(p.id, p.cost_price)
+    if (p.cost_price && p.product_number) {
+      costMapBySku.set(p.product_number, p.cost_price)
+    }
   })
 
   // Group by date
@@ -185,7 +194,7 @@ async function fetchDailyMargin(startDate, endDate) {
     o.order_line_items?.forEach(item => {
       const qty = item.quantity || 1
       const price = item.total_price || 0
-      const costPrice = costMap.get(item.product_id) || 0
+      const costPrice = costMapBySku.get(item.product_number) || 0
       dailyData[date].revenue += price
       dailyData[date].cost += costPrice * qty
     })
@@ -234,6 +243,94 @@ async function fetchItemsPerOrder(startDate, endDate) {
   return { avgItemsPerOrder, totalItems }
 }
 
+// Helper to fetch kit/bundle products share and margin
+// Kit products are identified by name containing: paket, kit, set
+// Uses product_number (SKU) for matching since most line items don't have product_id
+async function fetchKitStats(startDate, endDate) {
+  let query = supabase
+    .from('orders')
+    .select(`
+      id,
+      order_line_items (
+        quantity,
+        total_price,
+        product_number,
+        product_name
+      )
+    `)
+    .eq('store_id', STORE_ID)
+    .neq('status', 'cancelled')
+
+  if (startDate) query = query.gte('creation_date', startDate)
+  if (endDate) query = query.lte('creation_date', endDate + 'T23:59:59')
+
+  const { data: orders } = await query
+
+  if (!orders || orders.length === 0) {
+    return { kitRevenue: 0, kitRevenuePercent: 0, kitGrossProfit: 0, kitMarginPercent: 0 }
+  }
+
+  // Collect all product_numbers (SKUs) from order_line_items
+  const productNumbers = new Set()
+  orders.forEach(o => {
+    o.order_line_items?.forEach(item => {
+      if (item.product_number) productNumbers.add(item.product_number)
+    })
+  })
+
+  // Fetch cost_price for all products by SKU
+  const { data: products } = await supabase
+    .from('products')
+    .select('product_number, cost_price, name')
+    .eq('store_id', STORE_ID)
+    .in('product_number', Array.from(productNumbers))
+
+  const productMapBySku = new Map()
+  products?.forEach(p => {
+    if (p.product_number) {
+      productMapBySku.set(p.product_number, { costPrice: p.cost_price || 0, name: p.name || '' })
+    }
+  })
+
+  // Kit patterns: paket, kit, set (Swedish/English)
+  const kitPattern = /paket|kit|set/i
+
+  let totalRevenue = 0
+  let kitRevenue = 0
+  let totalCost = 0
+  let kitCost = 0
+
+  orders.forEach(o => {
+    o.order_line_items?.forEach(item => {
+      const qty = item.quantity || 1
+      const price = item.total_price || 0
+      const productInfo = productMapBySku.get(item.product_number) || { costPrice: 0, name: '' }
+      const productName = item.product_name || productInfo.name || ''
+      const costPrice = productInfo.costPrice
+      const isKit = kitPattern.test(productName)
+
+      totalRevenue += price
+      totalCost += costPrice * qty
+
+      if (isKit) {
+        kitRevenue += price
+        kitCost += costPrice * qty
+      }
+    })
+  })
+
+  const kitGrossProfit = kitRevenue - kitCost
+  const kitMarginPercent = kitRevenue > 0 ? (kitGrossProfit / kitRevenue) * 100 : 0
+  const kitRevenuePercent = totalRevenue > 0 ? (kitRevenue / totalRevenue) * 100 : 0
+
+  return {
+    kitRevenue,
+    kitRevenuePercent,
+    kitGrossProfit,
+    kitMarginPercent
+  }
+}
+
 export function useAnalytics(dateRange = null) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -241,6 +338,7 @@ export function useAnalytics(dateRange = null) {
     dailySales: [],
     dailyMargin: [],
     previousDailySales: [],
+    previousDailyMargin: [],
     weeklySales: [],
     monthlySales: [],
     topProducts: [],
@@ -336,7 +434,9 @@ export function useAnalytics(dateRange = null) {
         grossMargin,
         previousGrossMargin,
         itemsPerOrder,
-        dailyMarginData
+        dailyMarginData,
+        previousDailyMarginData,
+        kitStats
       ] = await Promise.all([
         dailyQuery,
         supabase.from('v_weekly_sales').select('*').eq('store_id', STORE_ID).order('week_start', { ascending: false }).limit(12),
@@ -352,7 +452,9 @@ export function useAnalytics(dateRange = null) {
         fetchGrossMargin(startDate, endDate),
         compare && previousStartDate ? fetchGrossMargin(previousStartDate, previousEndDate) : Promise.resolve(null),
         fetchItemsPerOrder(startDate, endDate),
-        fetchDailyMargin(startDate, endDate)
+        fetchDailyMargin(startDate, endDate),
+        compare && previousStartDate ? fetchDailyMargin(previousStartDate, previousEndDate) : Promise.resolve([]),
+        fetchKitStats(startDate, endDate)
       ])
 
       // Aggregate top products from orders
@@ -442,6 +544,7 @@ export function useAnalytics(dateRange = null) {
         dailySales: dailyRes.data || [],
         dailyMargin: dailyMarginData || [],
         previousDailySales: previousDailyRes?.data || [],
+        previousDailyMargin: previousDailyMarginData || [],
         weeklySales: weeklyRes.data || [],
         monthlySales: monthlyRes.data || [],
         topProducts,
@@ -455,6 +558,9 @@ export function useAnalytics(dateRange = null) {
           ...currentSummary,
           ...grossMargin,
           ...itemsPerOrder,
+          ...kitStats,
+          // Kate per tilaus (gross profit / order count)
+          marginPerOrder: currentSummary.orderCount > 0 ? grossMargin.grossProfit / currentSummary.orderCount : 0,
           currency: 'SEK'
         },
         previousSummary: previousSummary ? {

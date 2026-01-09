@@ -9,7 +9,7 @@ import { TopProducts } from '@/components/TopProducts'
 import { CategoryChart } from '@/components/CategoryChart'
 import { PaymentMethodsChart, ShippingMethodsChart } from '@/components/PaymentMethods'
 import { DateRangePicker, getDateRange, formatDateISO, getPreviousPeriod, getYearOverYearPeriod } from '@/components/DateRangePicker'
-import { RefreshCw, BarChart3, TrendingUp, Package, XCircle, Truck, Tag } from 'lucide-react'
+import { RefreshCw, BarChart3, TrendingUp, Package, XCircle, Truck, Tag, Gift, Coins } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
@@ -38,6 +38,7 @@ export function Dashboard() {
     dailySales,
     dailyMargin,
     previousDailySales,
+    previousDailyMargin,
     topProducts,
     paymentMethods,
     shippingMethods,
@@ -343,6 +344,29 @@ export function Dashboard() {
                 </span>
               </div>
             )}
+            {/* Kit products share */}
+            {summary?.kitRevenuePercent > 0 && (
+              <div className="flex items-center gap-2">
+                <Gift className="w-4 h-4 text-foreground-subtle" />
+                <span className="text-foreground-subtle">{t('dashboard.metrics.kitShare')}:</span>
+                <span className="text-foreground font-medium tabular-nums">
+                  {(summary?.kitRevenuePercent || 0).toFixed(1)}%
+                </span>
+                <span className="text-foreground-subtle text-xs">
+                  ({t('dashboard.metrics.margin')} {(summary?.kitMarginPercent || 0).toFixed(0)}%)
+                </span>
+              </div>
+            )}
+            {/* Margin per order */}
+            {summary?.marginPerOrder > 0 && (
+              <div className="flex items-center gap-2">
+                <Coins className="w-4 h-4 text-foreground-subtle" />
+                <span className="text-foreground-subtle">{t('dashboard.metrics.marginPerOrder')}:</span>
+                <span className="text-foreground font-medium tabular-nums">
+                  {Math.round(summary?.marginPerOrder || 0).toLocaleString(language === 'fi' ? 'fi-FI' : 'sv-SE')} kr
+                </span>
+              </div>
+            )}
           </div>
         </div>
 
@@ -353,7 +377,7 @@ export function Dashboard() {
             previousData={previousDailySales}
             compare={dateRange.compare}
           />
-          <DailyMarginChart data={dailyMargin} />
+          <DailyMarginChart data={dailyMargin} previousData={previousDailyMargin} compare={dateRange.compare} />
         </div>
 
         {/* Charts Row 1.5 - Top Products */}

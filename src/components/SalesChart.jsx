@@ -113,14 +113,31 @@ export function DailySalesChart({ data, previousData = null, compare = false }) 
   )
 }
 
-export function DailyMarginChart({ data }) {
+export function DailyMarginChart({ data, previousData = null, compare = false }) {
   const { t, locale } = useTranslation()
   // Reverse to show oldest first
-  const chartData = [...data].reverse().map(d => ({
-    date: new Date(d.sale_date).toLocaleDateString(locale, { month: 'short', day: 'numeric' }),
-    grossProfit: d.gross_profit,
-    marginPercent: d.margin_percent
-  }))
+  const currentData = [...data].reverse()
+
+  // If comparing, merge previous data with current
+  let chartData
+  if (compare && previousData && previousData.length > 0) {
+    const prevReversed = [...previousData].reverse()
+    chartData = currentData.map((d, i) => ({
+      date: new Date(d.sale_date).toLocaleDateString(locale, { month: 'short', day: 'numeric' }),
+      grossProfit: d.gross_profit,
+      marginPercent: d.margin_percent,
+      previousGrossProfit: prevReversed[i]?.gross_profit || null,
+      previousDate: prevReversed[i] ? new Date(prevReversed[i].sale_date).toLocaleDateString(locale, { month: 'short', day: 'numeric' }) : null
+    }))
+  } else {
+    chartData = currentData.map(d => ({
+      date: new Date(d.sale_date).toLocaleDateString(locale, { month: 'short', day: 'numeric' }),
+      grossProfit: d.gross_profit,
+      marginPercent: d.margin_percent
+    }))
+  }
+
+  const showComparison = compare && previousData && previousData.length > 0
 
   return (
     <Card className="bg-background-elevated border-card-border">
@@ -144,10 +161,17 @@ export function DailyMarginChart({ data }) {
                 contentStyle={{ backgroundColor: COLORS.tooltip, border: `1px solid ${COLORS.grid}`, borderRadius: '8px' }}
                 labelStyle={{ color: COLORS.text }}
                 formatter={(value, name) => {
-                  if (name === 'grossProfit') return [`${value?.toLocaleString()} SEK`, t('charts.grossProfit')]
+                  if (name === 'grossProfit') return [`${value?.toLocaleString()} SEK`, t('charts.current')]
+                  if (name === 'previousGrossProfit') return [`${value?.toLocaleString()} SEK`, t('charts.previous')]
                   return [value, name]
                 }}
               />
+              {showComparison && (
+                <Legend
+                  wrapperStyle={{ paddingTop: '10px' }}
+                  formatter={(value) => value === 'grossProfit' ? t('charts.currentPeriod') : t('charts.previousPeriod')}
+                />
+              )}
               <Area
                 type="monotone"
                 dataKey="grossProfit"
@@ -156,6 +180,16 @@ export function DailyMarginChart({ data }) {
                 fillOpacity={1}
                 fill="url(#colorMargin)"
               />
+              {showComparison && (
+                <Line
+                  type="monotone"
+                  dataKey="previousGrossProfit"
+                  stroke={COLORS.muted}
+                  strokeWidth={2}
+                  strokeDasharray="5 5"
+                  dot={false}
+                />
+              )}
             </ComposedChart>
           </ResponsiveContainer>
         </div>

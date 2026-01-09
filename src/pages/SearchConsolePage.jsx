@@ -10,7 +10,7 @@ import {
   GSCDeviceChart,
   GSCCountryChart
 } from '@/components/GSCCharts'
-import { Search, RefreshCw, Download } from 'lucide-react'
+import { Search, RefreshCw, Download, AlertTriangle, TrendingDown, FileWarning, Users } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useTranslation } from '@/lib/i18n'
 
@@ -52,6 +52,7 @@ export function SearchConsolePage() {
     previousDailySummary,
     previousSummary,
     comparisonEnabled,
+    riskRadar,
     connected,
     connectGSC,
     syncGSC,
@@ -287,6 +288,95 @@ export function SearchConsolePage() {
                 </div>
               </div>
             </MetricCardGroup>
+
+            {/* Risk Radar Section - Always visible */}
+            <div className="mb-8">
+                <div className="flex items-center gap-2 mb-4">
+                  <AlertTriangle className="w-5 h-5 text-warning" />
+                  <h2 className="text-lg font-semibold text-foreground">{t('gsc.riskRadar.title')}</h2>
+                  <span className="text-sm text-foreground-muted">— {t('gsc.riskRadar.subtitle')}</span>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                  {/* Declining Pages */}
+                  <div className="bg-background-elevated rounded-xl p-4 border border-border">
+                    <div className="flex items-center gap-2 mb-3">
+                      <TrendingDown className="w-4 h-4 text-red-500" />
+                      <h3 className="text-sm font-medium text-foreground">{t('gsc.riskRadar.decliningPages')}</h3>
+                    </div>
+                    <p className="text-xs text-foreground-muted mb-3">{t('gsc.riskRadar.decliningPagesDesc')}</p>
+                    {riskRadar?.decliningPages?.length > 0 ? (
+                      <div className="space-y-2 max-h-48 overflow-y-auto">
+                        {riskRadar.decliningPages.slice(0, 5).map((item, i) => (
+                          <div key={i} className="text-xs p-2 bg-red-500/10 rounded border border-red-500/20">
+                            <div className="font-medium text-foreground truncate" title={item.page}>
+                              {item.page.replace(/^https?:\/\/[^/]+/, '')}
+                            </div>
+                            <div className="flex gap-3 mt-1 text-foreground-muted">
+                              <span>{t('gsc.riskRadar.clicks')}: <span className="text-red-500">{item.clicksChange.toFixed(0)}%</span></span>
+                              <span>{t('gsc.riskRadar.position')}: <span className="text-red-500">+{item.positionChange.toFixed(0)}%</span></span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-foreground-subtle italic">{t('gsc.riskRadar.noIssues')}</p>
+                    )}
+                  </div>
+
+                  {/* Snippet Problems */}
+                  <div className="bg-background-elevated rounded-xl p-4 border border-border">
+                    <div className="flex items-center gap-2 mb-3">
+                      <FileWarning className="w-4 h-4 text-yellow-500" />
+                      <h3 className="text-sm font-medium text-foreground">{t('gsc.riskRadar.snippetProblems')}</h3>
+                    </div>
+                    <p className="text-xs text-foreground-muted mb-3">{t('gsc.riskRadar.snippetProblemsDesc')}</p>
+                    {riskRadar?.snippetProblems?.length > 0 ? (
+                      <div className="space-y-2 max-h-48 overflow-y-auto">
+                        {riskRadar.snippetProblems.slice(0, 5).map((item, i) => (
+                          <div key={i} className={`text-xs p-2 rounded border ${item.severity === 'critical' ? 'bg-red-500/10 border-red-500/20' : 'bg-yellow-500/10 border-yellow-500/20'}`}>
+                            <div className="font-medium text-foreground truncate" title={item.page}>
+                              {item.page.replace(/^https?:\/\/[^/]+/, '')}
+                            </div>
+                            <div className="flex gap-3 mt-1 text-foreground-muted">
+                              <span>{t('gsc.riskRadar.ctr')}: <span className="text-yellow-500">{item.ctrChange.toFixed(0)}%</span></span>
+                              <span>{t('gsc.riskRadar.position')}: <span className="text-foreground-subtle">{item.positionChange > 0 ? '+' : ''}{item.positionChange.toFixed(0)}%</span></span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-foreground-subtle italic">{t('gsc.riskRadar.noIssues')}</p>
+                    )}
+                  </div>
+
+                  {/* Competitor Threats */}
+                  <div className="bg-background-elevated rounded-xl p-4 border border-border">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Users className="w-4 h-4 text-orange-500" />
+                      <h3 className="text-sm font-medium text-foreground">{t('gsc.riskRadar.competitorThreats')}</h3>
+                    </div>
+                    <p className="text-xs text-foreground-muted mb-3">{t('gsc.riskRadar.competitorThreatsDesc')}</p>
+                    {riskRadar?.competitorThreats?.length > 0 ? (
+                      <div className="space-y-2 max-h-48 overflow-y-auto">
+                        {riskRadar.competitorThreats.slice(0, 5).map((item, i) => (
+                          <div key={i} className={`text-xs p-2 rounded border ${item.severity === 'critical' ? 'bg-red-500/10 border-red-500/20' : 'bg-orange-500/10 border-orange-500/20'}`}>
+                            <div className="font-medium text-foreground truncate" title={item.page}>
+                              {item.page.replace(/^https?:\/\/[^/]+/, '')}
+                            </div>
+                            <div className="flex gap-3 mt-1 text-foreground-muted">
+                              <span>{t('gsc.riskRadar.position')}: <span className="text-orange-500">+{item.positionChange.toFixed(0)}%</span></span>
+                              <span>{t('gsc.riskRadar.impressions')}: <span className="text-foreground-subtle">{item.impressionsChange > 0 ? '+' : ''}{item.impressionsChange.toFixed(0)}%</span></span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-foreground-subtle italic">{t('gsc.riskRadar.noIssues')}</p>
+                    )}
+                  </div>
+                </div>
+            </div>
 
             {dailySummary.length > 0 ? (
               <>

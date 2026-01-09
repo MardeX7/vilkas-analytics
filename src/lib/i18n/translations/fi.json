@@ -60,7 +60,7 @@
     "yourAccount": "Kirjautuneena"
   },
   "nav": {
-    "dashboard": "Kojelauta",
+    "dashboard": "Verkkokauppa",
     "searchConsole": "Search Console",
     "indicators": "Indikaattorit",
     "insights": "Analyysit",
@@ -257,7 +257,10 @@
       "avgPerDay": "Keskiarvo/pv",
       "shippingCost": "Toimituskulut",
       "discounts": "Alennukset",
-      "cancelled": "Peruutetut"
+      "cancelled": "Peruutetut",
+      "kitShare": "Paketit",
+      "margin": "kate",
+      "marginPerOrder": "Kate/tilaus"
     },
     "connectGA4": "Yhdistä GA4",
     "vsPrevious": "vs edellinen"
@@ -340,7 +343,23 @@
     "totalKeywords": "Uniikkeja hakusanoja",
     "page1Keywords": "Sivu 1 avainsanat",
     "ofTotal": "yhteensä",
-    "rankingDistribution": "Sijoitusjakauma"
+    "rankingDistribution": "Sijoitusjakauma",
+    "riskRadar": {
+      "title": "Risk Radar",
+      "subtitle": "Varhaiset varoitukset SEO-ongelmista",
+      "decliningPages": "Putoavat sivut",
+      "decliningPagesDesc": "Klikit ↓ & sijainti ↓ 2 viikkoa putkeen",
+      "snippetProblems": "Snippet-ongelmat",
+      "snippetProblemsDesc": "CTR-pudotus ilman sijainnin laskua (otsikko/kuvaus)",
+      "competitorThreats": "Kilpailija-uhkat",
+      "competitorThreatsDesc": "Sijainti-pudotus ilman näyttöjen laskua",
+      "noIssues": "Ei havaittuja ongelmia",
+      "clicks": "klikit",
+      "position": "sijainti",
+      "ctr": "CTR",
+      "impressions": "näytöt",
+      "weeks": "viikkoa"
+    }
   },
   "ga4": {
     "title": "Google Analytics",

@@ -59,11 +59,44 @@ function printProjectInfo() {
   console.log('')
 }
 
+/**
+ * Store ID Mapping (Billackering.eu)
+ *
+ * TÄRKEÄ: Kaksi eri ID:tä!
+ * - STORE_ID = ePages kaupan ID (orders, products, gsc_*, ga4_tokens)
+ * - SHOP_ID  = shops-taulun UUID (ga4_ecommerce)
+ */
+const BILLACKERING = {
+  SHOP_ID: '3b93e9b1-d64c-4686-a14a-bec535495f71',   // shops.id
+  STORE_ID: 'a28836f6-9487-4b67-9194-e907eaf94b69', // orders.store_id
+  name: 'Billackering.eu',
+  currency: 'SEK'
+}
+
+const STORE_ID = BILLACKERING.STORE_ID
+const SHOP_ID = BILLACKERING.SHOP_ID
+
+/**
+ * Palauttaa oikean ID:n taulun mukaan
+ */
+function getStoreIdForTable(tableName) {
+  const shopIdTables = ['ga4_ecommerce', 'shops']
+  if (shopIdTables.includes(tableName)) {
+    return { column: 'shop_id', value: SHOP_ID }
+  }
+  return { column: 'store_id', value: STORE_ID }
+}
+
 module.exports = {
   supabase,
   getProjectInfo,
   printProjectInfo,
   SUPABASE_URL,
   SERVICE_ROLE_KEY,
-  ANON_KEY
+  ANON_KEY,
+  // Store IDs
+  BILLACKERING,
+  STORE_ID,
+  SHOP_ID,
+  getStoreIdForTable
 }

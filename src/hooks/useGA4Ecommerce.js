@@ -1,10 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
-
-// Kovakoodattu shop_id (billackering) - this is shops.id UUID
-const SHOP_ID = '3b93e9b1-d64c-4686-a14a-bec535495f71'
-// ga4_tokens.store_id for API calls
-const STORE_ID = 'a28836f6-9487-4b67-9194-e907eaf94b69'
+import { SHOP_ID, STORE_ID } from '@/config/storeConfig'
 
 /**
  * useGA4Ecommerce - Hook for Google Analytics 4 E-commerce data
@@ -45,10 +41,11 @@ export function useGA4Ecommerce(dateRange = null) {
       const endDate = dateRange?.endDate
 
       // First try: with date range filter
+      // NOTE: ga4_ecommerce uses 'store_id' column but references shops.id (SHOP_ID)
       let query = supabase
         .from('ga4_ecommerce')
         .select('*')
-        .eq('store_id', SHOP_ID)
+        .eq('shop_id', SHOP_ID)
         .order('items_viewed', { ascending: false })
 
       if (startDate) query = query.gte('date', startDate)
@@ -62,7 +59,7 @@ export function useGA4Ecommerce(dateRange = null) {
         const { data: allData, error: allError } = await supabase
           .from('ga4_ecommerce')
           .select('*')
-          .eq('store_id', SHOP_ID)
+          .eq('shop_id', SHOP_ID)
           .order('items_viewed', { ascending: false })
 
         if (!allError) {

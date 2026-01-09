@@ -1,8 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
-
-// Kovakoodattu store_id (billackering)
-const STORE_ID = 'a28836f6-9487-4b67-9194-e907eaf94b69'
+import { STORE_ID } from '@/config/storeConfig'
 
 export function useGSC(dateRange = null, comparisonMode = 'mom') {
   const [loading, setLoading] = useState(true)
@@ -27,7 +25,13 @@ export function useGSC(dateRange = null, comparisonMode = 'mom') {
     previousDailySummary: [],
     previousSummary: null,
     comparisonEnabled: false,
-    comparisonMode: 'mom'
+    comparisonMode: 'mom',
+    // Risk Radar data
+    riskRadar: {
+      decliningPages: [],      // Top 20 pages with clicks↓ & position↓ (2 weeks in a row)
+      snippetProblems: [],     // CTR drop without position drop = title/description issue
+      competitorThreats: []    // Position drop without impressions drop = competitor/relevance
+    }
   })
 
   const fetchGSCData = useCallback(async () => {
@@ -305,6 +309,145 @@ export function useGSC(dateRange = null, comparisonMode = 'mom') {
         }
       }
 
+      // === RISK RADAR: Weekly comparison for top pages ===
+      // Calculate 3-week rolling data to detect 2-week decline patterns
+      const today = new Date()
+      const threeWeeksAgo = new Date(today)
+      threeWeeksAgo.setDate(threeWeeksAgo.getDate() - 21)
+      const twoWeeksAgo = new Date(today)
+      twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14)
+      const oneWeekAgo = new Date(today)
+      oneWeekAgo.setDate(oneWeekAgo.getDate() - 7)
+
+      // Fetch page-level data for 3 weeks
+      const { data: riskData } = await supabase
+        .from('gsc_search_analytics')
+        .select('page, clicks, impressions, ctr, position, date')
+        .eq('store_id', STORE_ID)
+        .not('page', 'is', null)
+        .gte('date', threeWeeksAgo.toISOString().split('T')[0])
+        .order('date', { ascending: true })
+
+      // Group data by page and week
+      const pageWeeklyData = new Map()
+
+      riskData?.forEach(row => {
+        const date = new Date(row.date)
+        let week = 'week3' // most recent
+        if (date < oneWeekAgo) week = date < twoWeeksAgo ? 'week1' : 'week2'
+
+        const key = row.page
+        if (!pageWeeklyData.has(key)) {
+          pageWeeklyData.set(key, {
+            page: key,
+            week1: { clicks: 0, impressions: 0, ctr: 0, position: 0, count: 0 },
+            week2: { clicks: 0, impressions: 0, ctr: 0, position: 0, count: 0 },
+            week3: { clicks: 0, impressions: 0, ctr: 0, position: 0, count: 0 }
+          })
+        }
+        const p = pageWeeklyData.get(key)
+        p[week].clicks += row.clicks || 0
+        p[week].impressions += row.impressions || 0
+        p[week].position += row.position || 0
+        p[week].count += 1
+      })
+
+      // Calculate weekly averages and detect patterns
+      const decliningPages = []
+      const snippetProblems = []
+      const competitorThreats = []
+
+      pageWeeklyData.forEach((data, page) => {
+        // Calculate averages
+        const w1 = data.week1
+        const w2 = data.week2
+        const w3 = data.week3
+
+        // Calculate average position per week
+        const w1Pos = w1.count > 0 ? w1.position / w1.count : null
+        const w2Pos = w2.count > 0 ? w2.position / w2.count : null
+        const w3Pos = w3.count > 0 ? w3.position / w3.count : null
+
+        // Calculate CTR per week
+        const w1Ctr = w1.impressions > 0 ? w1.clicks / w1.impressions : null
+        const w2Ctr = w2.impressions > 0 ? w2.clicks / w2.impressions : null
+        const w3Ctr = w3.impressions > 0 ? w3.clicks / w3.impressions : null
+
+        // Only analyze pages with enough data (at least 10 impressions in recent weeks)
+        if (w3.impressions < 10 && w2.impressions < 10) return
+
+        // 1. DECLINING PAGES: clicks↓ & position↓ (worse) 2 weeks in a row
+        // Position going up (worse) means position number increases
+        const clicksDeclining = w2.clicks > 0 && w3.clicks > 0 &&
+                               w2.clicks < (w1.clicks * 0.9) &&
+                               w3.clicks < (w2.clicks * 0.9)
+        const positionWorsening = w1Pos && w2Pos && w3Pos &&
+                                 w2Pos > (w1Pos * 1.1) &&
+                                 w3Pos > (w2Pos * 1.1)
+
+        if (clicksDeclining && positionWorsening) {
+          decliningPages.push({
+            page,
+            clicks: w3.clicks,
+            clicksChange: w1.clicks > 0 ? ((w3.clicks - w1.clicks) / w1.clicks * 100) : -100,
+            position: w3Pos,
+            positionChange: w1Pos ? ((w3Pos - w1Pos) / w1Pos * 100) : 100,
+            weeks: 2,
+            severity: 'critical'
+          })
+        }
+
+        // 2. SNIPPET PROBLEMS: CTR drop without significant position change
+        // CTR dropped > 20% but position stayed stable (< 10% change)
+        if (w1Ctr && w3Ctr && w1Pos && w3Pos) {
+          const ctrDrop = (w1Ctr - w3Ctr) / w1Ctr
+          const positionStable = Math.abs((w3Pos - w1Pos) / w1Pos) < 0.1
+
+          if (ctrDrop > 0.2 && positionStable && w3.impressions >= 20) {
+            snippetProblems.push({
+              page,
+              ctr: w3Ctr,
+              ctrChange: -ctrDrop * 100,
+              position: w3Pos,
+              positionChange: ((w3Pos - w1Pos) / w1Pos * 100),
+              impressions: w3.impressions,
+              severity: ctrDrop > 0.4 ? 'critical' : 'warning'
+            })
+          }
+        }
+
+        // 3. COMPETITOR THREATS: Position drop without impressions drop
+        // Position got worse > 20% but impressions stayed stable or grew
+        if (w1Pos && w3Pos && w1.impressions > 0) {
+          const positionWorse = (w3Pos - w1Pos) / w1Pos
+          const impressionsStable = (w3.impressions - w1.impressions) / w1.impressions >= -0.1
+
+          if (positionWorse > 0.2 && impressionsStable && w3.impressions >= 20) {
+            competitorThreats.push({
+              page,
+              position: w3Pos,
+              positionChange: positionWorse * 100,
+              impressions: w3.impressions,
+              impressionsChange: ((w3.impressions - w1.impressions) / w1.impressions * 100),
+              severity: positionWorse > 0.5 ? 'critical' : 'warning'
+            })
+          }
+        }
+      })
+
+      // Sort and limit to top 20
+      const riskRadar = {
+        decliningPages: decliningPages
+          .sort((a, b) => b.clicksChange - a.clicksChange)
+          .slice(0, 20),
+        snippetProblems: snippetProblems
+          .sort((a, b) => a.ctrChange - b.ctrChange)
+          .slice(0, 20),
+        competitorThreats: competitorThreats
+          .sort((a, b) => b.positionChange - a.positionChange)
+          .slice(0, 20)
+      }
+
       setData({
         dailySummary,
         topQueries,
@@ -328,7 +471,8 @@ export function useGSC(dateRange = null, comparisonMode = 'mom') {
         previousDailySummary,
         previousSummary,
         comparisonEnabled,
-        comparisonMode
+        comparisonMode,
+        riskRadar
       })
 
     } catch (err) {
