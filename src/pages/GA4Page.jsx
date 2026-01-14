@@ -15,8 +15,10 @@ import {
   ArrowUpRight,
   ShoppingCart,
   Eye,
-  AlertTriangle
+  AlertTriangle,
+  MousePointer
 } from 'lucide-react'
+import { BrowseAnalysisCard } from '@/components/BrowseAnalysisCard'
 
 // Helper to create default date range
 function createDefaultDateRange() {
@@ -547,6 +549,18 @@ export function GA4Page() {
                 </Button>
               </div>
             )}
+
+            {/* Browse Analysis Section */}
+            <div className="mt-8">
+              <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
+                <MousePointer className="w-5 h-5 text-primary" />
+                {t('insights.tabs.browse')}
+              </h2>
+              <BrowseAnalysisCard
+                startDate={dateRange.startDate}
+                endDate={dateRange.endDate}
+              />
+            </div>
           </div>
         )}
       </main>

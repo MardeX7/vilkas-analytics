@@ -14,6 +14,8 @@ import { MerchantGoalsCard } from '@/components/MerchantGoalsCard'
 import { ContextNotesCard } from '@/components/ContextNotesCard'
 import { CampaignsCard } from '@/components/CampaignsCard'
 import { ProductRolesCard } from '@/components/ProductRolesCard'
+import { CategoryMarginCard } from '@/components/CategoryMarginCard'
+import { ShippingPaymentCard } from '@/components/ShippingPaymentCard'
 import { DateRangePicker, getDateRange, formatDateISO, getPreviousPeriod, getYearOverYearPeriod } from '@/components/DateRangePicker'
 import { RefreshCw, BarChart3, TrendingUp, Package, XCircle, Truck, Tag, Gift, Coins } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -471,7 +473,7 @@ export function Dashboard() {
 
         {/* Charts Row 3 - Categories (only show if data exists) */}
         {categories && categories.length > 0 && (
-          <div className="grid grid-cols-1 gap-6">
+          <div className="grid grid-cols-1 gap-6 mb-6">
             <CategoryChart
               categories={categories}
               maxItems={10}
@@ -479,6 +481,19 @@ export function Dashboard() {
             />
           </div>
         )}
+
+        {/* Charts Row 4 - Category Margin Analysis */}
+        <CategoryMarginCard
+          startDate={dateRange.startDate}
+          endDate={dateRange.endDate}
+          className="mb-6"
+        />
+
+        {/* Charts Row 5 - Shipping & Payment Analysis */}
+        <ShippingPaymentCard
+          startDate={dateRange.startDate}
+          endDate={dateRange.endDate}
+        />
       </main>
     </div>
   )
