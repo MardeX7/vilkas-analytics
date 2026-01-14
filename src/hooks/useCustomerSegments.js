@@ -48,21 +48,44 @@ export function useCustomerSegments({ startDate: propStartDate, endDate: propEnd
 
   // Laske yhteenvetotilastot
   const summary = query.data?.reduce((acc, segment) => {
+    const revenue = parseFloat(segment.total_revenue) || 0
+    const cost = parseFloat(segment.total_cost) || 0
+    const margin = parseFloat(segment.gross_margin) || 0
+
     if (segment.segment === 'B2B' || segment.segment === 'B2B (soft)') {
       acc.b2b.orders += segment.order_count
-      acc.b2b.revenue += parseFloat(segment.total_revenue) || 0
+      acc.b2b.revenue += revenue
+      acc.b2b.cost += cost
+      acc.b2b.margin += margin
     } else {
       acc.b2c.orders += segment.order_count
-      acc.b2c.revenue += parseFloat(segment.total_revenue) || 0
+      acc.b2c.revenue += revenue
+      acc.b2c.cost += cost
+      acc.b2c.margin += margin
     }
     acc.total.orders += segment.order_count
-    acc.total.revenue += parseFloat(segment.total_revenue) || 0
+    acc.total.revenue += revenue
+    acc.total.cost += cost
+    acc.total.margin += margin
     return acc
   }, {
-    b2b: { orders: 0, revenue: 0 },
-    b2c: { orders: 0, revenue: 0 },
-    total: { orders: 0, revenue: 0 }
+    b2b: { orders: 0, revenue: 0, cost: 0, margin: 0 },
+    b2c: { orders: 0, revenue: 0, cost: 0, margin: 0 },
+    total: { orders: 0, revenue: 0, cost: 0, margin: 0 }
   })
+
+  // Laske marginaaliprosentit
+  if (summary) {
+    summary.b2b.marginPercent = summary.b2b.revenue > 0
+      ? ((summary.b2b.margin / summary.b2b.revenue) * 100).toFixed(1)
+      : 0
+    summary.b2c.marginPercent = summary.b2c.revenue > 0
+      ? ((summary.b2c.margin / summary.b2c.revenue) * 100).toFixed(1)
+      : 0
+    summary.total.marginPercent = summary.total.revenue > 0
+      ? ((summary.total.margin / summary.total.revenue) * 100).toFixed(1)
+      : 0
+  }
 
   // Laske prosentit
   const percentages = summary ? {

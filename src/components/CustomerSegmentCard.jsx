@@ -4,14 +4,14 @@
  * Näyttää asiakassegmenttien jakautuman ja avainluvut.
  */
 
-import { Building2, User, TrendingUp, TrendingDown } from 'lucide-react'
+import { Building2, User } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useCustomerSegments } from '@/hooks/useCustomerSegments'
 
 /**
  * Yksittäinen segmenttirivi
  */
-function SegmentRow({ icon: Icon, label, orders, revenue, percentage, color }) {
+function SegmentRow({ icon: Icon, label, orders, revenue, margin, marginPercent, percentage, color }) {
   return (
     <div className="flex items-center justify-between py-2.5 border-b border-card-border last:border-0">
       <div className="flex items-center gap-2.5">
@@ -28,6 +28,12 @@ function SegmentRow({ icon: Icon, label, orders, revenue, percentage, color }) {
           {Math.round(revenue).toLocaleString('sv-SE')} kr
         </p>
         <p className="text-xs text-foreground-muted">{percentage}%</p>
+      </div>
+      <div className="text-right min-w-[90px]">
+        <p className="font-semibold text-green-400 tabular-nums">
+          {Math.round(margin).toLocaleString('sv-SE')} kr
+        </p>
+        <p className="text-xs text-foreground-muted">{marginPercent}%</p>
       </div>
     </div>
   )
@@ -83,6 +89,13 @@ export function CustomerSegmentCard({ startDate, endDate, label, className }) {
         )}
       </div>
 
+      {/* Header */}
+      <div className="flex items-center justify-between text-xs text-foreground-muted pb-2 border-b border-card-border mb-1">
+        <span className="flex-1">Segmentti</span>
+        <span className="text-right min-w-[90px]">Myynti</span>
+        <span className="text-right min-w-[90px]">Kate</span>
+      </div>
+
       {/* Segments */}
       <div className="divide-y divide-card-border">
         <SegmentRow
@@ -90,6 +103,8 @@ export function CustomerSegmentCard({ startDate, endDate, label, className }) {
           label="B2C (Kuluttajat)"
           orders={summary.b2c.orders}
           revenue={summary.b2c.revenue}
+          margin={summary.b2c.margin || 0}
+          marginPercent={summary.b2c.marginPercent || 0}
           percentage={percentages?.b2c.revenuePercent || 0}
           color="bg-primary/10 text-primary"
         />
@@ -98,6 +113,8 @@ export function CustomerSegmentCard({ startDate, endDate, label, className }) {
           label="B2B (Yritykset)"
           orders={summary.b2b.orders}
           revenue={summary.b2b.revenue}
+          margin={summary.b2b.margin || 0}
+          marginPercent={summary.b2b.marginPercent || 0}
           percentage={percentages?.b2b.revenuePercent || 0}
           color="bg-accent/10 text-accent"
         />
@@ -107,12 +124,20 @@ export function CustomerSegmentCard({ startDate, endDate, label, className }) {
       <div className="mt-4 pt-3 border-t border-card-border">
         <div className="flex items-center justify-between">
           <span className="text-sm text-foreground-muted">Yhteensä</span>
-          <div className="text-right">
+          <div className="text-right min-w-[90px]">
             <span className="font-semibold text-foreground tabular-nums">
               {Math.round(summary.total.revenue).toLocaleString('sv-SE')} kr
             </span>
-            <span className="text-xs text-foreground-muted ml-2">
-              ({summary.total.orders} tilausta)
+            <span className="text-xs text-foreground-muted ml-1">
+              ({summary.total.orders})
+            </span>
+          </div>
+          <div className="text-right min-w-[90px]">
+            <span className="font-semibold text-green-400 tabular-nums">
+              {Math.round(summary.total.margin || 0).toLocaleString('sv-SE')} kr
+            </span>
+            <span className="text-xs text-foreground-muted ml-1">
+              ({summary.total.marginPercent || 0}%)
             </span>
           </div>
         </div>
