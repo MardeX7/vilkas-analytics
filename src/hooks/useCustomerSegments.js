@@ -27,27 +27,12 @@ async function fetchCustomerSegments(storeId, startDate, endDate) {
 }
 
 /**
- * Hook asiakassegmenttien hakuun
- *
- * @param {object} options
- * @param {string} options.startDate - Start date (YYYY-MM-DD)
- * @param {string} options.endDate - End date (YYYY-MM-DD)
- * @returns {object} - { data, isLoading, error, refetch }
+ * Laske yhteenvetotilastot segmenttidatasta
  */
-export function useCustomerSegments({ startDate: propStartDate, endDate: propEndDate } = {}) {
-  // Use provided dates or default to last 30 days
-  const endDate = propEndDate || new Date().toISOString().split('T')[0]
-  const startDate = propStartDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+function calculateSummary(data) {
+  if (!data || data.length === 0) return null
 
-  const query = useQuery({
-    queryKey: ['customerSegments', STORE_ID, startDate, endDate],
-    queryFn: () => fetchCustomerSegments(STORE_ID, startDate, endDate),
-    staleTime: 5 * 60 * 1000, // 5 min
-    cacheTime: 30 * 60 * 1000 // 30 min
-  })
-
-  // Laske yhteenvetotilastot
-  const summary = query.data?.reduce((acc, segment) => {
+  const summary = data.reduce((acc, segment) => {
     const revenue = parseFloat(segment.total_revenue) || 0
     const cost = parseFloat(segment.total_cost) || 0
     const margin = parseFloat(segment.gross_margin) || 0
@@ -75,17 +60,61 @@ export function useCustomerSegments({ startDate: propStartDate, endDate: propEnd
   })
 
   // Laske marginaaliprosentit
-  if (summary) {
-    summary.b2b.marginPercent = summary.b2b.revenue > 0
-      ? ((summary.b2b.margin / summary.b2b.revenue) * 100).toFixed(1)
-      : 0
-    summary.b2c.marginPercent = summary.b2c.revenue > 0
-      ? ((summary.b2c.margin / summary.b2c.revenue) * 100).toFixed(1)
-      : 0
-    summary.total.marginPercent = summary.total.revenue > 0
-      ? ((summary.total.margin / summary.total.revenue) * 100).toFixed(1)
-      : 0
-  }
+  summary.b2b.marginPercent = summary.b2b.revenue > 0
+    ? ((summary.b2b.margin / summary.b2b.revenue) * 100).toFixed(1)
+    : 0
+  summary.b2c.marginPercent = summary.b2c.revenue > 0
+    ? ((summary.b2c.margin / summary.b2c.revenue) * 100).toFixed(1)
+    : 0
+  summary.total.marginPercent = summary.total.revenue > 0
+    ? ((summary.total.margin / summary.total.revenue) * 100).toFixed(1)
+    : 0
+
+  return summary
+}
+
+/**
+ * Hook asiakassegmenttien hakuun
+ *
+ * @param {object} options
+ * @param {string} options.startDate - Start date (YYYY-MM-DD)
+ * @param {string} options.endDate - End date (YYYY-MM-DD)
+ * @param {string} options.previousStartDate - Previous period start date (for comparison)
+ * @param {string} options.previousEndDate - Previous period end date (for comparison)
+ * @param {boolean} options.compare - Enable comparison
+ * @returns {object} - { summary, previousSummary, percentages, comparison, isLoading, error, refetch }
+ */
+export function useCustomerSegments({
+  startDate: propStartDate,
+  endDate: propEndDate,
+  previousStartDate,
+  previousEndDate,
+  compare = false
+} = {}) {
+  // Use provided dates or default to last 30 days
+  const endDate = propEndDate || new Date().toISOString().split('T')[0]
+  const startDate = propStartDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+
+  // Current period query
+  const query = useQuery({
+    queryKey: ['customerSegments', STORE_ID, startDate, endDate],
+    queryFn: () => fetchCustomerSegments(STORE_ID, startDate, endDate),
+    staleTime: 5 * 60 * 1000, // 5 min
+    cacheTime: 30 * 60 * 1000 // 30 min
+  })
+
+  // Previous period query (for MoM/YoY comparison)
+  const previousQuery = useQuery({
+    queryKey: ['customerSegments', STORE_ID, previousStartDate, previousEndDate],
+    queryFn: () => fetchCustomerSegments(STORE_ID, previousStartDate, previousEndDate),
+    staleTime: 5 * 60 * 1000,
+    cacheTime: 30 * 60 * 1000,
+    enabled: compare && !!previousStartDate && !!previousEndDate
+  })
+
+  // Laske yhteenvetotilastot
+  const summary = calculateSummary(query.data)
+  const previousSummary = calculateSummary(previousQuery.data)
 
   // Laske prosentit
   const percentages = summary ? {
@@ -107,12 +136,38 @@ export function useCustomerSegments({ startDate: propStartDate, endDate: propEnd
     }
   } : null
 
+  // Laske vertailu (MoM/YoY muutosprosentit)
+  const getChangePercent = (current, previous) => {
+    if (!previous || previous === 0) return null
+    return ((current - previous) / previous) * 100
+  }
+
+  const comparison = (compare && summary && previousSummary) ? {
+    b2b: {
+      revenueChange: getChangePercent(summary.b2b.revenue, previousSummary.b2b.revenue),
+      marginChange: getChangePercent(summary.b2b.margin, previousSummary.b2b.margin),
+      ordersChange: getChangePercent(summary.b2b.orders, previousSummary.b2b.orders)
+    },
+    b2c: {
+      revenueChange: getChangePercent(summary.b2c.revenue, previousSummary.b2c.revenue),
+      marginChange: getChangePercent(summary.b2c.margin, previousSummary.b2c.margin),
+      ordersChange: getChangePercent(summary.b2c.orders, previousSummary.b2c.orders)
+    },
+    total: {
+      revenueChange: getChangePercent(summary.total.revenue, previousSummary.total.revenue),
+      marginChange: getChangePercent(summary.total.margin, previousSummary.total.margin),
+      ordersChange: getChangePercent(summary.total.orders, previousSummary.total.orders)
+    }
+  } : null
+
   return {
     segments: query.data,
     summary,
+    previousSummary,
     percentages,
-    isLoading: query.isLoading,
-    error: query.error,
+    comparison,
+    isLoading: query.isLoading || previousQuery.isLoading,
+    error: query.error || previousQuery.error,
     refetch: query.refetch
   }
 }

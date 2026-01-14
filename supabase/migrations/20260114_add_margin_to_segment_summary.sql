@@ -2,6 +2,9 @@
 -- ADD MARGIN: Customer Segment Summary with gross margin calculation
 -- ============================================================================
 
+-- Drop existing function first because return type is changing
+DROP FUNCTION IF EXISTS get_customer_segment_summary(UUID, DATE, DATE);
+
 CREATE OR REPLACE FUNCTION get_customer_segment_summary(
   p_store_id UUID,
   p_start_date DATE DEFAULT NULL,

@@ -435,6 +435,9 @@ export function Dashboard() {
           <CustomerSegmentCard
             startDate={dateRange.startDate}
             endDate={dateRange.endDate}
+            previousStartDate={dateRange.previousStartDate}
+            previousEndDate={dateRange.previousEndDate}
+            compare={dateRange.compare}
             label={dateRange.label}
           />
           <OrderBucketChart
