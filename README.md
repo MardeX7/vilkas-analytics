@@ -1,5 +1,18 @@
 # Vilkas Analytics
 
+```
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  🟩 PROJEKTI: VilkasAnalytics                                                ║
+║  📁 KANSIO: /Desktop/VilkasAnalytics                                         ║
+║  🗄️ SUPABASE: tlothekaphtiwvusgwzh.supabase.co                               ║
+║  🌐 VERCEL: vilkas-analytics.vercel.app                                      ║
+╠══════════════════════════════════════════════════════════════════════════════╣
+║  ⚠️ TÄMÄ ON ERI PROJEKTI KUIN:                                               ║
+║     🟦 VilkasInsight (/Desktop/VilkasInsight-Vercel)                         ║
+║        → abbwfjishojcbifbruia.supabase.co                                    ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+```
+
 Verkkokauppiaan sisäinen analytiikkasovellus, joka yhdistää datan useista lähteistä yhteen näkymään.
 
 ## Ominaisuudet
@@ -133,12 +146,21 @@ vilkas-analytics/
 
 ### Vercel
 
-Projekti deployataan automaattisesti Verceliin kun pushaat `main`-branchiin.
+**HUOM: Git push EI aina triggeröi Vercel deployta automaattisesti!**
 
 ```bash
-# Manuaalinen deploy
-npx vercel --prod
+# ✅ KÄYTÄ AINA TÄTÄ deployaukseen:
+cd /Users/markkukorkiakoski/Desktop/VilkasAnalytics
+npx vercel --prod --yes
+
+# ❌ ÄLÄ luota pelkkään git pushiin - webhook ei aina toimi!
 ```
+
+**Deploy-prosessi:**
+1. Tee muutokset ja commitoi
+2. `git push origin main`
+3. **AJA AINA:** `npx vercel --prod --yes`
+4. Tarkista: https://vercel.com/mardex7s-projects/vilkas-analytics
 
 ### Ympäristömuuttujat Vercelissä
 
