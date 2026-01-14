@@ -86,19 +86,21 @@ export function useGA4(dateRange = null, comparisonMode = 'mom') {
         landingQuery
       ])
 
-      // Check if GA4 data is empty - fallback to GSC
-      const hasGA4Data = dailyRes.data?.length > 0 || sourcesRes.data?.length > 0
+      // ALWAYS use GSC for sessions (more reliable than GA4)
+      // GA4 is only used for traffic sources and landing pages
+      const hasGA4Data = false // Force GSC for sessions
 
       let dailySummary = []
       let trafficSources = []
       let landingPages = []
+      let deviceBreakdown = []
       let totalSessions = 0
-      let totalEngagedSessions = 0
-      let avgBounceRate = 0
-      let avgSessionDuration = 0
-      let totalNewUsers = 0
-      let totalReturningUsers = 0
-      let totalUsers = 0
+      let totalEngagedSessions = null
+      let avgBounceRate = null
+      let avgSessionDuration = null
+      let totalNewUsers = null
+      let totalReturningUsers = null
+      let totalUsers = null
 
       if (hasGA4Data) {
         // Use GA4 data
@@ -200,34 +202,55 @@ export function useGA4(dateRange = null, comparisonMode = 'mom') {
 
         const { data: gscPages } = await gscPagesQuery.limit(5000)
 
+        // Fetch GSC device breakdown (real data!)
+        let gscDeviceQuery = supabase
+          .from('gsc_search_analytics')
+          .select('device, clicks')
+          .eq('store_id', STORE_ID)
+          .not('device', 'is', null)
+
+        if (startDate) gscDeviceQuery = gscDeviceQuery.gte('date', startDate)
+        if (endDate) gscDeviceQuery = gscDeviceQuery.lte('date', endDate)
+
+        const { data: gscDevices } = await gscDeviceQuery
+
         // Transform GSC daily to match GA4 format
+        // NOTE: GSC only provides clicks - we cannot estimate engagement metrics
         dailySummary = (gscDaily || []).map(d => ({
           date: d.date,
-          total_sessions: d.total_clicks, // GSC clicks as sessions proxy
-          total_engaged_sessions: Math.round(d.total_clicks * 0.6), // Estimate 60% engagement
-          avg_session_duration: 120, // Default 2 min
-          total_new_users: Math.round(d.total_clicks * 0.7),
-          total_returning_users: Math.round(d.total_clicks * 0.3)
+          total_sessions: d.total_clicks, // GSC clicks = organic sessions
+          total_impressions: d.total_impressions,
+          avg_ctr: d.avg_ctr,
+          avg_position: d.avg_position
         }))
 
-        // Calculate totals from GSC
+        // Calculate totals from GSC - ONLY real data, no estimates
         totalSessions = dailySummary.reduce((sum, d) => sum + (d.total_sessions || 0), 0)
-        totalEngagedSessions = dailySummary.reduce((sum, d) => sum + (d.total_engaged_sessions || 0), 0)
-        avgBounceRate = 0.4 // Default 40% bounce rate
-        avgSessionDuration = 120
-        totalNewUsers = dailySummary.reduce((sum, d) => sum + (d.total_new_users || 0), 0)
-        totalReturningUsers = dailySummary.reduce((sum, d) => sum + (d.total_returning_users || 0), 0)
-        totalUsers = totalNewUsers + totalReturningUsers
+        const totalImpressions = dailySummary.reduce((sum, d) => sum + (d.total_impressions || 0), 0)
+        const avgCtr = totalImpressions > 0 ? totalSessions / totalImpressions : 0
+        const avgPosition = dailySummary.length > 0
+          ? dailySummary.reduce((sum, d) => sum + (d.avg_position || 0), 0) / dailySummary.length
+          : 0
 
-        // GSC is all organic search
+        // GSC doesn't provide these - set to null to indicate unavailable
+        totalEngagedSessions = null // Not available from GSC
+        avgBounceRate = null // Not available from GSC
+        avgSessionDuration = null // Not available from GSC
+        totalNewUsers = null // Not available from GSC
+        totalReturningUsers = null // Not available from GSC
+        totalUsers = null // Not available from GSC
+
+        // GSC is all organic search - this IS real data
         trafficSources = [{
           channel: 'Organic Search',
           sessions: totalSessions,
-          engaged_sessions: totalEngagedSessions,
-          bounce_rate: avgBounceRate
+          impressions: totalImpressions,
+          ctr: avgCtr,
+          avg_position: avgPosition,
+          bounce_rate: null // Not available
         }]
 
-        // Aggregate GSC pages
+        // Aggregate GSC pages with real CTR data
         const pageMap = new Map()
         gscPages?.forEach(row => {
           const page = row.page
@@ -243,19 +266,37 @@ export function useGA4(dateRange = null, comparisonMode = 'mom') {
           .map(p => ({
             page: p.page,
             sessions: p.clicks,
-            engaged_sessions: Math.round(p.clicks * 0.6),
-            bounce_rate: 0.4
+            impressions: p.impressions,
+            ctr: p.impressions > 0 ? p.clicks / p.impressions : 0,
+            bounce_rate: null // Not available from GSC
           }))
           .sort((a, b) => b.sessions - a.sessions)
           .slice(0, 20)
+
+        // Calculate REAL device breakdown from GSC
+        const deviceMap = new Map()
+        gscDevices?.forEach(row => {
+          const device = row.device
+          if (!deviceMap.has(device)) {
+            deviceMap.set(device, 0)
+          }
+          deviceMap.set(device, deviceMap.get(device) + (row.clicks || 0))
+        })
+
+        const deviceTotal = Array.from(deviceMap.values()).reduce((a, b) => a + b, 0)
+        deviceBreakdown = Array.from(deviceMap.entries())
+          .map(([device, clicks]) => ({
+            device,
+            sessions: clicks,
+            percentage: deviceTotal > 0 ? Math.round((clicks / deviceTotal) * 100) : 0
+          }))
+          .sort((a, b) => b.sessions - a.sessions)
       }
 
-      // Calculate device breakdown
-      const deviceBreakdown = [
-        { device: 'DESKTOP', sessions: Math.round(totalSessions * 0.35), percentage: 35 },
-        { device: 'MOBILE', sessions: Math.round(totalSessions * 0.58), percentage: 58 },
-        { device: 'TABLET', sessions: Math.round(totalSessions * 0.07), percentage: 7 }
-      ]
+      // Only calculate device breakdown if not already set by GSC fallback
+      if (!deviceBreakdown || deviceBreakdown.length === 0) {
+        deviceBreakdown = []
+      }
 
       // Fetch comparison data based on comparisonMode (MoM or YoY)
       let previousSummary = null
@@ -285,40 +326,81 @@ export function useGA4(dateRange = null, comparisonMode = 'mom') {
         const prevStart = prevStartDate.toISOString().split('T')[0]
         const prevEnd = prevEndDate.toISOString().split('T')[0]
 
-        const { data: prevDailyData } = await supabase
-          .from('v_ga4_daily_summary')
-          .select('*')
-          .eq('store_id', STORE_ID)
-          .gte('date', prevStart)
-          .lte('date', prevEnd)
-          .order('date', { ascending: false })
-          .limit(90)
+        // Use GSC fallback for previous period if GA4 data is empty
+        if (!hasGA4Data) {
+          // Fetch previous period from GSC - ONLY real data
+          const { data: prevGscData } = await supabase
+            .from('v_gsc_daily_summary')
+            .select('*')
+            .eq('store_id', STORE_ID)
+            .gte('date', prevStart)
+            .lte('date', prevEnd)
+            .order('date', { ascending: false })
+            .limit(90)
 
-        const previousDailySummary = prevDailyData || []
-        comparisonEnabled = previousDailySummary.length > 0
+          const previousDailySummary = prevGscData || []
+          comparisonEnabled = previousDailySummary.length > 0
 
-        if (comparisonEnabled) {
-          const prevTotalSessions = previousDailySummary.reduce((sum, d) => sum + (d.total_sessions || 0), 0)
-          const prevTotalEngaged = previousDailySummary.reduce((sum, d) => sum + (d.total_engaged_sessions || 0), 0)
-          const prevAvgBounceRate = prevTotalSessions > 0 ? (prevTotalSessions - prevTotalEngaged) / prevTotalSessions : 0
-          const prevAvgSessionDuration = previousDailySummary.length > 0
-            ? previousDailySummary.reduce((sum, d) => sum + (d.avg_session_duration || 0), 0) / previousDailySummary.length
-            : 0
-          const prevTotalNewUsers = previousDailySummary.reduce((sum, d) => sum + (d.total_new_users || 0), 0)
-          const prevTotalReturningUsers = previousDailySummary.reduce((sum, d) => sum + (d.total_returning_users || 0), 0)
-          const prevTotalUsers = prevTotalNewUsers + prevTotalReturningUsers
+          if (comparisonEnabled) {
+            // GSC only has clicks/impressions - no engagement metrics
+            const prevTotalSessions = previousDailySummary.reduce((sum, d) => sum + (d.total_clicks || 0), 0)
+            const prevTotalImpressions = previousDailySummary.reduce((sum, d) => sum + (d.total_impressions || 0), 0)
 
-          previousSummary = {
-            totalSessions: prevTotalSessions,
-            totalEngagedSessions: prevTotalEngaged,
-            avgBounceRate: prevAvgBounceRate,
-            avgSessionDuration: prevAvgSessionDuration,
-            totalUsers: prevTotalUsers,
-            totalNewUsers: prevTotalNewUsers,
-            totalReturningUsers: prevTotalReturningUsers
+            previousSummary = {
+              totalSessions: prevTotalSessions,
+              totalImpressions: prevTotalImpressions,
+              // These are NOT available from GSC - set to null
+              totalEngagedSessions: null,
+              avgBounceRate: null,
+              avgSessionDuration: null,
+              totalUsers: null,
+              totalNewUsers: null,
+              totalReturningUsers: null
+            }
+          }
+        } else {
+          // Use GA4 for previous period
+          const { data: prevDailyData } = await supabase
+            .from('v_ga4_daily_summary')
+            .select('*')
+            .eq('store_id', STORE_ID)
+            .gte('date', prevStart)
+            .lte('date', prevEnd)
+            .order('date', { ascending: false })
+            .limit(90)
+
+          const previousDailySummary = prevDailyData || []
+          comparisonEnabled = previousDailySummary.length > 0
+
+          if (comparisonEnabled) {
+            const prevTotalSessions = previousDailySummary.reduce((sum, d) => sum + (d.total_sessions || 0), 0)
+            const prevTotalEngaged = previousDailySummary.reduce((sum, d) => sum + (d.total_engaged_sessions || 0), 0)
+            const prevAvgBounceRate = prevTotalSessions > 0 ? (prevTotalSessions - prevTotalEngaged) / prevTotalSessions : 0
+            const prevAvgSessionDuration = previousDailySummary.length > 0
+              ? previousDailySummary.reduce((sum, d) => sum + (d.avg_session_duration || 0), 0) / previousDailySummary.length
+              : 0
+            const prevTotalNewUsers = previousDailySummary.reduce((sum, d) => sum + (d.total_new_users || 0), 0)
+            const prevTotalReturningUsers = previousDailySummary.reduce((sum, d) => sum + (d.total_returning_users || 0), 0)
+            const prevTotalUsers = prevTotalNewUsers + prevTotalReturningUsers
+
+            previousSummary = {
+              totalSessions: prevTotalSessions,
+              totalEngagedSessions: prevTotalEngaged,
+              avgBounceRate: prevAvgBounceRate,
+              avgSessionDuration: prevAvgSessionDuration,
+              totalUsers: prevTotalUsers,
+              totalNewUsers: prevTotalNewUsers,
+              totalReturningUsers: prevTotalReturningUsers
+            }
           }
         }
       }
+
+      // Calculate GSC-specific totals for summary
+      const totalImpressions = dailySummary.reduce((sum, d) => sum + (d.total_impressions || 0), 0)
+      const avgPosition = dailySummary.length > 0
+        ? dailySummary.reduce((sum, d) => sum + (d.avg_position || 0), 0) / dailySummary.length
+        : null
 
       setData({
         dailySummary,
@@ -327,6 +409,8 @@ export function useGA4(dateRange = null, comparisonMode = 'mom') {
         deviceBreakdown,
         summary: {
           totalSessions,
+          totalImpressions,
+          avgPosition,
           totalEngagedSessions,
           avgBounceRate,
           avgSessionDuration,

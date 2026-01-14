@@ -54,7 +54,9 @@ export default async function handler(req, res) {
     startDate.setDate(startDate.getDate() - days_back)
 
     // Fetch orders from ePages API
-    const apiUrl = `https://www.${store.domain}/rs/shops/${store.epages_shop_id}`
+    // KORJAUS: Älä lisää www. jos domain jo sisältää sen
+    const domainWithoutWww = store.domain.replace(/^www\./, '')
+    const apiUrl = `https://www.${domainWithoutWww}/rs/shops/${store.epages_shop_id}`
 
     let allOrders = []
     let page = 1
@@ -84,8 +86,32 @@ export default async function handler(req, res) {
 
       if (items.length === 0) break
 
-      allOrders = allOrders.concat(items)
-      console.log(`   📝 Fetched ${allOrders.length} orders...`)
+      // ePages API ei palauta lineItemContainer orders-listauksessa,
+      // joten haetaan jokaisen tilauksen tiedot erikseen
+      for (const orderSummary of items) {
+        try {
+          const orderDetailUrl = `${apiUrl}/orders/${orderSummary.orderId}`
+          const orderDetailRes = await fetch(orderDetailUrl, {
+            headers: {
+              'Authorization': `Bearer ${store.access_token}`,
+              'Accept': 'application/vnd.epages.v1+json'
+            }
+          })
+
+          if (orderDetailRes.ok) {
+            const fullOrder = await orderDetailRes.json()
+            allOrders.push(fullOrder)
+          } else {
+            // Fallback to summary if detail fetch fails
+            allOrders.push(orderSummary)
+          }
+        } catch (err) {
+          console.error(`   ⚠️ Failed to fetch order ${orderSummary.orderId} details:`, err.message)
+          allOrders.push(orderSummary)
+        }
+      }
+
+      console.log(`   📝 Fetched ${allOrders.length} orders with details...`)
 
       if (items.length < resultsPerPage) break
       page++
@@ -96,6 +122,9 @@ export default async function handler(req, res) {
     // Process and upsert orders
     let insertedOrders = 0
     let insertedLineItems = 0
+    let b2bOrders = 0
+    let b2bSoftOrders = 0
+    let customersCreated = 0
 
     for (const order of allOrders) {
       try {
@@ -111,7 +140,13 @@ export default async function handler(req, res) {
           'Closed': 'delivered'
         }
 
-        // Upsert order
+        // B2B detection: vatId = confirmed B2B, company only = soft B2B
+        const hasVatId = order.billingAddress?.vatId && order.billingAddress.vatId.trim() !== ''
+        const hasCompany = order.billingAddress?.company && order.billingAddress.company.trim() !== ''
+        const isB2B = hasVatId
+        const isB2BSoft = !hasVatId && hasCompany
+
+        // Upsert order with B2B flags
         const { data: insertedOrder, error: orderError } = await supabase
           .from('orders')
           .upsert({
@@ -138,6 +173,9 @@ export default async function handler(req, res) {
             billing_city: order.billingAddress?.city,
             billing_country: order.billingAddress?.country,
             billing_email: order.billingAddress?.emailAddress,
+            billing_vat_id: order.billingAddress?.vatId,
+            is_b2b: isB2B,
+            is_b2b_soft: isB2BSoft,
             shipping_company: order.shippingAddress?.company,
             shipping_first_name: order.shippingAddress?.firstName,
             shipping_last_name: order.shippingAddress?.lastName,
@@ -162,29 +200,74 @@ export default async function handler(req, res) {
         }
 
         insertedOrders++
+        if (isB2B) b2bOrders++
+        if (isB2BSoft) b2bSoftOrders++
+
+        // Create/update customer and link to order
+        if (order.billingAddress?.emailAddress || order.customerId) {
+          try {
+            const { data: customerResult } = await supabase.rpc('upsert_customer_from_order', {
+              p_store_id: store.id,
+              p_epages_customer_id: order.customerId || `order-${order.orderId}`,
+              p_customer_number: order.customerNumber || null,
+              p_email: order.billingAddress?.emailAddress,
+              p_company: order.billingAddress?.company,
+              p_city: order.billingAddress?.city,
+              p_country: order.billingAddress?.country,
+              p_postal_code: order.billingAddress?.zipCode,
+              p_order_total: typeof order.grandTotal === 'object' ? (order.grandTotal?.amount || 0) : parseFloat(order.grandTotal) || 0,
+              p_order_date: order.creationDate?.split('T')[0]
+            })
+
+            // Link order to customer
+            if (customerResult) {
+              await supabase
+                .from('orders')
+                .update({ customer_id: customerResult })
+                .eq('id', insertedOrder.id)
+              customersCreated++
+            }
+          } catch (custErr) {
+            console.log(`   ⚠️ Customer sync skipped: ${custErr.message}`)
+          }
+        }
 
         // Sync line items
         if (order.lineItemContainer?.productLineItems) {
-          for (const item of order.lineItemContainer.productLineItems) {
-            const { error: lineItemError } = await supabase
-              .from('order_line_items')
-              .upsert({
-                order_id: insertedOrder.id,
-                epages_line_item_id: item.lineItemId,
-                product_number: item.productNumber || item.sku,
-                product_name: item.name || 'Unknown',
-                quantity: item.quantity || 1,
-                unit_price: item.unitPrice?.amount || 0,
-                total_price: item.lineItemPrice?.amount || 0,
-                tax_rate: item.taxRate || 0,
-                tax_amount: item.taxAmount?.amount || 0,
-                discount_amount: item.discountAmount?.amount || 0
-              }, {
-                onConflict: 'order_id,epages_line_item_id'
-              })
+          // Check if line items already exist for this order
+          const { count: existingCount } = await supabase
+            .from('order_line_items')
+            .select('*', { count: 'exact', head: true })
+            .eq('order_id', insertedOrder.id)
 
-            if (!lineItemError) {
-              insertedLineItems++
+          if (existingCount > 0) {
+            // Line items already synced, skip
+            insertedLineItems += existingCount
+          } else {
+            for (const item of order.lineItemContainer.productLineItems) {
+              // quantity voi olla numero tai objekti {amount, unit}
+              const qty = typeof item.quantity === 'object' ? (item.quantity?.amount || 1) : (item.quantity || 1)
+              // Round qty to handle decimal quantities (DB expects integer)
+              const roundedQty = Math.round(qty)
+
+              const { error: lineItemError } = await supabase
+                .from('order_line_items')
+                .insert({
+                  order_id: insertedOrder.id,
+                  epages_line_item_id: item.lineItemId,
+                  product_number: item.productNumber || item.sku,
+                  product_name: item.name || 'Unknown',
+                  quantity: roundedQty,
+                  unit_price: item.unitPrice?.amount || item.singleItemPrice?.amount || 0,
+                  total_price: item.lineItemPrice?.amount || 0,
+                  tax_rate: item.taxClass?.percentage || item.taxRate || 0,
+                  tax_amount: item.taxAmount?.amount || 0,
+                  discount_amount: item.discountAmount?.amount || item.lineItemCouponDiscount?.amount || 0
+                })
+
+              if (!lineItemError) {
+                insertedLineItems++
+              }
             }
           }
         }
@@ -194,6 +277,7 @@ export default async function handler(req, res) {
     }
 
     console.log(`✅ ePages sync complete: ${insertedOrders} orders, ${insertedLineItems} line items`)
+    console.log(`   B2B: ${b2bOrders} confirmed, ${b2bSoftOrders} soft | Customers: ${customersCreated}`)
 
     return res.json({
       success: true,
@@ -201,6 +285,9 @@ export default async function handler(req, res) {
       store_name: store.name,
       orders_synced: insertedOrders,
       line_items_synced: insertedLineItems,
+      b2b_orders: b2bOrders,
+      b2b_soft_orders: b2bSoftOrders,
+      customers_synced: customersCreated,
       period: {
         start: startDate.toISOString(),
         end: endDate.toISOString()

@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState } from 'react'
 import { useGA4 } from '@/hooks/useGA4'
 import { useGA4Ecommerce } from '@/hooks/useGA4Ecommerce'
 import { MetricCard, MetricCardGroup } from '@/components/MetricCard'
@@ -6,20 +6,14 @@ import { DateRangePicker, getDateRange, formatDateISO } from '@/components/DateR
 import { Button } from '@/components/ui/button'
 import { useTranslation } from '@/lib/i18n'
 import {
-  Users,
-  MousePointer,
-  Clock,
   TrendingUp,
-  TrendingDown,
   RefreshCw,
   Link2,
   BarChart3,
   Globe,
   Loader2,
   ArrowUpRight,
-  ArrowDownRight,
   ShoppingCart,
-  Package,
   Eye,
   AlertTriangle
 } from 'lucide-react'
@@ -35,13 +29,6 @@ function createDefaultDateRange() {
   }
 }
 
-// Format session duration from seconds to mm:ss
-function formatDuration(seconds) {
-  if (!seconds || isNaN(seconds)) return '0:00'
-  const mins = Math.floor(seconds / 60)
-  const secs = Math.floor(seconds % 60)
-  return `${mins}:${secs.toString().padStart(2, '0')}`
-}
 
 // Billackering brand-inspired channel colors
 function getChannelColor(channel) {
@@ -88,7 +75,6 @@ export function GA4Page() {
     topProducts = [],
     productFunnel,
     lowConversionProducts = [],
-    highPerformers = [],
     loading: ecommerceLoading,
     syncEcommerce
   } = useGA4Ecommerce(dateRange)
@@ -101,19 +87,6 @@ export function GA4Page() {
 
   const sessionsChange = comparisonEnabled && previousSummary
     ? getChangePercent(summary?.totalSessions, previousSummary.totalSessions)
-    : null
-  // For bounce rate, lower is better, so invert
-  const bounceChange = comparisonEnabled && previousSummary
-    ? getChangePercent(previousSummary.avgBounceRate, summary?.avgBounceRate)
-    : null
-  const durationChange = comparisonEnabled && previousSummary
-    ? getChangePercent(summary?.avgSessionDuration, previousSummary.avgSessionDuration)
-    : null
-  const usersChange = comparisonEnabled && previousSummary
-    ? getChangePercent(summary?.totalUsers, previousSummary.totalUsers)
-    : null
-  const newUsersChange = comparisonEnabled && previousSummary
-    ? getChangePercent(summary?.totalNewUsers, previousSummary.totalNewUsers)
     : null
 
   const handleSync = async () => {
@@ -246,71 +219,58 @@ export function GA4Page() {
           </div>
         ) : (
           <div className="space-y-6">
-            {/* KPI Cards - Row 1: Traffic */}
+            {/* KPI Cards - Row 1: GSC Organic Traffic (real data) */}
             <MetricCardGroup columns={4} className="mb-6">
               <MetricCard
-                label={t('ga4.sessions')}
+                label={t('gsc.clicks')}
                 value={summary?.totalSessions || 0}
                 delta={sessionsChange}
                 deltaLabel={comparisonEnabled ? comparisonMode.toUpperCase() : undefined}
               />
               <MetricCard
-                label={t('ga4.users')}
-                value={summary?.totalUsers || 0}
-                delta={usersChange}
+                label={t('gsc.impressions')}
+                value={summary?.totalImpressions || 0}
+                delta={comparisonEnabled && previousSummary?.totalImpressions
+                  ? getChangePercent(summary?.totalImpressions, previousSummary.totalImpressions)
+                  : null}
                 deltaLabel={comparisonEnabled ? comparisonMode.toUpperCase() : undefined}
               />
               <MetricCard
-                label={t('ga4.newUsers')}
-                value={summary?.totalNewUsers || 0}
-                delta={newUsersChange}
-                deltaLabel={comparisonEnabled ? comparisonMode.toUpperCase() : undefined}
+                label={t('gsc.ctr')}
+                value={summary?.totalImpressions > 0
+                  ? `${((summary.totalSessions / summary.totalImpressions) * 100).toFixed(2)}%`
+                  : '—'}
               />
               <MetricCard
-                label={t('ga4.bounceRate')}
-                value={`${((summary?.avgBounceRate || 0) * 100).toFixed(1)}%`}
-                delta={bounceChange}
-                deltaLabel={comparisonEnabled ? comparisonMode.toUpperCase() : undefined}
-                invertDelta={true}
+                label={t('gsc.avgPosition')}
+                value={summary?.avgPosition?.toFixed(1) || '—'}
               />
             </MetricCardGroup>
 
-            {/* KPI Cards - Row 2: Engagement */}
-            <MetricCardGroup columns={4} className="mb-8">
-              <MetricCard
-                label={t('ga4.engagedSessions')}
-                value={summary?.totalEngagedSessions || 0}
-                subtitle={summary?.totalSessions > 0 ? `${((summary.totalEngagedSessions / summary.totalSessions) * 100).toFixed(0)}% ${t('gsc.ofTotal')}` : undefined}
-              />
-              <MetricCard
-                label={t('ga4.avgSessionDuration')}
-                value={formatDuration(summary?.avgSessionDuration || 0)}
-                delta={durationChange}
-                deltaLabel={comparisonEnabled ? comparisonMode.toUpperCase() : undefined}
-              />
-              <MetricCard
-                label={t('ga4.returningUsers')}
-                value={summary?.totalReturningUsers || 0}
-                subtitle={summary?.totalUsers > 0 ? `${((summary.totalReturningUsers / summary.totalUsers) * 100).toFixed(0)}% ${t('gsc.ofTotal')}` : undefined}
-              />
+            {/* Device Breakdown - Real GSC data */}
+            <MetricCardGroup columns={1} className="mb-8">
               <div className="bg-background-elevated rounded-xl p-5 border border-border">
                 <h3 className="text-sm font-medium text-foreground-muted mb-3">{t('ga4.deviceBreakdown')}</h3>
-                <div className="space-y-2">
-                  {deviceBreakdown.map((device) => (
-                    <div key={device.device} className="flex items-center justify-between">
-                      <span className="text-sm text-foreground">{device.device}</span>
-                      <div className="flex items-center gap-2">
-                        <div className="w-16 h-2 bg-background-subtle rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-primary rounded-full"
-                            style={{ width: `${device.percentage}%` }}
-                          />
+                {deviceBreakdown.length > 0 ? (
+                  <div className="flex gap-8">
+                    {deviceBreakdown.map((device) => (
+                      <div key={device.device} className="flex items-center gap-3">
+                        <span className="text-sm text-foreground capitalize">{device.device.toLowerCase()}</span>
+                        <div className="flex items-center gap-2">
+                          <div className="w-24 h-2 bg-background-subtle rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-primary rounded-full"
+                              style={{ width: `${device.percentage}%` }}
+                            />
+                          </div>
+                          <span className="text-sm font-medium text-foreground w-12 text-right">{device.percentage}%</span>
                         </div>
-                        <span className="text-sm font-medium text-foreground w-10 text-right">{device.percentage}%</span>
                       </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-foreground-muted">{t('common.loading')}</p>
+                )}
               </div>
             </MetricCardGroup>
 
@@ -330,11 +290,13 @@ export function GA4Page() {
                         <div className="flex items-center justify-between mb-1">
                           <span className="text-sm text-foreground">{source.channel}</span>
                           <div className="flex items-center gap-3">
-                            <span className="text-sm text-foreground-subtle tabular-nums">
-                              {(source.bounce_rate * 100).toFixed(0)}% {t('ga4.bounceShort')}
-                            </span>
+                            {source.impressions != null && (
+                              <span className="text-sm text-foreground-subtle tabular-nums">
+                                {source.impressions.toLocaleString()} {t('gsc.impressions').toLowerCase()}
+                              </span>
+                            )}
                             <span className="text-sm font-medium text-foreground tabular-nums">
-                              {source.sessions.toLocaleString()}
+                              {source.sessions.toLocaleString()} {t('gsc.clicks').toLowerCase()}
                             </span>
                           </div>
                         </div>
@@ -366,13 +328,13 @@ export function GA4Page() {
                 <div className="flex items-center justify-between pb-2 mb-2 border-b border-border text-xs text-foreground-muted">
                   <span>{t('gsc.page')}</span>
                   <div className="flex items-center gap-4">
-                    <span className="w-16 text-right">{t('ga4.bounceRate')}</span>
-                    <span className="w-16 text-right">{t('ga4.sessions')}</span>
+                    <span className="w-16 text-right">{t('gsc.ctr')}</span>
+                    <span className="w-16 text-right">{t('gsc.clicks')}</span>
                   </div>
                 </div>
                 <div className="space-y-2 max-h-[360px] overflow-y-auto">
                   {landingPages.map((page, i) => {
-                    const bounceHigh = page.bounce_rate > 0.5
+                    const ctrGood = page.ctr > 0.05 // 5% CTR is good
                     return (
                       <div
                         key={i}
@@ -384,13 +346,9 @@ export function GA4Page() {
                           </p>
                         </div>
                         <div className="flex items-center gap-4 flex-shrink-0">
-                          <div className={`flex items-center gap-1 text-sm w-16 justify-end ${bounceHigh ? 'text-destructive' : 'text-success'}`}>
-                            {bounceHigh ? (
-                              <ArrowUpRight className="w-3 h-3" />
-                            ) : (
-                              <ArrowDownRight className="w-3 h-3" />
-                            )}
-                            {(page.bounce_rate * 100).toFixed(0)}%
+                          <div className={`flex items-center gap-1 text-sm w-16 justify-end ${ctrGood ? 'text-success' : 'text-foreground-muted'}`}>
+                            {ctrGood && <ArrowUpRight className="w-3 h-3" />}
+                            {page.ctr != null ? `${(page.ctr * 100).toFixed(1)}%` : '—'}
                           </div>
                           <span className="text-sm font-medium text-foreground w-16 text-right tabular-nums">
                             {page.sessions.toLocaleString()}

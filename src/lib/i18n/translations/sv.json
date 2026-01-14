@@ -60,10 +60,11 @@
     "yourAccount": "Inloggad"
   },
   "nav": {
-    "dashboard": "Webbutik",
-    "searchConsole": "Search Console",
-    "indicators": "Indikatorer",
+    "overview": "Nuläge",
     "insights": "Analyser",
+    "sales": "Försäljning",
+    "searchConsole": "Sökmotorer",
+    "analytics": "Besökare",
     "settings": "Inställningar"
   },
   "periods": {
@@ -251,7 +252,7 @@
       "conversion": "Konvertering",
       "uniqueCustomers": "Unika kunder",
       "returningCustomers": "Återkommande kunder",
-      "sessions": "Sessioner",
+      "sessions": "SEO Sessioner",
       "bounceRate": "Avvisningsfrekvens",
       "productsPerOrder": "Produkter/order",
       "avgPerDay": "Snitt/dag",
@@ -287,6 +288,12 @@
     "dailySales": "Daglig försäljning",
     "dailyMargin": "Daglig bruttomarginal",
     "grossProfit": "Bruttomarginal",
+    "marginAmount": "Marginal (kr)",
+    "marginPercent": "Marginal-%",
+    "marginPercentLine": "Marginal-%",
+    "previousMarginPercent": "Föreg. marginal-%",
+    "ordersLine": "Ordrar",
+    "previousOrdersLine": "Föreg. ordrar",
     "salesByWeekday": "Försäljning per veckodag",
     "salesByHour": "Försäljning per timme",
     "topProducts": "Bästsäljande produkter",
@@ -301,6 +308,9 @@
     "sales": "Försäljning",
     "pcs": "st",
     "index": "Index",
+    "margin": "Marginal",
+    "revenue": "Försäljning",
+    "ordersContaining": "Antal ordrar",
     "moreCategories": "fler kategorier",
     "legend": {
       "excellent": "Utmärkt",
@@ -410,7 +420,7 @@
   },
   "insights": {
     "title": "Analyser",
-    "subtitle": "AI-genererade insikter och rekommendationer",
+    "subtitle": "Djupanalys bakom nulägesbilden",
     "noInsights": "Inga analyser tillgängliga ännu",
     "generating": "Genererar analyser...",
     "comingSoon": "Kommer snart",
@@ -420,11 +430,84 @@
     "opportunities": "Tillväxtmöjligheter",
     "opportunitiesDesc": "Hitta dolda tillväxtmöjligheter",
     "trends": "Trendanalyser",
-    "trendsDesc": "Följ marknadstrender och förutse förändringar"
+    "trendsDesc": "Följ marknadstrender och förutse förändringar",
+    "tabs": {
+      "category": "Produktkategorier",
+      "shipping": "Leverans & Betalning",
+      "browse": "Surfbeteende"
+    },
+    "loading": {
+      "category": "Laddar kategoridata...",
+      "shipping": "Laddar leverans- och betalningsdata...",
+      "browse": "Laddar surfbeteendedata..."
+    },
+    "category": {
+      "totalSales": "Total försäljning",
+      "totalMargin": "Totalmarginal",
+      "categoriesCount": "Kategorier",
+      "bestMargin": "Bästa marginal",
+      "topMargins": "Top 10 - Bästa marginaler",
+      "bottomMargins": "Bottom 10 - Svagaste marginaler",
+      "category": "Kategori",
+      "sales": "Försäljning",
+      "cost": "Kostnad",
+      "profit": "Vinst",
+      "marginPercent": "Marginal %",
+      "products": "Produkter"
+    },
+    "shipping": {
+      "title": "Leveranssätt",
+      "method": "Leveranssätt",
+      "orders": "Ordrar",
+      "share": "Andel",
+      "avgOrder": "Snittorder",
+      "minMax": "Min-Max"
+    },
+    "payment": {
+      "title": "Betalningssätt",
+      "method": "Betalningssätt",
+      "orders": "Ordrar",
+      "share": "Andel",
+      "avgOrder": "Snittorder",
+      "minMax": "Min-Max"
+    },
+    "cross": {
+      "title": "Leverans × Betalning (top 10 kombinationer)",
+      "shipping": "Leverans",
+      "payment": "Betalning",
+      "count": "Antal",
+      "share": "Andel",
+      "avgOrder": "Snittorder"
+    },
+    "browse": {
+      "noData": "Ingen surfdata tillgänglig",
+      "noDataDesc": "Synkronisera GA4 E-commerce för att se surfbeteendeanalys.",
+      "views": "Visningar",
+      "addedToCart": "Lagt i kundvagn",
+      "purchased": "Köpt",
+      "overallConversion": "Total konvertering",
+      "sales": "Försäljning",
+      "avgRevenuePerPurchase": "Snittintäkt/köp",
+      "opportunities": "Möjligheter: Hög trafik, låg konvertering",
+      "opportunitiesDesc": "Produkter med många visningar men låg försäljning",
+      "hiddenGems": "Dolda pärlor: Hög konvertering, låg trafik",
+      "hiddenGemsDesc": "Produkter som säljer bra men behöver mer synlighet",
+      "categoryConversions": "Konvertering per kategori",
+      "product": "Produkt",
+      "category": "Kategori",
+      "inCart": "I kundvagn",
+      "conversion": "Konvertering",
+      "lostPotential": "Förlorad potential",
+      "revenue": "Intäkt",
+      "viewToCart": "Till vagn",
+      "cartToPurchase": "Till köp",
+      "totalConversion": "Tot. konv.",
+      "pcs": "st"
+    }
   },
   "kpi": {
-    "title": "KPI Dashboard",
-    "subtitle": "Affärsindex på vecko-/månadsnivå",
+    "title": "Nuläge",
+    "subtitle": "Hur mår ditt företag?",
     "loading": "Laddar index...",
     "overallIndex": "Totalindex",
     "granularity": {

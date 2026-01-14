@@ -31,6 +31,15 @@ function getWeekNumber(date) {
   return Math.ceil((((d - yearStart) / 86400000) + 1) / 7)
 }
 
+// Get ISO week year (handles year boundary correctly)
+// E.g., 29.12.2025 belongs to week 1 of 2026, so this returns 2026
+function getISOWeekYear(date) {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
+  const dayNum = d.getUTCDay() || 7
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum)
+  return d.getUTCFullYear()
+}
+
 // Get week start (Monday) and end (Sunday) dates
 function getWeekDates(year, week) {
   const simple = new Date(year, 0, 1 + (week - 1) * 7)
@@ -135,10 +144,12 @@ async function generateWeeklyHistory() {
   })
 
   // Group orders by week (YYYY-Www format)
+  // IMPORTANT: Use ISO week year, not calendar year!
+  // E.g., 29.12.2025 belongs to 2026-W01, not 2025-W01
   const ordersByWeek = {}
   orders.forEach(order => {
     const date = new Date(order.creation_date)
-    const year = date.getFullYear()
+    const year = getISOWeekYear(date)  // ISO week year, not calendar year!
     const week = getWeekNumber(date)
     const weekKey = `${year}-W${String(week).padStart(2, '0')}`
 

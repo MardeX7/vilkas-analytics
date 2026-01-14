@@ -30,8 +30,13 @@ const COLORS = {
 
 export function DailySalesChart({ data, previousData = null, compare = false }) {
   const { t, locale } = useTranslation()
+
+  // Suodata pois nykyinen päivä jos se on tänään (keskeneräinen data näyttäisi nollaa)
+  const today = new Date().toISOString().split('T')[0]
+  const filteredData = data.filter(d => d.sale_date !== today)
+
   // Reverse to show oldest first
-  const currentData = [...data].reverse()
+  const currentData = [...filteredData].reverse()
 
   // If comparing, merge previous data with current
   let chartData
@@ -42,6 +47,7 @@ export function DailySalesChart({ data, previousData = null, compare = false }) 
       revenue: d.total_revenue,
       orders: d.order_count,
       previousRevenue: prevReversed[i]?.total_revenue || null,
+      previousOrders: prevReversed[i]?.order_count || null,
       previousDate: prevReversed[i] ? new Date(prevReversed[i].sale_date).toLocaleDateString(locale, { month: 'short', day: 'numeric' }) : null
     }))
   } else {
@@ -71,23 +77,46 @@ export function DailySalesChart({ data, previousData = null, compare = false }) 
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke={COLORS.grid} vertical={false} />
               <XAxis dataKey="date" stroke={COLORS.muted} fontSize={11} tickLine={false} axisLine={false} />
-              <YAxis stroke={COLORS.muted} fontSize={11} tickLine={false} axisLine={false} tickFormatter={(v) => `${(v/1000).toFixed(0)}k`} />
+              <YAxis
+                yAxisId="left"
+                stroke={COLORS.muted}
+                fontSize={11}
+                tickLine={false}
+                axisLine={false}
+                tickFormatter={(v) => `${(v/1000).toFixed(0)}k`}
+              />
+              <YAxis
+                yAxisId="right"
+                orientation="right"
+                stroke={COLORS.warning}
+                fontSize={11}
+                tickLine={false}
+                axisLine={false}
+                tickFormatter={(v) => `${v}`}
+              />
               <Tooltip
                 contentStyle={{ backgroundColor: COLORS.tooltip, border: `1px solid ${COLORS.grid}`, borderRadius: '8px' }}
                 labelStyle={{ color: COLORS.text }}
                 formatter={(value, name) => {
-                  if (name === 'revenue') return [`${value?.toLocaleString()} SEK`, t('charts.current')]
+                  if (name === 'revenue') return [`${value?.toLocaleString()} SEK`, t('charts.sales')]
                   if (name === 'previousRevenue') return [`${value?.toLocaleString()} SEK`, t('charts.previous')]
+                  if (name === 'orders') return [`${value}`, t('charts.ordersLine')]
+                  if (name === 'previousOrders') return [`${value}`, t('charts.previousOrdersLine')]
                   return [value, name]
                 }}
               />
-              {showComparison && (
-                <Legend
-                  wrapperStyle={{ paddingTop: '10px' }}
-                  formatter={(value) => value === 'revenue' ? t('charts.currentPeriod') : t('charts.previousPeriod')}
-                />
-              )}
+              <Legend
+                wrapperStyle={{ paddingTop: '10px' }}
+                formatter={(value) => {
+                  if (value === 'revenue') return t('charts.currentPeriod')
+                  if (value === 'previousRevenue') return t('charts.previousPeriod')
+                  if (value === 'orders') return t('charts.ordersLine')
+                  if (value === 'previousOrders') return t('charts.previousOrdersLine')
+                  return value
+                }}
+              />
               <Area
+                yAxisId="left"
                 type="monotone"
                 dataKey="revenue"
                 stroke={COLORS.primary}
@@ -97,12 +126,33 @@ export function DailySalesChart({ data, previousData = null, compare = false }) 
               />
               {showComparison && (
                 <Line
+                  yAxisId="left"
                   type="monotone"
                   dataKey="previousRevenue"
                   stroke={COLORS.muted}
                   strokeWidth={2}
                   strokeDasharray="5 5"
                   dot={false}
+                />
+              )}
+              <Line
+                yAxisId="right"
+                type="monotone"
+                dataKey="orders"
+                stroke={COLORS.warning}
+                strokeWidth={2}
+                dot={false}
+              />
+              {showComparison && (
+                <Line
+                  yAxisId="right"
+                  type="monotone"
+                  dataKey="previousOrders"
+                  stroke={COLORS.warning}
+                  strokeWidth={1}
+                  strokeDasharray="5 5"
+                  dot={false}
+                  opacity={0.5}
                 />
               )}
             </ComposedChart>
@@ -115,8 +165,13 @@ export function DailySalesChart({ data, previousData = null, compare = false }) 
 
 export function DailyMarginChart({ data, previousData = null, compare = false }) {
   const { t, locale } = useTranslation()
+
+  // Suodata pois nykyinen päivä jos se on tänään (keskeneräinen data näyttäisi nollaa)
+  const today = new Date().toISOString().split('T')[0]
+  const filteredData = data.filter(d => d.sale_date !== today)
+
   // Reverse to show oldest first
-  const currentData = [...data].reverse()
+  const currentData = [...filteredData].reverse()
 
   // If comparing, merge previous data with current
   let chartData
@@ -127,6 +182,7 @@ export function DailyMarginChart({ data, previousData = null, compare = false })
       grossProfit: d.gross_profit,
       marginPercent: d.margin_percent,
       previousGrossProfit: prevReversed[i]?.gross_profit || null,
+      previousMarginPercent: prevReversed[i]?.margin_percent || null,
       previousDate: prevReversed[i] ? new Date(prevReversed[i].sale_date).toLocaleDateString(locale, { month: 'short', day: 'numeric' }) : null
     }))
   } else {
@@ -156,23 +212,47 @@ export function DailyMarginChart({ data, previousData = null, compare = false })
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke={COLORS.grid} vertical={false} />
               <XAxis dataKey="date" stroke={COLORS.muted} fontSize={11} tickLine={false} axisLine={false} />
-              <YAxis stroke={COLORS.muted} fontSize={11} tickLine={false} axisLine={false} tickFormatter={(v) => `${(v/1000).toFixed(0)}k`} />
+              <YAxis
+                yAxisId="left"
+                stroke={COLORS.muted}
+                fontSize={11}
+                tickLine={false}
+                axisLine={false}
+                tickFormatter={(v) => `${(v/1000).toFixed(0)}k`}
+              />
+              <YAxis
+                yAxisId="right"
+                orientation="right"
+                stroke={COLORS.warning}
+                fontSize={11}
+                tickLine={false}
+                axisLine={false}
+                domain={[0, 100]}
+                tickFormatter={(v) => `${v}%`}
+              />
               <Tooltip
                 contentStyle={{ backgroundColor: COLORS.tooltip, border: `1px solid ${COLORS.grid}`, borderRadius: '8px' }}
                 labelStyle={{ color: COLORS.text }}
                 formatter={(value, name) => {
-                  if (name === 'grossProfit') return [`${value?.toLocaleString()} SEK`, t('charts.current')]
+                  if (name === 'grossProfit') return [`${value?.toLocaleString()} SEK`, t('charts.marginAmount')]
                   if (name === 'previousGrossProfit') return [`${value?.toLocaleString()} SEK`, t('charts.previous')]
+                  if (name === 'marginPercent') return [`${value?.toFixed(1)}%`, t('charts.marginPercent')]
+                  if (name === 'previousMarginPercent') return [`${value?.toFixed(1)}%`, t('charts.previousMarginPercent')]
                   return [value, name]
                 }}
               />
-              {showComparison && (
-                <Legend
-                  wrapperStyle={{ paddingTop: '10px' }}
-                  formatter={(value) => value === 'grossProfit' ? t('charts.currentPeriod') : t('charts.previousPeriod')}
-                />
-              )}
+              <Legend
+                wrapperStyle={{ paddingTop: '10px' }}
+                formatter={(value) => {
+                  if (value === 'grossProfit') return t('charts.currentPeriod')
+                  if (value === 'previousGrossProfit') return t('charts.previousPeriod')
+                  if (value === 'marginPercent') return t('charts.marginPercentLine')
+                  if (value === 'previousMarginPercent') return t('charts.previousMarginPercent')
+                  return value
+                }}
+              />
               <Area
+                yAxisId="left"
                 type="monotone"
                 dataKey="grossProfit"
                 stroke={COLORS.success}
@@ -182,12 +262,33 @@ export function DailyMarginChart({ data, previousData = null, compare = false })
               />
               {showComparison && (
                 <Line
+                  yAxisId="left"
                   type="monotone"
                   dataKey="previousGrossProfit"
                   stroke={COLORS.muted}
                   strokeWidth={2}
                   strokeDasharray="5 5"
                   dot={false}
+                />
+              )}
+              <Line
+                yAxisId="right"
+                type="monotone"
+                dataKey="marginPercent"
+                stroke={COLORS.warning}
+                strokeWidth={2}
+                dot={false}
+              />
+              {showComparison && (
+                <Line
+                  yAxisId="right"
+                  type="monotone"
+                  dataKey="previousMarginPercent"
+                  stroke={COLORS.warning}
+                  strokeWidth={1}
+                  strokeDasharray="5 5"
+                  dot={false}
+                  opacity={0.5}
                 />
               )}
             </ComposedChart>
@@ -237,6 +338,8 @@ export function WeekdayChart({ data }) {
               <Tooltip
                 contentStyle={{ backgroundColor: COLORS.tooltip, border: `1px solid ${COLORS.grid}`, borderRadius: '8px' }}
                 labelStyle={{ color: COLORS.text }}
+                itemStyle={{ color: COLORS.text }}
+                cursor={{ fill: 'rgba(255,255,255,0.05)' }}
                 formatter={(value) => [`${value.toLocaleString()} SEK`, t('charts.sales')]}
               />
               <Bar dataKey="revenue" fill={COLORS.primary} radius={[4, 4, 0, 0]} />
@@ -286,6 +389,8 @@ export function HourlyChart({ data }) {
               <Tooltip
                 contentStyle={{ backgroundColor: COLORS.tooltip, border: `1px solid ${COLORS.grid}`, borderRadius: '8px' }}
                 labelStyle={{ color: COLORS.text }}
+                itemStyle={{ color: COLORS.text }}
+                cursor={{ fill: 'rgba(255,255,255,0.05)' }}
                 formatter={(value) => [`${value.toLocaleString()} SEK`, t('charts.sales')]}
               />
               <Bar dataKey="revenue" fill={COLORS.success} radius={[4, 4, 0, 0]} />

@@ -67,7 +67,64 @@ export default async function handler(req, res) {
     const endDate = end_date || new Date().toISOString().split('T')[0]
     const startDate = start_date || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
 
-    // Fetch data from GSC API
+    // 1. FETCH DAILY TOTALS (date-only dimension for accurate totals)
+    const dailyResponse = await fetch(
+      `https://www.googleapis.com/webmasters/v3/sites/${encodeURIComponent(tokenData.site_url)}/searchAnalytics/query`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          startDate,
+          endDate,
+          dimensions: ['date'],
+          rowLimit: 25000
+        })
+      }
+    )
+
+    const dailyData = await dailyResponse.json()
+
+    if (dailyData.error) {
+      console.error('GSC Daily API error:', dailyData.error)
+      return res.status(500).json({ error: dailyData.error.message })
+    }
+
+    const dailyRows = dailyData.rows || []
+
+    // Transform daily totals
+    const dailyRecords = dailyRows.map(row => ({
+      store_id,
+      date: row.keys[0],
+      clicks: row.clicks || 0,
+      impressions: row.impressions || 0,
+      ctr: row.ctr || 0,
+      position: row.position || 0,
+      updated_at: new Date().toISOString()
+    }))
+
+    // Delete old daily totals for this period
+    await supabase
+      .from('gsc_daily_totals')
+      .delete()
+      .eq('store_id', store_id)
+      .gte('date', startDate)
+      .lte('date', endDate)
+
+    // Insert daily totals
+    if (dailyRecords.length > 0) {
+      const { error: dailyInsertError } = await supabase
+        .from('gsc_daily_totals')
+        .insert(dailyRecords)
+
+      if (dailyInsertError) {
+        console.error('Daily totals insert error:', dailyInsertError)
+      }
+    }
+
+    // 2. FETCH DETAILED DATA (all dimensions for queries/pages breakdown)
     const gscResponse = await fetch(
       `https://www.googleapis.com/webmasters/v3/sites/${encodeURIComponent(tokenData.site_url)}/searchAnalytics/query`,
       {
@@ -94,7 +151,7 @@ export default async function handler(req, res) {
 
     const rows = gscData.rows || []
 
-    // Transform and insert data
+    // Transform and insert detailed data
     const records = rows.map(row => ({
       store_id,
       date: row.keys[0],
@@ -108,7 +165,7 @@ export default async function handler(req, res) {
       position: row.position || 0
     }))
 
-    // Delete old data for this period and store
+    // Delete old detailed data for this period and store
     await supabase
       .from('gsc_search_analytics')
       .delete()
@@ -116,7 +173,7 @@ export default async function handler(req, res) {
       .gte('date', startDate)
       .lte('date', endDate)
 
-    // Insert new data in batches
+    // Insert new detailed data in batches
     const batchSize = 1000
     for (let i = 0; i < records.length; i += batchSize) {
       const batch = records.slice(i, i + batchSize)
@@ -131,7 +188,8 @@ export default async function handler(req, res) {
 
     return res.json({
       success: true,
-      rows_synced: records.length,
+      daily_totals_synced: dailyRecords.length,
+      detailed_rows_synced: records.length,
       period: { startDate, endDate }
     })
 

@@ -8,6 +8,10 @@
  * 4. Recalculates indicators for all periods
  *
  * Vercel Cron: https://vercel.com/docs/cron-jobs
+ *
+ * HUOM: ID-mappaus (Billackering.eu):
+ *   STORE_ID = stores.id = a28836f6-... (käytetään: orders, products, ga4_tokens, gsc_tokens)
+ *   SHOP_ID  = shops.id  = 3b93e9b1-... (käytetään: ga4_ecommerce)
  */
 
 import { createClient } from '@supabase/supabase-js'
@@ -36,15 +40,15 @@ export default async function handler(req, res) {
   }
 
   const supabase = createClient(supabaseUrl, supabaseServiceKey)
-  const baseUrl = process.env.VERCEL_URL
-    ? `https://${process.env.VERCEL_URL}`
-    : 'http://localhost:3000'
+  // KORJAUS: Käytä kovakoodattua tuotanto-URL:ia koska VERCEL_URL on dynaaminen deployment URL
+  const baseUrl = process.env.PRODUCTION_URL || 'https://vilkas-analytics.vercel.app'
 
   const results = {
     started_at: new Date().toISOString(),
     epages_sync: [],
     ga4_sync: [],
     gsc_sync: [],
+    inventory_snapshots: [],
     indicators: [],
     errors: []
   }
@@ -59,7 +63,7 @@ export default async function handler(req, res) {
       throw new Error(`Failed to fetch stores: ${storesError.message}`)
     }
 
-    // Also get shops for GA4/GSC tokens (different table)
+    // Also get shops for ga4_ecommerce (different table, uses SHOP_ID)
     const { data: shops } = await supabase
       .from('shops')
       .select('id, name, domain, store_id')
@@ -120,133 +124,194 @@ export default async function handler(req, res) {
       // ============================================
       // 2b. SYNC GA4 DATA (last 30 days)
       // ============================================
-      // Find the corresponding shop for this store (GA4/GSC tokens are linked to shops table)
+      // KORJATTU: ga4_tokens käyttää STORE_ID:tä (store.id), ei SHOP_ID:tä!
+      const { data: ga4Tokens } = await supabase
+        .from('ga4_tokens')
+        .select('id, property_id')
+        .eq('store_id', store.id)  // STORE_ID
+
+      // SHOP_ID tarvitaan vain ga4_ecommerce:lle
       const linkedShop = shops?.find(s => s.store_id === store.id || s.domain === store.domain)
       const shopId = linkedShop?.id
 
-      if (shopId) {
-        const { data: ga4Tokens } = await supabase
-          .from('ga4_tokens')
-          .select('id, property_id')
-          .eq('store_id', shopId)
+      if (ga4Tokens && ga4Tokens.length > 0) {
+        try {
+          const ga4Response = await fetch(
+            `${baseUrl}/api/ga4/sync`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                store_id: store.id  // KORJATTU: STORE_ID
+              })
+            }
+          )
 
-        if (ga4Tokens && ga4Tokens.length > 0) {
-          try {
-            const ga4Response = await fetch(
-              `${baseUrl}/api/ga4/sync`,
-              {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  store_id: shopId
-                  // Default: last 30 days
-                })
-              }
-            )
+          const ga4Result = await ga4Response.json()
 
-            const ga4Result = await ga4Response.json()
+          results.ga4_sync.push({
+            store_id: store.id,
+            shop_id: shopId,
+            store_name: store.name,
+            status: ga4Response.ok ? 'success' : 'error',
+            ...ga4Result
+          })
 
-            results.ga4_sync.push({
-              store_id: store.id,
-              shop_id: shopId,
-              store_name: store.name,
-              status: ga4Response.ok ? 'success' : 'error',
-              ...ga4Result
-            })
-
-            console.log(`  ✅ GA4 sync: ${ga4Result.rows_synced || 0} rows`)
-          } catch (err) {
-            console.error(`  ❌ GA4 sync error:`, err.message)
-            results.ga4_sync.push({
-              store_id: store.id,
-              store_name: store.name,
-              status: 'error',
-              error: err.message
-            })
-            results.errors.push(`GA4 sync failed for ${store.name}: ${err.message}`)
-          }
-        } else {
-          console.log(`  ⏭️ No GA4 connection, skipping GA4 sync`)
+          console.log(`  ✅ GA4 sync: ${ga4Result.rows_synced || 0} rows`)
+        } catch (err) {
+          console.error(`  ❌ GA4 sync error:`, err.message)
           results.ga4_sync.push({
             store_id: store.id,
             store_name: store.name,
-            status: 'skipped',
-            reason: 'No GA4 tokens'
+            status: 'error',
+            error: err.message
           })
-        }
-
-        // ============================================
-        // 2c. SYNC GSC DATA (last 28 days)
-        // ============================================
-        const { data: gscTokens } = await supabase
-          .from('gsc_tokens')
-          .select('id, site_url')
-          .eq('store_id', shopId)
-
-        if (gscTokens && gscTokens.length > 0) {
-          try {
-            const gscResponse = await fetch(
-              `${supabaseUrl}/functions/v1/gsc-sync`,
-              {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${supabaseServiceKey}`
-                },
-                body: JSON.stringify({
-                  store_id: shopId
-                })
-              }
-            )
-
-            const gscResult = await gscResponse.json()
-
-            results.gsc_sync.push({
-              store_id: store.id,
-              shop_id: shopId,
-              store_name: store.name,
-              status: gscResponse.ok ? 'success' : 'error',
-              ...gscResult
-            })
-
-            console.log(`  ✅ GSC sync: ${gscResult.total_rows_synced || 0} rows`)
-          } catch (err) {
-            console.error(`  ❌ GSC sync error:`, err.message)
-            results.gsc_sync.push({
-              store_id: store.id,
-              store_name: store.name,
-              status: 'error',
-              error: err.message
-            })
-            results.errors.push(`GSC sync failed for ${store.name}: ${err.message}`)
-          }
-        } else {
-          console.log(`  ⏭️ No GSC connection, skipping GSC sync`)
-          results.gsc_sync.push({
-            store_id: store.id,
-            store_name: store.name,
-            status: 'skipped',
-            reason: 'No GSC tokens'
-          })
+          results.errors.push(`GA4 sync failed for ${store.name}: ${err.message}`)
         }
       } else {
-        console.log(`  ⏭️ No linked shop found, skipping GA4/GSC sync`)
+        console.log(`  ⏭️ No GA4 connection, skipping GA4 sync`)
         results.ga4_sync.push({
           store_id: store.id,
           store_name: store.name,
           status: 'skipped',
-          reason: 'No linked shop'
-        })
-        results.gsc_sync.push({
-          store_id: store.id,
-          store_name: store.name,
-          status: 'skipped',
-          reason: 'No linked shop'
+          reason: 'No GA4 tokens'
         })
       }
 
       // ============================================
-      // 2d. CALCULATE INDICATORS
+      // 2c. SYNC GSC DATA (last 28 days)
+      // ============================================
+      // KORJATTU: gsc_tokens käyttää STORE_ID:tä (store.id), ei SHOP_ID:tä!
+      const { data: gscTokens } = await supabase
+        .from('gsc_tokens')
+        .select('id, site_url')
+        .eq('store_id', store.id)  // STORE_ID
+
+      if (gscTokens && gscTokens.length > 0) {
+        try {
+          // KORJAUS: Käytä Vercel API routea Edge Functionin sijaan
+          const gscResponse = await fetch(
+            `${baseUrl}/api/gsc/sync`,
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                store_id: store.id  // KORJATTU: STORE_ID
+              })
+            }
+          )
+
+          const gscResult = await gscResponse.json()
+
+          results.gsc_sync.push({
+            store_id: store.id,
+            shop_id: shopId,
+            store_name: store.name,
+            status: gscResponse.ok ? 'success' : 'error',
+            ...gscResult
+          })
+
+          console.log(`  ✅ GSC sync: ${gscResult.total_rows_synced || 0} rows`)
+        } catch (err) {
+          console.error(`  ❌ GSC sync error:`, err.message)
+          results.gsc_sync.push({
+            store_id: store.id,
+            store_name: store.name,
+            status: 'error',
+            error: err.message
+          })
+          results.errors.push(`GSC sync failed for ${store.name}: ${err.message}`)
+        }
+      } else {
+        console.log(`  ⏭️ No GSC connection, skipping GSC sync`)
+        results.gsc_sync.push({
+          store_id: store.id,
+          store_name: store.name,
+          status: 'skipped',
+          reason: 'No GSC tokens'
+        })
+      }
+
+      // ============================================
+      // 2d. CREATE DAILY INVENTORY SNAPSHOT
+      // ============================================
+      try {
+        const { data: snapshotResult, error: snapshotError } = await supabase
+          .rpc('create_daily_inventory_snapshot', {
+            p_store_id: store.id
+          })
+
+        if (snapshotError) {
+          console.log(`  ℹ️ Inventory snapshot: ${snapshotError.message}`)
+          results.inventory_snapshots.push({
+            store_id: store.id,
+            store_name: store.name,
+            status: 'error',
+            error: snapshotError.message
+          })
+        } else {
+          console.log(`  ✅ Inventory snapshot: ${snapshotResult || 0} products`)
+          results.inventory_snapshots.push({
+            store_id: store.id,
+            store_name: store.name,
+            status: 'success',
+            products_count: snapshotResult || 0
+          })
+        }
+      } catch (err) {
+        console.log(`  ℹ️ Inventory snapshot: ${err.message}`)
+        results.inventory_snapshots.push({
+          store_id: store.id,
+          store_name: store.name,
+          status: 'error',
+          error: err.message
+        })
+      }
+
+      // ============================================
+      // 2e. CALCULATE PRODUCT ROLES (weekly on Mondays)
+      // ============================================
+      const today = new Date()
+      const isMonday = today.getUTCDay() === 1
+
+      if (isMonday) {
+        try {
+          // Calculate 90-day product roles
+          const endDate = today.toISOString().split('T')[0]
+          const startDate = new Date(today.getTime() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+
+          // Delete old roles for this period
+          await supabase
+            .from('product_roles')
+            .delete()
+            .eq('store_id', store.id)
+            .eq('period_start', startDate)
+            .eq('period_end', endDate)
+
+          // Get sales data and calculate roles via RPC or direct calculation
+          const { error: rolesError } = await supabase.rpc('calculate_product_roles_batch', {
+            p_store_id: store.id,
+            p_start_date: startDate,
+            p_end_date: endDate
+          })
+
+          if (rolesError) {
+            // RPC doesn't exist yet, skip silently
+            console.log(`  ℹ️ Product roles: manual calculation needed`)
+          } else {
+            console.log(`  ✅ Product roles: calculated (90 days)`)
+          }
+        } catch (err) {
+          console.log(`  ℹ️ Product roles: ${err.message}`)
+        }
+      } else {
+        console.log(`  ⏭️ Product roles: skipped (only on Mondays)`)
+      }
+
+      // ============================================
+      // 2e. CALCULATE INDICATORS
       // ============================================
       const periods = ['7d', '30d', '90d']
 

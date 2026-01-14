@@ -8,6 +8,12 @@ import { DailySalesChart, DailyMarginChart, WeekdayChart, HourlyChart } from '@/
 import { TopProducts } from '@/components/TopProducts'
 import { CategoryChart } from '@/components/CategoryChart'
 import { PaymentMethodsChart, ShippingMethodsChart } from '@/components/PaymentMethods'
+import { CustomerSegmentCard } from '@/components/CustomerSegmentCard'
+import { OrderBucketChart } from '@/components/OrderBucketChart'
+import { MerchantGoalsCard } from '@/components/MerchantGoalsCard'
+import { ContextNotesCard } from '@/components/ContextNotesCard'
+import { CampaignsCard } from '@/components/CampaignsCard'
+import { ProductRolesCard } from '@/components/ProductRolesCard'
 import { DateRangePicker, getDateRange, formatDateISO, getPreviousPeriod, getYearOverYearPeriod } from '@/components/DateRangePicker'
 import { RefreshCw, BarChart3, TrendingUp, Package, XCircle, Truck, Tag, Gift, Coins } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -58,7 +64,7 @@ export function Dashboard() {
     previousSummary: ga4PreviousSummary,
     comparisonEnabled: ga4ComparisonEnabled,
     connected: ga4Connected
-  } = useGA4(dateRange)
+  } = useGA4(dateRange, comparisonMode)
 
   // Get category data (default 30 days, could be linked to dateRange)
   const { categories } = useCategories(30)
@@ -207,7 +213,7 @@ export function Dashboard() {
           <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
             <span className="text-foreground-subtle text-xs sm:text-sm">{t('dashboard.showingDataFor')}</span>
             <span className="inline-flex items-center px-2 sm:px-3 py-0.5 sm:py-1 rounded-full bg-primary-muted text-primary text-xs sm:text-sm font-medium">
-              {dateRange.label}
+              {dateRange.label || t(`datePicker.presets.${dateRange.preset || 'last30'}`)}
             </span>
           </div>
           <span className="text-xs text-foreground-subtle">
@@ -303,6 +309,15 @@ export function Dashboard() {
               <span className="text-foreground font-medium tabular-nums">
                 {(summary?.avgItemsPerOrder || 0).toFixed(1)}
               </span>
+              {dateRange.compare && previousSummary?.avgItemsPerOrder > 0 && (
+                <span className={cn(
+                  "text-xs",
+                  (summary?.avgItemsPerOrder || 0) >= previousSummary.avgItemsPerOrder ? "text-success" : "text-destructive"
+                )}>
+                  ({(summary?.avgItemsPerOrder || 0) >= previousSummary.avgItemsPerOrder ? '↑' : '↓'}
+                  {Math.abs(((summary?.avgItemsPerOrder || 0) - previousSummary.avgItemsPerOrder) / previousSummary.avgItemsPerOrder * 100).toFixed(0)}%)
+                </span>
+              )}
             </div>
             <div className="flex items-center gap-2">
               <TrendingUp className="w-4 h-4 text-foreground-subtle" />
@@ -355,6 +370,15 @@ export function Dashboard() {
                 <span className="text-foreground-subtle text-xs">
                   ({t('dashboard.metrics.margin')} {(summary?.kitMarginPercent || 0).toFixed(0)}%)
                 </span>
+                {dateRange.compare && previousSummary?.kitRevenuePercent > 0 && (
+                  <span className={cn(
+                    "text-xs",
+                    (summary?.kitRevenuePercent || 0) >= previousSummary.kitRevenuePercent ? "text-success" : "text-destructive"
+                  )}>
+                    ({(summary?.kitRevenuePercent || 0) >= previousSummary.kitRevenuePercent ? '↑' : '↓'}
+                    {Math.abs((summary?.kitRevenuePercent || 0) - previousSummary.kitRevenuePercent).toFixed(1)}pp)
+                  </span>
+                )}
               </div>
             )}
             {/* Margin per order */}
@@ -365,6 +389,15 @@ export function Dashboard() {
                 <span className="text-foreground font-medium tabular-nums">
                   {Math.round(summary?.marginPerOrder || 0).toLocaleString(language === 'fi' ? 'fi-FI' : 'sv-SE')} kr
                 </span>
+                {dateRange.compare && previousSummary?.marginPerOrder > 0 && (
+                  <span className={cn(
+                    "text-xs",
+                    (summary?.marginPerOrder || 0) >= previousSummary.marginPerOrder ? "text-success" : "text-destructive"
+                  )}>
+                    ({(summary?.marginPerOrder || 0) >= previousSummary.marginPerOrder ? '↑' : '↓'}
+                    {Math.abs(((summary?.marginPerOrder || 0) - previousSummary.marginPerOrder) / previousSummary.marginPerOrder * 100).toFixed(0)}%)
+                  </span>
+                )}
               </div>
             )}
           </div>
@@ -395,6 +428,42 @@ export function Dashboard() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
           <PaymentMethodsChart data={paymentMethods} />
           <ShippingMethodsChart data={shippingMethods} />
+        </div>
+
+        {/* Charts Row 2.5 - Customer Segments & Order Buckets */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+          <CustomerSegmentCard
+            startDate={dateRange.startDate}
+            endDate={dateRange.endDate}
+            label={dateRange.label}
+          />
+          <OrderBucketChart
+            startDate={dateRange.startDate}
+            endDate={dateRange.endDate}
+            label={dateRange.label}
+          />
+        </div>
+
+        {/* Charts Row 2.6 - Goals & Context Notes */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+          <MerchantGoalsCard />
+          <ContextNotesCard
+            startDate={dateRange.startDate}
+            endDate={dateRange.endDate}
+            label={dateRange.label}
+          />
+        </div>
+
+        {/* Charts Row 2.7 - Campaigns & Product Roles */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+          <CampaignsCard
+            startDate={dateRange.startDate}
+            endDate={dateRange.endDate}
+          />
+          <ProductRolesCard
+            startDate={dateRange.startDate}
+            endDate={dateRange.endDate}
+          />
         </div>
 
         {/* Charts Row 3 - Categories (only show if data exists) */}

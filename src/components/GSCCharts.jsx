@@ -108,10 +108,27 @@ export function GSCDailyChart({ data, previousData = [], comparisonEnabled = fal
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke={COLORS.grid} vertical={false} />
               <XAxis dataKey="date" stroke={COLORS.muted} fontSize={11} tickLine={false} axisLine={false} />
-              <YAxis stroke={COLORS.muted} fontSize={11} tickLine={false} axisLine={false} />
+              <YAxis
+                yAxisId="left"
+                stroke={COLORS.primary}
+                fontSize={11}
+                tickLine={false}
+                axisLine={false}
+                orientation="left"
+              />
+              <YAxis
+                yAxisId="right"
+                stroke={COLORS.secondary}
+                fontSize={11}
+                tickLine={false}
+                axisLine={false}
+                orientation="right"
+              />
               <Tooltip
                 contentStyle={{ backgroundColor: COLORS.tooltip, border: `1px solid ${COLORS.grid}`, borderRadius: '8px' }}
                 labelStyle={{ color: COLORS.text }}
+                itemStyle={{ color: COLORS.text }}
+                cursor={{ stroke: COLORS.primary, strokeWidth: 1, strokeDasharray: '3 3' }}
               />
               {/* Previous period data (dashed lines) */}
               {showComparison && (
@@ -119,6 +136,7 @@ export function GSCDailyChart({ data, previousData = [], comparisonEnabled = fal
                   <Area
                     type="monotone"
                     dataKey="prevClicks"
+                    yAxisId="left"
                     name={`${t('gsc.clicks')} (${t('charts.previous')})`}
                     stroke={COLORS.primary}
                     strokeWidth={1.5}
@@ -129,6 +147,7 @@ export function GSCDailyChart({ data, previousData = [], comparisonEnabled = fal
                   <Area
                     type="monotone"
                     dataKey="prevImpressions"
+                    yAxisId="right"
                     name={`${t('gsc.impressions')} (${t('charts.previous')})`}
                     stroke={COLORS.secondary}
                     strokeWidth={1.5}
@@ -142,6 +161,7 @@ export function GSCDailyChart({ data, previousData = [], comparisonEnabled = fal
               <Area
                 type="monotone"
                 dataKey="clicks"
+                yAxisId="left"
                 name={t('gsc.clicks')}
                 stroke={COLORS.primary}
                 strokeWidth={2}
@@ -151,6 +171,7 @@ export function GSCDailyChart({ data, previousData = [], comparisonEnabled = fal
               <Area
                 type="monotone"
                 dataKey="impressions"
+                yAxisId="right"
                 name={t('gsc.impressions')}
                 stroke={COLORS.secondary}
                 strokeWidth={2}
@@ -190,7 +211,19 @@ export function GSCTopQueries({ queries }) {
         <CardTitle className="text-foreground text-base font-medium">{t('gsc.topQueries')}</CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="space-y-1 max-h-80 overflow-y-auto">
+        {/* Column headers */}
+        <div className="flex items-center justify-between px-2 pb-2 border-b border-card-border mb-2">
+          <div className="flex items-center gap-3 flex-1 min-w-0">
+            <span className="text-xs text-foreground-subtle w-5">#</span>
+            <span className="text-xs text-foreground-subtle">{t('gsc.query')}</span>
+          </div>
+          <div className="flex items-center gap-4 text-xs text-foreground-subtle">
+            <div className="text-right w-16">{t('gsc.clicks')}</div>
+            <div className="text-right w-16">{t('gsc.ctr')}</div>
+            <div className="text-right w-12">{t('gsc.position')}</div>
+          </div>
+        </div>
+        <div className="space-y-1 max-h-72 overflow-y-auto">
           {queries.slice(0, 15).map((q, index) => (
             <div
               key={q.query}
@@ -216,10 +249,6 @@ export function GSCTopQueries({ queries }) {
             </div>
           ))}
         </div>
-        <div className="flex justify-end gap-4 mt-4 text-xs text-foreground-subtle pr-2">
-          <span>{t('gsc.ctr')}</span>
-          <span>{t('gsc.position')}</span>
-        </div>
       </CardContent>
     </Card>
   )
@@ -244,7 +273,18 @@ export function GSCTopPages({ pages }) {
         <CardTitle className="text-foreground text-base font-medium">{t('gsc.topPages')}</CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="space-y-1 max-h-80 overflow-y-auto">
+        {/* Column headers */}
+        <div className="flex items-center justify-between px-2 pb-2 border-b border-card-border mb-2">
+          <div className="flex items-center gap-3 flex-1 min-w-0">
+            <span className="text-xs text-foreground-subtle w-5">#</span>
+            <span className="text-xs text-foreground-subtle">{t('gsc.page')}</span>
+          </div>
+          <div className="flex items-center gap-4 text-xs text-foreground-subtle">
+            <div className="text-right w-16">{t('gsc.clicks')}</div>
+            <div className="text-right w-20">{t('gsc.impressions')}</div>
+          </div>
+        </div>
+        <div className="space-y-1 max-h-72 overflow-y-auto">
           {pages.slice(0, 15).map((p, index) => (
             <div
               key={p.page}
@@ -266,9 +306,6 @@ export function GSCTopPages({ pages }) {
               </div>
             </div>
           ))}
-        </div>
-        <div className="flex justify-end gap-4 mt-4 text-xs text-foreground-subtle pr-2">
-          <span>{t('gsc.impressions')}</span>
         </div>
       </CardContent>
     </Card>

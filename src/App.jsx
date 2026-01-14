@@ -19,7 +19,7 @@ function App() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/auth/callback" element={<AuthCallback />} />
 
-        {/* Protected routes */}
+        {/* Protected routes - järjestetty käyttölogiikan mukaan */}
         <Route
           element={
             <ProtectedRoute>
@@ -27,11 +27,16 @@ function App() {
             </ProtectedRoute>
           }
         >
-          <Route path="/" element={<Dashboard />} />
+          {/* JOHTAMINEN: Entry point = Tilannekuva (KPI Dashboard) */}
+          <Route path="/" element={<IndicatorsPage />} />
+          <Route path="/insights" element={<InsightsPage />} />
+
+          {/* DATA & TODISTEET */}
+          <Route path="/sales" element={<Dashboard />} />
           <Route path="/search-console" element={<SearchConsolePage />} />
           <Route path="/analytics" element={<GA4Page />} />
-          <Route path="/insights" element={<InsightsPage />} />
-          <Route path="/indicators" element={<IndicatorsPage />} />
+
+          {/* Tuki-sivut */}
           <Route path="/indicators/:indicatorId" element={<IndicatorDetailPage />} />
           <Route path="/settings" element={<SettingsPage />} />
         </Route>

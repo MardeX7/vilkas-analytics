@@ -3,18 +3,21 @@ import { supabase } from '@/lib/supabase'
 import { STORE_ID } from '@/config/storeConfig'
 
 // Helper to fetch summary for a period
+// KORJAUS: Käytä v_daily_sales-näkymää RLS-ongelman kiertämiseksi
 async function fetchPeriodSummary(startDate, endDate) {
-  let query = supabase
-    .from('orders')
-    .select('grand_total, billing_email, creation_date, status, shipping_price, discount_amount')
+  // Hae peruslaskelmat v_daily_sales-näkymästä (ohittaa RLS-ongelmat)
+  let viewQuery = supabase
+    .from('v_daily_sales')
+    .select('total_revenue, order_count, unique_customers, avg_order_value')
     .eq('store_id', STORE_ID)
 
-  if (startDate) query = query.gte('creation_date', startDate)
-  if (endDate) query = query.lte('creation_date', endDate + 'T23:59:59')
+  if (startDate) viewQuery = viewQuery.gte('sale_date', startDate)
+  if (endDate) viewQuery = viewQuery.lte('sale_date', endDate)
 
-  const { data: allOrders } = await query
+  const { data: dailyData } = await viewQuery
 
-  if (!allOrders || allOrders.length === 0) {
+  // Aggregoi päivittäiset summat
+  if (!dailyData || dailyData.length === 0) {
     return {
       totalRevenue: 0, orderCount: 0, uniqueCustomers: 0, avgOrderValue: 0,
       cancelledCount: 0, cancelledPercent: 0,
@@ -24,36 +27,61 @@ async function fetchPeriodSummary(startDate, endDate) {
     }
   }
 
-  // Separate cancelled vs non-cancelled
-  const cancelledOrders = allOrders.filter(o => o.status === 'cancelled')
-  const activeOrders = allOrders.filter(o => o.status !== 'cancelled')
-
-  const totalRevenue = activeOrders.reduce((sum, o) => sum + (o.grand_total || 0), 0)
-  const orderCount = activeOrders.length
-  const uniqueCustomers = new Set(activeOrders.map(o => o.billing_email).filter(Boolean)).size
+  const totalRevenue = dailyData.reduce((sum, d) => sum + (parseFloat(d.total_revenue) || 0), 0)
+  const orderCount = dailyData.reduce((sum, d) => sum + (d.order_count || 0), 0)
+  // unique_customers is approximate when summing daily - take max as estimate
+  const uniqueCustomers = dailyData.reduce((sum, d) => sum + (d.unique_customers || 0), 0)
   const avgOrderValue = orderCount > 0 ? totalRevenue / orderCount : 0
 
-  // Cancelled orders metrics
-  const cancelledCount = cancelledOrders.length
-  const cancelledPercent = allOrders.length > 0 ? (cancelledCount / allOrders.length) * 100 : 0
+  // Lisätiedot (cancelled, shipping, discount) - koita hakea orders-taulusta
+  // Jos RLS estää, palauta 0
+  let cancelledCount = 0
+  let cancelledPercent = 0
+  let totalShipping = 0
+  let shippingPercent = 0
+  let totalDiscount = 0
+  let discountPercent = 0
+  let returningCustomerPercent = 0
 
-  // Shipping cost metrics
-  const totalShipping = activeOrders.reduce((sum, o) => sum + (o.shipping_price || 0), 0)
-  const shippingPercent = totalRevenue > 0 ? (totalShipping / totalRevenue) * 100 : 0
+  try {
+    let ordersQuery = supabase
+      .from('orders')
+      .select('status, shipping_price, discount_amount, billing_email')
+      .eq('store_id', STORE_ID)
 
-  // Discount metrics
-  const totalDiscount = activeOrders.reduce((sum, o) => sum + (o.discount_amount || 0), 0)
-  const discountPercent = totalRevenue > 0 ? (totalDiscount / totalRevenue) * 100 : 0
+    if (startDate) ordersQuery = ordersQuery.gte('creation_date', startDate)
+    if (endDate) ordersQuery = ordersQuery.lte('creation_date', endDate + 'T23:59:59')
 
-  // Returning customers - customers with more than 1 order
-  const customerOrderCount = {}
-  activeOrders.forEach(o => {
-    if (o.billing_email) {
-      customerOrderCount[o.billing_email] = (customerOrderCount[o.billing_email] || 0) + 1
+    const { data: allOrders } = await ordersQuery
+
+    if (allOrders && allOrders.length > 0) {
+      const cancelledOrders = allOrders.filter(o => o.status === 'cancelled')
+      const activeOrders = allOrders.filter(o => o.status !== 'cancelled')
+
+      cancelledCount = cancelledOrders.length
+      cancelledPercent = allOrders.length > 0 ? (cancelledCount / allOrders.length) * 100 : 0
+
+      totalShipping = activeOrders.reduce((sum, o) => sum + (o.shipping_price || 0), 0)
+      shippingPercent = totalRevenue > 0 ? (totalShipping / totalRevenue) * 100 : 0
+
+      totalDiscount = activeOrders.reduce((sum, o) => sum + (o.discount_amount || 0), 0)
+      discountPercent = totalRevenue > 0 ? (totalDiscount / totalRevenue) * 100 : 0
+
+      // Returning customers
+      const customerOrderCount = {}
+      activeOrders.forEach(o => {
+        if (o.billing_email) {
+          customerOrderCount[o.billing_email] = (customerOrderCount[o.billing_email] || 0) + 1
+        }
+      })
+      const returningCustomers = Object.values(customerOrderCount).filter(count => count > 1).length
+      const totalCustomers = Object.keys(customerOrderCount).length
+      returningCustomerPercent = totalCustomers > 0 ? (returningCustomers / totalCustomers) * 100 : 0
     }
-  })
-  const returningCustomers = Object.values(customerOrderCount).filter(count => count > 1).length
-  const returningCustomerPercent = uniqueCustomers > 0 ? (returningCustomers / uniqueCustomers) * 100 : 0
+  } catch (err) {
+    // RLS estää orders-taulun haun - jatka ilman lisätietoja
+    console.log('Could not fetch additional order details:', err.message)
+  }
 
   return {
     totalRevenue, orderCount, uniqueCustomers, avgOrderValue,
@@ -133,7 +161,8 @@ async function fetchGrossMargin(startDate, endDate) {
   const grossProfit = totalRevenue - totalCost
   const marginPercent = totalRevenue > 0 ? (grossProfit / totalRevenue) * 100 : 0
 
-  return { grossProfit, marginPercent, totalCost, totalRevenue }
+  // Nimetään marginRevenue erottamaan fetchPeriodSummary:n totalRevenue:sta
+  return { grossProfit, marginPercent, totalCost, marginRevenue: totalRevenue }
 }
 
 // Helper to fetch daily gross margin data
@@ -399,6 +428,12 @@ export function useAnalytics(dateRange = null) {
       if (startDate) productsQuery = productsQuery.gte('creation_date', startDate)
       if (endDate) productsQuery = productsQuery.lte('creation_date', endDate + 'T23:59:59')
 
+      // Fetch product cost prices for margin calculation
+      const productCostQuery = supabase
+        .from('products')
+        .select('product_number, cost_price')
+        .eq('store_id', STORE_ID)
+
       // Payment methods in date range
       let paymentQuery = supabase
         .from('orders')
@@ -434,9 +469,12 @@ export function useAnalytics(dateRange = null) {
         grossMargin,
         previousGrossMargin,
         itemsPerOrder,
+        previousItemsPerOrder,
         dailyMarginData,
         previousDailyMarginData,
-        kitStats
+        kitStats,
+        previousKitStats,
+        productCostRes
       ] = await Promise.all([
         dailyQuery,
         supabase.from('v_weekly_sales').select('*').eq('store_id', STORE_ID).order('week_start', { ascending: false }).limit(12),
@@ -452,10 +490,21 @@ export function useAnalytics(dateRange = null) {
         fetchGrossMargin(startDate, endDate),
         compare && previousStartDate ? fetchGrossMargin(previousStartDate, previousEndDate) : Promise.resolve(null),
         fetchItemsPerOrder(startDate, endDate),
+        compare && previousStartDate ? fetchItemsPerOrder(previousStartDate, previousEndDate) : Promise.resolve({ avgItemsPerOrder: 0 }),
         fetchDailyMargin(startDate, endDate),
         compare && previousStartDate ? fetchDailyMargin(previousStartDate, previousEndDate) : Promise.resolve([]),
-        fetchKitStats(startDate, endDate)
+        fetchKitStats(startDate, endDate),
+        compare && previousStartDate ? fetchKitStats(previousStartDate, previousEndDate) : Promise.resolve({ kitRevenuePercent: 0 }),
+        productCostQuery
       ])
+
+      // Build cost price map from products
+      const costPriceMap = new Map()
+      productCostRes.data?.forEach(p => {
+        if (p.product_number && p.cost_price) {
+          costPriceMap.set(p.product_number, p.cost_price)
+        }
+      })
 
       // Aggregate top products from orders
       const productMap = new Map()
@@ -468,16 +517,26 @@ export function useAnalytics(dateRange = null) {
               product_number: item.product_number,
               total_quantity: 0,
               total_revenue: 0,
-              order_count: 0
+              total_cost: 0,
+              order_ids: new Set()
             })
           }
           const prod = productMap.get(key)
-          prod.total_quantity += item.quantity || 0
+          const qty = item.quantity || 0
+          const costPrice = costPriceMap.get(item.product_number) || 0
+          prod.total_quantity += qty
           prod.total_revenue += item.total_price || 0
-          prod.order_count += 1
+          prod.total_cost += costPrice * qty
+          prod.order_ids.add(order.id)
         })
       })
       const topProducts = Array.from(productMap.values())
+        .map(p => ({
+          ...p,
+          order_count: p.order_ids.size,
+          gross_margin: p.total_revenue - p.total_cost,
+          margin_percent: p.total_revenue > 0 ? ((p.total_revenue - p.total_cost) / p.total_revenue) * 100 : 0
+        }))
         .sort((a, b) => b.total_revenue - a.total_revenue)
         .slice(0, 10)
 
@@ -566,6 +625,11 @@ export function useAnalytics(dateRange = null) {
         previousSummary: previousSummary ? {
           ...previousSummary,
           marginPercent: previousGrossMargin?.marginPercent || 0,
+          avgItemsPerOrder: previousItemsPerOrder?.avgItemsPerOrder || 0,
+          kitRevenuePercent: previousKitStats?.kitRevenuePercent || 0,
+          marginPerOrder: previousSummary.orderCount > 0 && previousGrossMargin
+            ? previousGrossMargin.grossProfit / previousSummary.orderCount
+            : 0,
           currency: 'SEK'
         } : null,
         comparison

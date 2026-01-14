@@ -60,10 +60,11 @@
     "yourAccount": "Kirjautuneena"
   },
   "nav": {
-    "dashboard": "Verkkokauppa",
-    "searchConsole": "Search Console",
-    "indicators": "Indikaattorit",
+    "overview": "Tilannekuva",
     "insights": "Analyysit",
+    "sales": "Myynti",
+    "searchConsole": "Hakukoneet",
+    "analytics": "Kävijät",
     "settings": "Asetukset"
   },
   "periods": {
@@ -251,7 +252,7 @@
       "conversion": "Konversio",
       "uniqueCustomers": "Uniikkia asiakasta",
       "returningCustomers": "Palaavia asiakkaita",
-      "sessions": "Sessiot",
+      "sessions": "SEO Sessiot",
       "bounceRate": "Poistumis-%",
       "productsPerOrder": "Tuotteita/tilaus",
       "avgPerDay": "Keskiarvo/pv",
@@ -287,6 +288,12 @@
     "dailySales": "Päivittäinen myynti",
     "dailyMargin": "Päivittäinen myyntikate",
     "grossProfit": "Kate",
+    "marginAmount": "Kate (kr)",
+    "marginPercent": "Kate-%",
+    "marginPercentLine": "Kate-%",
+    "previousMarginPercent": "Edell. kate-%",
+    "ordersLine": "Tilaukset",
+    "previousOrdersLine": "Edell. tilaukset",
     "salesByWeekday": "Myynti viikonpäivittäin",
     "salesByHour": "Myynti tunneittain",
     "topProducts": "Myydyimmät tuotteet",
@@ -301,6 +308,9 @@
     "sales": "Myynti",
     "pcs": "kpl",
     "index": "Indeksi",
+    "margin": "Kate",
+    "revenue": "Myynti",
+    "ordersContaining": "Kuinka monessa tilauksessa",
     "moreCategories": "kategoriaa lisää",
     "legend": {
       "excellent": "Erinomainen",
@@ -410,7 +420,7 @@
   },
   "insights": {
     "title": "Analyysit",
-    "subtitle": "AI-generoidut näkemykset ja suositukset",
+    "subtitle": "Syvällinen analyysi tilannekuvan taustalla",
     "noInsights": "Ei analyyseja vielä saatavilla",
     "generating": "Generoidaan analyyseja...",
     "comingSoon": "Tulossa pian",
@@ -420,11 +430,84 @@
     "opportunities": "Kasvumahdollisuudet",
     "opportunitiesDesc": "Löydä piilossa olevat kasvumahdollisuudet",
     "trends": "Trendianalyysit",
-    "trendsDesc": "Seuraa markkinatrendejä ja ennakoi muutoksia"
+    "trendsDesc": "Seuraa markkinatrendejä ja ennakoi muutoksia",
+    "tabs": {
+      "category": "Tuotekategoriat",
+      "shipping": "Toimitus & Maksu",
+      "browse": "Selailukäyttäytyminen"
+    },
+    "loading": {
+      "category": "Ladataan kategoriadataa...",
+      "shipping": "Ladataan toimitus- ja maksutietoja...",
+      "browse": "Ladataan selailukäyttäytymisdataa..."
+    },
+    "category": {
+      "totalSales": "Kokonaismyynti",
+      "totalMargin": "Kokonaismarginaali",
+      "categoriesCount": "Kategorioita",
+      "bestMargin": "Paras marginaali",
+      "topMargins": "Top 10 - Parhaat marginaalit",
+      "bottomMargins": "Bottom 10 - Heikoimmat marginaalit",
+      "category": "Kategoria",
+      "sales": "Myynti",
+      "cost": "Kustannus",
+      "profit": "Voitto",
+      "marginPercent": "Marginaali %",
+      "products": "Tuotteita"
+    },
+    "shipping": {
+      "title": "Toimitustavat",
+      "method": "Toimitustapa",
+      "orders": "Tilauksia",
+      "share": "Osuus",
+      "avgOrder": "Keskitilaus",
+      "minMax": "Min-Max"
+    },
+    "payment": {
+      "title": "Maksutavat",
+      "method": "Maksutapa",
+      "orders": "Tilauksia",
+      "share": "Osuus",
+      "avgOrder": "Keskitilaus",
+      "minMax": "Min-Max"
+    },
+    "cross": {
+      "title": "Toimitus × Maksu (top 10 yhdistelmää)",
+      "shipping": "Toimitus",
+      "payment": "Maksu",
+      "count": "Määrä",
+      "share": "Osuus",
+      "avgOrder": "Keskitilaus"
+    },
+    "browse": {
+      "noData": "Selailudataa ei saatavilla",
+      "noDataDesc": "Synkronoi GA4 E-commerce nähdäksesi selailukäyttäytymisanalyysin.",
+      "views": "Katselut",
+      "addedToCart": "Lisätty koriin",
+      "purchased": "Ostettu",
+      "overallConversion": "Kokonaiskonversio",
+      "sales": "Myynti",
+      "avgRevenuePerPurchase": "Keskituotto/osto",
+      "opportunities": "Mahdollisuudet: Korkea liikenne, matala konversio",
+      "opportunitiesDesc": "Tuotteet jotka saavat paljon katseluja mutta myyvät huonosti",
+      "hiddenGems": "Piilotetut helmet: Korkea konversio, matala liikenne",
+      "hiddenGemsDesc": "Tuotteet jotka myyvät hyvin mutta tarvitsevat lisää näkyvyyttä",
+      "categoryConversions": "Konversio kategorioittain",
+      "product": "Tuote",
+      "category": "Kategoria",
+      "inCart": "Korissa",
+      "conversion": "Konversio",
+      "lostPotential": "Menetetty potentiaali",
+      "revenue": "Tuotto",
+      "viewToCart": "Koriin",
+      "cartToPurchase": "Ostoon",
+      "totalConversion": "Kok. konv.",
+      "pcs": "kpl"
+    }
   },
   "kpi": {
-    "title": "KPI Dashboard",
-    "subtitle": "Liiketoiminnan indeksit viikko/kuukausitasolla",
+    "title": "Tilannekuva",
+    "subtitle": "Onko liiketoimintasi kunnossa?",
     "loading": "Ladataan indeksejä...",
     "overallIndex": "Kokonaisindeksi",
     "granularity": {

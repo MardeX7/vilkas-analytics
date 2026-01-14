@@ -21,12 +21,17 @@ export function MobileNav() {
   const [isOpen, setIsOpen] = useState(false)
   const { t, language, toggleLanguage } = useTranslation()
 
+  // Navigaatio järjestetty käyttölogiikan mukaan:
+  // 1. JOHTAMINEN: Tilannekuva (entry point) + Analyysit (tulkinta)
+  // 2. DATA & TODISTEET: Myynti, Hakukoneet, Kävijät
   const navItems = [
-    { to: '/', icon: BarChart3, label: t('nav.dashboard') },
-    { to: '/search-console', icon: Search, label: t('nav.searchConsole') },
-    { to: '/analytics', icon: Activity, label: 'Google Analytics' },
-    { to: '/indicators', icon: Target, label: t('nav.indicators') },
+    // Johtamisen näkymät
+    { to: '/', icon: Target, label: t('nav.overview') },
     { to: '/insights', icon: TrendingUp, label: t('nav.insights') },
+    // Data & todisteet
+    { to: '/sales', icon: BarChart3, label: t('nav.sales') },
+    { to: '/search-console', icon: Search, label: t('nav.searchConsole') },
+    { to: '/analytics', icon: Activity, label: t('nav.analytics') },
   ]
 
   const closeMenu = () => setIsOpen(false)
