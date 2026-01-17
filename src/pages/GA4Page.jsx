@@ -33,6 +33,16 @@ function createDefaultDateRange() {
   }
 }
 
+// Format duration in seconds to "Xm Ys" format
+function formatDuration(seconds) {
+  if (!seconds || seconds === 0) return '0s'
+  const mins = Math.floor(seconds / 60)
+  const secs = Math.round(seconds % 60)
+  if (mins === 0) return `${secs}s`
+  if (secs === 0) return `${mins}m`
+  return `${mins}m ${secs}s`
+}
+
 
 // Billackering brand-inspired channel colors
 function getChannelColor(channel) {
@@ -226,31 +236,42 @@ export function GA4Page() {
           </div>
         ) : (
           <div className="space-y-6">
-            {/* KPI Cards - Row 1: GSC Organic Traffic (real data) */}
+            {/* KPI Cards - GA4 Traffic Metrics */}
             <MetricCardGroup columns={4} className="mb-6">
               <MetricCard
-                label={t('gsc.clicks')}
+                label={t('ga4.sessions')}
                 value={summary?.totalSessions || 0}
                 delta={sessionsChange}
                 deltaLabel={comparisonEnabled ? comparisonMode.toUpperCase() : undefined}
               />
               <MetricCard
-                label={t('gsc.impressions')}
-                value={summary?.totalImpressions || 0}
-                delta={comparisonEnabled && previousSummary?.totalImpressions
-                  ? getChangePercent(summary?.totalImpressions, previousSummary.totalImpressions)
+                label={t('ga4.users')}
+                value={summary?.totalUsers || 0}
+                delta={comparisonEnabled && previousSummary?.totalUsers
+                  ? getChangePercent(summary?.totalUsers, previousSummary.totalUsers)
                   : null}
                 deltaLabel={comparisonEnabled ? comparisonMode.toUpperCase() : undefined}
               />
               <MetricCard
-                label={t('gsc.ctr')}
-                value={summary?.totalImpressions > 0
-                  ? `${((summary.totalSessions / summary.totalImpressions) * 100).toFixed(2)}%`
+                label={t('ga4.bounceRate')}
+                value={summary?.avgBounceRate != null
+                  ? `${(summary.avgBounceRate * 100).toFixed(1)}%`
                   : '—'}
+                delta={comparisonEnabled && previousSummary?.avgBounceRate != null
+                  ? getChangePercent(summary?.avgBounceRate, previousSummary.avgBounceRate)
+                  : null}
+                deltaLabel={comparisonEnabled ? comparisonMode.toUpperCase() : undefined}
+                invertDelta={true}
               />
               <MetricCard
-                label={t('gsc.avgPosition')}
-                value={summary?.avgPosition?.toFixed(1) || '—'}
+                label={t('ga4.avgSessionDuration')}
+                value={summary?.avgSessionDuration != null
+                  ? formatDuration(summary.avgSessionDuration)
+                  : '—'}
+                delta={comparisonEnabled && previousSummary?.avgSessionDuration
+                  ? getChangePercent(summary?.avgSessionDuration, previousSummary.avgSessionDuration)
+                  : null}
+                deltaLabel={comparisonEnabled ? comparisonMode.toUpperCase() : undefined}
               />
             </MetricCardGroup>
 
