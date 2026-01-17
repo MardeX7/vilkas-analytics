@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { useTranslation } from '@/lib/i18n'
 import {
   TrendingUp,
+  TrendingDown,
   RefreshCw,
   Link2,
   BarChart3,
@@ -19,6 +20,7 @@ import {
   MousePointer
 } from 'lucide-react'
 import { BrowseAnalysisCard } from '@/components/BrowseAnalysisCard'
+import { TopProductsGA4 } from '@/components/TopProductsGA4'
 
 // Helper to create default date range
 function createDefaultDateRange() {
@@ -69,17 +71,20 @@ export function GA4Page() {
     syncGA4,
     loading,
     error,
-    refresh
+    refresh,
+    riskRadar = { decliningPages: [], channelDecline: [], deviceShift: [] }
   } = useGA4(dateRange, comparisonMode)
 
   // E-commerce data
   const {
     topProducts = [],
+    previousTopProducts = [],
     productFunnel,
     lowConversionProducts = [],
     loading: ecommerceLoading,
-    syncEcommerce
-  } = useGA4Ecommerce(dateRange)
+    syncEcommerce,
+    comparisonEnabled: ecommerceComparisonEnabled
+  } = useGA4Ecommerce(dateRange, comparisonMode)
 
   // Calculate change percentages
   const getChangePercent = (current, previous) => {
@@ -280,13 +285,27 @@ export function GA4Page() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Traffic Sources */}
               <div className="bg-background-elevated rounded-lg border border-card-border p-5">
-                <h3 className="text-base font-medium text-foreground mb-4 flex items-center gap-2">
-                  <Globe className="w-5 h-5 text-primary" />
-                  {t('ga4.trafficSources')}
-                </h3>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-base font-medium text-foreground flex items-center gap-2">
+                    <Globe className="w-5 h-5 text-primary" />
+                    {t('ga4.trafficSources')}
+                  </h3>
+                  {comparisonEnabled && (
+                    <span className="text-xs text-foreground-subtle px-2 py-0.5 bg-background-subtle rounded">
+                      {comparisonMode.toUpperCase()}
+                    </span>
+                  )}
+                </div>
                 <div className="space-y-3">
                   {trafficSources.slice(0, 8).map((source, i) => {
                     const pct = totalSessions > 0 ? (source.sessions / totalSessions) * 100 : 0
+                    // Calculate CTR for this source
+                    const ctr = source.impressions > 0 ? (source.sessions / source.impressions) * 100 : null
+                    // Calculate change vs previous period (per-channel comparison)
+                    const sessionsChange = comparisonEnabled && source.previousSessions > 0
+                      ? getChangePercent(source.sessions, source.previousSessions)
+                      : null
+
                     return (
                       <div key={i}>
                         <div className="flex items-center justify-between mb-1">
@@ -300,16 +319,32 @@ export function GA4Page() {
                             <span className="text-sm font-medium text-foreground tabular-nums">
                               {source.sessions.toLocaleString()} {t('gsc.clicks').toLowerCase()}
                             </span>
+                            {sessionsChange !== null && (
+                              <span className={`inline-flex items-center gap-0.5 text-xs tabular-nums ${
+                                sessionsChange > 0 ? 'text-success' : sessionsChange < 0 ? 'text-destructive' : 'text-foreground-subtle'
+                              }`}>
+                                {sessionsChange > 0 && <TrendingUp className="w-3 h-3" />}
+                                {sessionsChange < 0 && <TrendingDown className="w-3 h-3" />}
+                                {sessionsChange > 0 && '+'}{sessionsChange.toFixed(0)}%
+                              </span>
+                            )}
                           </div>
                         </div>
-                        <div className="h-1.5 bg-background-subtle rounded-full overflow-hidden">
-                          <div
-                            className="h-full rounded-full transition-all duration-500"
-                            style={{
-                              width: `${pct}%`,
-                              backgroundColor: getChannelColor(source.channel)
-                            }}
-                          />
+                        <div className="flex items-center gap-2 mb-1">
+                          <div className="flex-1 h-1.5 bg-background-subtle rounded-full overflow-hidden">
+                            <div
+                              className="h-full rounded-full transition-all duration-500"
+                              style={{
+                                width: `${pct}%`,
+                                backgroundColor: getChannelColor(source.channel)
+                              }}
+                            />
+                          </div>
+                          {ctr !== null && (
+                            <span className="text-xs text-foreground-muted tabular-nums w-14 text-right">
+                              CTR {ctr.toFixed(2)}%
+                            </span>
+                          )}
                         </div>
                       </div>
                     )
@@ -402,6 +437,92 @@ export function GA4Page() {
               </div>
             </div>
 
+            {/* Risk Radar Section */}
+            <div className="mb-8">
+              <div className="flex items-center gap-2 mb-4">
+                <AlertTriangle className="w-5 h-5 text-warning" />
+                <h2 className="text-lg font-semibold text-foreground">{t('gsc.riskRadar.title')}</h2>
+                <span className="text-sm text-foreground-muted">— {t('gsc.riskRadar.subtitle')}</span>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Declining Landing Pages */}
+                <div className="bg-background-elevated rounded-lg border border-card-border p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <TrendingDown className="w-4 h-4 text-destructive" />
+                    <h3 className="text-sm font-medium text-foreground">{t('gsc.riskRadar.decliningPages')}</h3>
+                  </div>
+                  <p className="text-xs text-foreground-muted mb-3">{t('gsc.riskRadar.decliningPagesDesc')}</p>
+
+                  {riskRadar.decliningPages.length > 0 ? (
+                    <div className="space-y-2">
+                      {riskRadar.decliningPages.slice(0, 5).map((page, i) => (
+                        <div
+                          key={i}
+                          className={`p-2 rounded-md border ${
+                            page.severity === 'critical'
+                              ? 'bg-destructive/10 border-destructive/30'
+                              : 'bg-warning/10 border-warning/30'
+                          }`}
+                        >
+                          <p className="text-sm text-foreground truncate" title={page.page}>
+                            {page.page}
+                          </p>
+                          <div className="flex items-center gap-3 mt-1 text-xs">
+                            <span className="text-destructive">
+                              {t('gsc.riskRadar.clicks')}: {page.clicksChange.toFixed(0)}%
+                            </span>
+                            <span className="text-foreground-muted">
+                              {page.week1Clicks} → {page.week3Clicks}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-foreground-muted py-4 text-center">
+                      {t('gsc.riskRadar.noIssues')}
+                    </p>
+                  )}
+                </div>
+
+                {/* Traffic Health Summary */}
+                <div className="bg-background-elevated rounded-lg border border-card-border p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Globe className="w-4 h-4 text-primary" />
+                    <h3 className="text-sm font-medium text-foreground">{t('ga4.trafficHealth')}</h3>
+                  </div>
+                  <p className="text-xs text-foreground-muted mb-3">{t('ga4.trafficHealthDesc')}</p>
+
+                  <div className="space-y-3">
+                    {/* Organic Search status */}
+                    <div className="flex items-center justify-between p-2 bg-background-subtle rounded-md">
+                      <span className="text-sm text-foreground">Organic Search</span>
+                      <span className={`text-sm font-medium ${
+                        riskRadar.decliningPages.length === 0 ? 'text-success' : 'text-warning'
+                      }`}>
+                        {riskRadar.decliningPages.length === 0 ? t('ga4.healthy') : `${riskRadar.decliningPages.length} ${t('ga4.pagesAtRisk')}`}
+                      </span>
+                    </div>
+
+                    {/* Device breakdown health */}
+                    {deviceBreakdown.length > 0 && (
+                      <div className="flex items-center justify-between p-2 bg-background-subtle rounded-md">
+                        <span className="text-sm text-foreground">{t('ga4.deviceBreakdown')}</span>
+                        <span className="text-sm font-medium text-success">{t('ga4.balanced')}</span>
+                      </div>
+                    )}
+
+                    {/* Total pages monitored */}
+                    <div className="flex items-center justify-between p-2 bg-background-subtle rounded-md">
+                      <span className="text-sm text-foreground">{t('ga4.pagesMonitored')}</span>
+                      <span className="text-sm font-medium text-foreground">{landingPages.length}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             {/* E-commerce Section */}
             {topProducts.length > 0 && (
               <>
@@ -433,8 +554,16 @@ export function GA4Page() {
                   </MetricCardGroup>
                 </div>
 
+                {/* Top Products by Revenue (with comparison) */}
+                <TopProductsGA4
+                  products={topProducts}
+                  previousProducts={previousTopProducts}
+                  compare={ecommerceComparisonEnabled}
+                  comparisonMode={comparisonMode}
+                />
+
                 {/* Top Products & Problem Products */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
                   {/* Top Products by Views */}
                   <div className="bg-background-elevated rounded-lg border border-card-border p-5">
                     <div className="mb-4">
