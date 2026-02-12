@@ -2,7 +2,7 @@
 
 Tekninen dokumentaatio ulkoisista datalähteiden integraatioista.
 
-**Päivitetty:** 2026-01-09
+**Päivitetty:** 2026-01-26
 
 ---
 
@@ -125,11 +125,40 @@ CREATE TABLE products (
 );
 ```
 
+### Varianttituotteet (TÄRKEÄ!)
+
+ePages palauttaa kolme tuotetyyppiä kentässä `productVariationType`:
+
+| Tyyppi | Kuvaus | stocklevel |
+|--------|--------|------------|
+| `regular` | Tavallinen tuote | Oma saldo |
+| `master` | Päätuote (varianttiryhmä) | `null` (ei omaa saldoa) |
+| `variation` | Lapsivariantti | Oma saldo |
+
+**Master-tuotteen saldo** = SUM(lasten stocklevel).
+Lapset tunnistetaan kentällä `productVariationMasterId`.
+
+**VÄÄRÄT kenttänimet** (älä käytä): `variationType`, `variationAttributes`, `variations[]`
+
+### stock_tracked -kenttä
+
+Jos ePages-tuotteen `stocklevel` on `null`, saldoseuranta ei ole päällä (esim. tilaustuotteet, räätälöidyt tuotteet). Nämä tuotteet:
+- Tallennetaan kantaan: `stock_tracked = false`
+- **Suodatetaan pois** "Loppu varastosta" -listalta
+- Eivät vaikuta varaston kokonaisarvoon
+
+```sql
+ALTER TABLE products ADD COLUMN IF NOT EXISTS stock_tracked BOOLEAN DEFAULT true;
+```
+
+Synkronointitiedostot: `api/cron/sync-products.js`, `scripts/sync_epages.js`
+
 ### Huomioita
 
 1. **SKU = product_number** on tärkein tunniste tuotteille
 2. **cost_price** ei tule ePages API:sta - se täytyy lisätä manuaalisesti
 3. Tilausten `status` voi muuttua - cancelled tilauksia ei lasketa myyntiin
+4. **stock_tracked** = false tarkoittaa ettei ePages seuraa tuotteen saldoa
 
 ---
 
@@ -203,18 +232,22 @@ CREATE TABLE gsc_search_analytics (
   ...
 );
 
--- GSC Daily Summary (view)
-CREATE VIEW v_gsc_daily_summary AS
-SELECT
-  store_id,
-  date,
-  SUM(clicks) as total_clicks,
-  SUM(impressions) as total_impressions,
-  AVG(ctr) as avg_ctr,
-  AVG(position) as avg_position
-FROM gsc_search_analytics
-GROUP BY store_id, date;
+-- GSC Daily Totals (taulu - ei view)
+CREATE TABLE gsc_daily_totals (
+  id UUID PRIMARY KEY,
+  store_id UUID,
+  date DATE,
+  clicks INTEGER,
+  impressions INTEGER,
+  ctr DECIMAL,
+  position DECIMAL,
+  updated_at TIMESTAMPTZ,
+  UNIQUE(store_id, date)
+);
 ```
+
+**Huom:** `gsc_daily_totals` on erillinen taulu (ei view), joka täytetään synkronoinnin yhteydessä.
+Tämä mahdollistaa nopeat kyselyt ilman aggregointia.
 
 ### Käyttö frontendissä
 
@@ -453,20 +486,31 @@ const BILLACKERING = {
 ## Synkronointi-skriptit
 
 ```bash
-# ePages tilaukset
-node scripts/test_epages_sync.cjs
+# ePages tilaukset ja tuotteet
+node scripts/sync_epages.cjs
+node scripts/sync_2026.js  # Vuoden 2026 data
 
-# GSC hakudata
-node scripts/sync_gsc.cjs
+# GSC hakudata (päivätotaalit + yksityiskohtainen)
+node scripts/sync_gsc_now.cjs [alkupvm] [loppupvm]
+# Esim: node scripts/sync_gsc_now.cjs 2025-01-01 2025-12-31
 
 # GA4 behavioral data
-node scripts/sync_ga4.cjs
+node scripts/sync_ga4_now.cjs
 
-# Tarkista GSC data
-node scripts/check_gsc_dates.cjs
+# Vercel Cron (automaattinen synkronointi)
+# /api/cron/sync-data - Ajetaan päivittäin klo 06:00 UTC
+```
 
-# Tarkista GA4 data
-node scripts/check_ga4.cjs
+### Cron-synkronointi (Vercel)
+
+`vercel.json` määrittelee cron-jobit:
+```json
+{
+  "crons": [{
+    "path": "/api/cron/sync-data",
+    "schedule": "0 6 * * *"
+  }]
+}
 ```
 
 ---
@@ -510,6 +554,94 @@ SUPABASE_SERVICE_ROLE_KEY=eyJ...
 GOOGLE_CLIENT_ID=xxx.apps.googleusercontent.com
 GOOGLE_CLIENT_SECRET=xxx
 ```
+
+---
+
+## Growth Engine (Indeksijärjestelmä)
+
+Growth Engine on pääindeksijärjestelmä, joka yhdistää kaikki datalähteet neljäksi KPI-alueeksi.
+
+### Arkkitehtuuri
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    GROWTH ENGINE INDEX                          │
+│                     (0-100 pistettä)                            │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  ┌─────────────────┐  ┌─────────────────┐                      │
+│  │ Kysynnän kasvu  │  │ Liikenteen laatu│                      │
+│  │     (25%)       │  │     (15%)       │                      │
+│  │ [GSC]           │  │ [GA4]           │                      │
+│  │ • Org. klikit   │  │ • Engagement    │                      │
+│  │ • Impressiot    │  │ • Org. osuus    │                      │
+│  │ • TOP 10 kw     │  │ • Bounce rate   │                      │
+│  └─────────────────┘  └─────────────────┘                      │
+│                                                                 │
+│  ┌─────────────────┐  ┌─────────────────┐                      │
+│  │ Myynnin tehokk. │  │ Sivuston näkyv. │                      │
+│  │     (40%)       │  │     (20%)       │                      │
+│  │ [ePages + GA4]  │  │ [GSC]           │                      │
+│  │ • Konversio     │  │ • Keskisijainti │                      │
+│  │ • AOV           │  │ • CTR           │                      │
+│  │ • Tilaukset     │  │ • TOP 10 sivut  │                      │
+│  │ • Liikevaihto   │  │                 │                      │
+│  │ • Uniikit as.   │  │                 │                      │
+│  └─────────────────┘  └─────────────────┘                      │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Pisteytys (YoY-vertailu)
+
+| YoY-muutos | Pisteet |
+|------------|---------|
+| ≥ +20%     | 100     |
+| +10-19%    | 80      |
+| +1-9%      | 60      |
+| 0%         | 50      |
+| -1-9%      | 30      |
+| ≤ -10%     | 10      |
+| Ei dataa   | 50      |
+
+### Hook
+
+```javascript
+// src/hooks/useGrowthEngine.js
+import useGrowthEngine from '@/hooks/useGrowthEngine'
+
+const {
+  overallIndex,        // 0-100
+  indexLevel,          // 'excellent', 'good', 'fair', 'poor'
+  demandGrowth,        // { score, weight, metrics }
+  trafficQuality,      // { score, weight, metrics }
+  salesEfficiency,     // { score, weight, metrics }
+  productLeverage,     // { score, weight, metrics }
+  loading,
+  error,
+  effectiveDateRange,  // Käytetty aikaväli
+  refresh
+} = useGrowthEngine(dateRange)
+```
+
+### Metriikat
+
+| KPI-alue | Metriikka | Lähde | YoY |
+|----------|-----------|-------|-----|
+| **Kysynnän kasvu** | Orgaaniset klikkaukset | GSC | ✓ |
+| | Impressiot | GSC | ✓ |
+| | TOP 10 hakusanat | GSC | ✓ |
+| **Liikenteen laatu** | Engagement rate | GA4 | ✓ |
+| | Orgaaninen osuus | GA4 | ✓ |
+| | Bounce rate | GA4 | ✓ |
+| **Myynnin tehokkuus** | Konversio | ePages+GA4 | ✓ |
+| | AOV | ePages | ✓ |
+| | Tilaukset | ePages | ✓ |
+| | Liikevaihto | ePages | ✓ |
+| | Uniikit asiakkaat | ePages | ✓ |
+| **Sivuston näkyvyys** | Keskisijainti | GSC | ✓ |
+| | CTR | GSC | ✓ |
+| | Sivuja TOP 10:ssä | GSC | ✓ |
 
 ---
 
