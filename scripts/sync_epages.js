@@ -134,6 +134,31 @@ async function syncProducts(storeId) {
 
     console.log(`   📦 Total products from API: ${allProducts.length}`)
 
+    // Calculate stock for master products by summing children's stock
+    // ePages variant structure:
+    //   productVariationType: "master"    → stocklevel is null, children have stock
+    //   productVariationType: "variation" → child variant, has own stocklevel
+    //   productVariationType: "regular"   → normal product, has own stocklevel
+    const masterStockMap = {}
+    const childVariants = allProducts.filter(p => p.productVariationMasterId)
+    const masterProducts = allProducts.filter(p => p.productVariationType === 'master')
+
+    if (masterProducts.length > 0) {
+      for (const child of childVariants) {
+        const masterId = child.productVariationMasterId
+        if (!masterStockMap[masterId]) masterStockMap[masterId] = 0
+        masterStockMap[masterId] += Math.round(child.stocklevel ?? 0)
+      }
+
+      console.log(`   🔀 Found ${masterProducts.length} master products, ${childVariants.length} child variants`)
+      for (const mp of masterProducts) {
+        const stock = masterStockMap[mp.productId]
+        if (stock !== undefined) {
+          console.log(`     ${mp.name?.substring(0, 40)}: ${stock} (summed from children)`)
+        }
+      }
+    }
+
     // Map and insert products
     const products = allProducts.map(p => ({
       store_id: storeId,
@@ -145,14 +170,17 @@ async function syncProducts(storeId) {
       price_amount: p.priceInfo?.price?.amount || 0,
       price_currency: p.priceInfo?.price?.currency || 'EUR',
       tax_rate: p.priceInfo?.taxRate || 0,
-      stock_level: p.stockLevel ?? 0,
-      min_stock_level: p.minStockLevel ?? 0,
+      stock_level: p.productVariationType === 'master'
+        ? Math.round(masterStockMap[p.productId] ?? 0)
+        : Math.round(p.stocklevel ?? 0),
+      min_stock_level: p.minStocklevel ?? 0,
       for_sale: p.forSale !== false,
       manufacturer: p.manufacturer,
       ean: p.ean,
       category_id: p.categoryId,
       category_name: p.categoryName,
-      image_url: p.images?.[0]?.url
+      image_url: p.images?.[0]?.url,
+      stock_tracked: p.stocklevel !== null && p.stocklevel !== undefined
     }))
 
     // Upsert in batches
