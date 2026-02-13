@@ -14,6 +14,10 @@
  * │  ga4_tokens         │  store_id   │  a28836f6-9487-4b67-...     │
  * │  ga4_ecommerce      │  shop_id    │  3b93e9b1-d64c-4686-...     │
  * │  products           │  store_id   │  a28836f6-9487-4b67-...     │
+ * │  weekly_analyses    │  store_id   │  3b93e9b1-d64c-4686-...     │ (FK → shops.id)
+ * │  action_recommendations │ store_id │  3b93e9b1-d64c-4686-...   │ (FK → shops.id)
+ * │  chat_sessions      │  store_id   │  3b93e9b1-d64c-4686-...     │ (FK → shops.id)
+ * │  chat_messages      │  session_id │  (via chat_sessions)        │
  * └─────────────────────────────────────────────────────────────────┘
  *
  * HUOM: Kaksi eri ID:tä koska:
@@ -52,7 +56,8 @@ export const SHOP_ID = CURRENT_STORE.SHOP_ID
  * @returns {object} - { column: 'store_id' | 'shop_id', value: UUID }
  */
 export function getStoreIdForTable(tableName) {
-  const shopIdTables = ['ga4_ecommerce', 'shops']
+  // AI Analytics tables use shops.id FK but column is named store_id
+  const shopIdTables = ['ga4_ecommerce', 'shops', 'weekly_analyses', 'action_recommendations', 'chat_sessions', 'merchant_goals', 'context_notes', 'growth_engine_snapshots']
   const storeIdTables = ['orders', 'products', 'gsc_tokens', 'gsc_search_analytics', 'ga4_tokens', 'order_line_items']
 
   if (shopIdTables.includes(tableName)) {

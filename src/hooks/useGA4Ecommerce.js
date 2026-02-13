@@ -12,11 +12,12 @@ import { SHOP_ID, STORE_ID } from '@/config/storeConfig'
  * - Item revenue
  * - Conversion rates (view→cart, cart→purchase)
  */
-export function useGA4Ecommerce(dateRange = null) {
+export function useGA4Ecommerce(dateRange = null, comparisonMode = 'yoy') {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [data, setData] = useState({
     topProducts: [],
+    previousTopProducts: [],  // For comparison
     productFunnel: {
       totalViews: 0,
       totalAddToCart: 0,
@@ -27,7 +28,8 @@ export function useGA4Ecommerce(dateRange = null) {
     },
     lowConversionProducts: [],  // High views, low cart adds
     highPerformers: [],         // High conversion rate
-    summary: null
+    summary: null,
+    comparisonEnabled: false
   })
 
   const fetchEcommerceData = useCallback(async () => {
@@ -148,8 +150,70 @@ export function useGA4Ecommerce(dateRange = null) {
         .sort((a, b) => b.overall_conversion - a.overall_conversion)
         .slice(0, 10)
 
+      // Fetch previous period data for comparison
+      let previousTopProducts = []
+      let comparisonEnabled = false
+
+      if (startDate && endDate) {
+        const start = new Date(startDate)
+        const end = new Date(endDate)
+        const daysDiff = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1
+
+        let prevStartDate, prevEndDate
+
+        if (comparisonMode === 'yoy') {
+          // Year over Year: same period last year
+          prevStartDate = new Date(start)
+          prevStartDate.setFullYear(prevStartDate.getFullYear() - 1)
+          prevEndDate = new Date(end)
+          prevEndDate.setFullYear(prevEndDate.getFullYear() - 1)
+        } else {
+          // Month over Month: previous period of same length
+          prevEndDate = new Date(start)
+          prevEndDate.setDate(prevEndDate.getDate() - 1)
+          prevStartDate = new Date(prevEndDate)
+          prevStartDate.setDate(prevStartDate.getDate() - daysDiff + 1)
+        }
+
+        const prevStart = prevStartDate.toISOString().split('T')[0]
+        const prevEnd = prevEndDate.toISOString().split('T')[0]
+
+        // Fetch previous period data
+        const { data: prevRawData } = await supabase
+          .from('ga4_ecommerce')
+          .select('*')
+          .eq('store_id', SHOP_ID)
+          .gte('date', prevStart)
+          .lte('date', prevEnd)
+
+        if (prevRawData && prevRawData.length > 0) {
+          comparisonEnabled = true
+          // Aggregate by product name (same as main data)
+          const prevProductMap = new Map()
+          prevRawData.forEach(row => {
+            const name = row.item_name
+            if (!prevProductMap.has(name)) {
+              prevProductMap.set(name, {
+                item_name: name,
+                items_viewed: 0,
+                items_added_to_cart: 0,
+                items_purchased: 0,
+                item_revenue: 0
+              })
+            }
+            const p = prevProductMap.get(name)
+            p.items_viewed += row.items_viewed || 0
+            p.items_added_to_cart += row.items_added_to_cart || 0
+            p.items_purchased += row.items_purchased || 0
+            p.item_revenue += parseFloat(row.item_revenue) || 0
+          })
+          previousTopProducts = Array.from(prevProductMap.values())
+        }
+      }
+
       setData({
         topProducts,
+        previousTopProducts,
         productFunnel,
         lowConversionProducts,
         highPerformers,
@@ -159,7 +223,8 @@ export function useGA4Ecommerce(dateRange = null) {
           totalAddToCart,
           totalPurchased,
           totalRevenue
-        }
+        },
+        comparisonEnabled
       })
 
     } catch (err) {
@@ -168,7 +233,7 @@ export function useGA4Ecommerce(dateRange = null) {
     } finally {
       setLoading(false)
     }
-  }, [dateRange?.startDate, dateRange?.endDate])
+  }, [dateRange?.startDate, dateRange?.endDate, comparisonMode])
 
   useEffect(() => {
     fetchEcommerceData()

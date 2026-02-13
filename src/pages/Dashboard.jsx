@@ -8,10 +8,7 @@ import { DailySalesChart, DailyMarginChart, WeekdayChart, HourlyChart } from '@/
 import { TopProducts } from '@/components/TopProducts'
 import { CategoryChart } from '@/components/CategoryChart'
 import { PaymentMethodsChart, ShippingMethodsChart } from '@/components/PaymentMethods'
-import { CustomerSegmentCard } from '@/components/CustomerSegmentCard'
 import { OrderBucketChart } from '@/components/OrderBucketChart'
-import { MerchantGoalsCard } from '@/components/MerchantGoalsCard'
-import { ContextNotesCard } from '@/components/ContextNotesCard'
 import { CampaignsCard } from '@/components/CampaignsCard'
 import { ProductRolesCard } from '@/components/ProductRolesCard'
 import { CategoryMarginCard } from '@/components/CategoryMarginCard'
@@ -48,6 +45,7 @@ export function Dashboard() {
     previousDailySales,
     previousDailyMargin,
     topProducts,
+    previousTopProducts,
     paymentMethods,
     shippingMethods,
     weekdayAnalysis,
@@ -417,7 +415,12 @@ export function Dashboard() {
 
         {/* Charts Row 1.5 - Top Products */}
         <div className="grid grid-cols-1 gap-6 mb-6">
-          <TopProducts products={topProducts} />
+          <TopProducts
+            products={topProducts}
+            previousProducts={previousTopProducts}
+            compare={dateRange.compare}
+            comparisonMode={comparisonMode}
+          />
         </div>
 
         {/* Charts Row 1.5 - Sales by Time (weekday + hourly side by side) */}
@@ -426,33 +429,15 @@ export function Dashboard() {
           <HourlyChart data={hourlyAnalysis} />
         </div>
 
-        {/* Charts Row 2 - Payment & Shipping side by side */}
+        {/* Charts Row 2 - Payment & Shipping stacked + Order Buckets */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-          <PaymentMethodsChart data={paymentMethods} />
-          <ShippingMethodsChart data={shippingMethods} />
-        </div>
-
-        {/* Charts Row 2.5 - Customer Segments & Order Buckets */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-          <CustomerSegmentCard
-            startDate={dateRange.startDate}
-            endDate={dateRange.endDate}
-            previousStartDate={dateRange.previousStartDate}
-            previousEndDate={dateRange.previousEndDate}
-            compare={dateRange.compare}
-            label={dateRange.label}
-          />
+          {/* Left: Payment & Shipping stacked */}
+          <div className="space-y-6">
+            <PaymentMethodsChart data={paymentMethods} />
+            <ShippingMethodsChart data={shippingMethods} />
+          </div>
+          {/* Right: Order Buckets */}
           <OrderBucketChart
-            startDate={dateRange.startDate}
-            endDate={dateRange.endDate}
-            label={dateRange.label}
-          />
-        </div>
-
-        {/* Charts Row 2.6 - Goals & Context Notes */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-          <MerchantGoalsCard />
-          <ContextNotesCard
             startDate={dateRange.startDate}
             endDate={dateRange.endDate}
             label={dateRange.label}

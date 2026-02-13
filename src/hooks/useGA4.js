@@ -1,8 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
-
-// Kovakoodattu store_id (billackering)
-const STORE_ID = 'a28836f6-9487-4b67-9194-e907eaf94b69'
+import { STORE_ID } from '@/config/storeConfig'
 
 // Helper to fetch all rows with pagination (Supabase has 1000 row limit per request)
 async function fetchAllRows(query, pageSize = 1000) {
@@ -90,10 +88,10 @@ export function useGA4(dateRange = null, comparisonMode = 'mom') {
       if (startDate) dailyQuery = dailyQuery.gte('date', startDate)
       if (endDate) dailyQuery = dailyQuery.lte('date', endDate)
 
-      // Fetch traffic sources (raw data for aggregation)
+      // Fetch traffic sources (raw data for aggregation) - include date for chart
       let sourcesQuery = supabase
         .from('ga4_analytics')
-        .select('session_default_channel_grouping, sessions, engaged_sessions, bounce_rate')
+        .select('date, session_default_channel_grouping, sessions, engaged_sessions, bounce_rate')
         .eq('store_id', STORE_ID)
         .not('session_default_channel_grouping', 'is', null)
 
@@ -206,6 +204,35 @@ export function useGA4(dateRange = null, comparisonMode = 'mom') {
         totalReturningUsers = dailySummary.reduce((sum, d) => sum + (d.total_returning_users || 0), 0)
         totalUsers = totalNewUsers + totalReturningUsers
 
+        // ALSO fetch device breakdown from GSC (GA4 doesn't provide device data in this setup)
+        let ga4DeviceQuery = supabase
+          .from('gsc_search_analytics')
+          .select('device, clicks')
+          .eq('store_id', STORE_ID)
+          .not('device', 'is', null)
+
+        if (startDate) ga4DeviceQuery = ga4DeviceQuery.gte('date', startDate)
+        if (endDate) ga4DeviceQuery = ga4DeviceQuery.lte('date', endDate)
+
+        const { data: ga4Devices } = await ga4DeviceQuery.limit(50000)
+
+        if (ga4Devices && ga4Devices.length > 0) {
+          const deviceMap = new Map()
+          ga4Devices.forEach(row => {
+            const device = row.device
+            deviceMap.set(device, (deviceMap.get(device) || 0) + (row.clicks || 0))
+          })
+
+          const deviceTotal = Array.from(deviceMap.values()).reduce((a, b) => a + b, 0)
+          deviceBreakdown = Array.from(deviceMap.entries())
+            .map(([device, clicks]) => ({
+              device,
+              sessions: clicks,
+              percentage: deviceTotal > 0 ? Math.round((clicks / deviceTotal) * 100) : 0
+            }))
+            .sort((a, b) => b.sessions - a.sessions)
+        }
+
       } else {
         // FALLBACK: Use GSC data when GA4 channel data is empty
         console.log('GA4 channel data empty, using GSC fallback')
@@ -234,6 +261,7 @@ export function useGA4(dateRange = null, comparisonMode = 'mom') {
         const { data: gscPages } = await gscPagesQuery.limit(5000)
 
         // Fetch GSC device breakdown (real data!)
+        // NOTE: Need limit to avoid 1000 row default
         let gscDeviceQuery = supabase
           .from('gsc_search_analytics')
           .select('device, clicks')
@@ -243,7 +271,7 @@ export function useGA4(dateRange = null, comparisonMode = 'mom') {
         if (startDate) gscDeviceQuery = gscDeviceQuery.gte('date', startDate)
         if (endDate) gscDeviceQuery = gscDeviceQuery.lte('date', endDate)
 
-        const { data: gscDevices } = await gscDeviceQuery
+        const { data: gscDevices } = await gscDeviceQuery.limit(10000)
 
         // Transform GSC daily to match GA4 format
         // NOTE: GSC only provides clicks - we cannot estimate engagement metrics
@@ -360,14 +388,24 @@ export function useGA4(dateRange = null, comparisonMode = 'mom') {
         // Use GSC fallback for previous period if GA4 channel data is empty
         if (!hasGA4ChannelData) {
           // Fetch previous period from GSC - ONLY real data
-          const { data: prevGscData } = await supabase
-            .from('v_gsc_daily_summary')
-            .select('*')
-            .eq('store_id', STORE_ID)
-            .gte('date', prevStart)
-            .lte('date', prevEnd)
-            .order('date', { ascending: false })
-            .limit(90)
+          const [{ data: prevGscData }, { data: prevGscDevices }] = await Promise.all([
+            supabase
+              .from('v_gsc_daily_summary')
+              .select('*')
+              .eq('store_id', STORE_ID)
+              .gte('date', prevStart)
+              .lte('date', prevEnd)
+              .order('date', { ascending: false })
+              .limit(90),
+            supabase
+              .from('gsc_search_analytics')
+              .select('device, clicks')
+              .eq('store_id', STORE_ID)
+              .not('device', 'is', null)
+              .gte('date', prevStart)
+              .lte('date', prevEnd)
+              .limit(10000)
+          ])
 
           const previousDailySummary = prevGscData || []
           comparisonEnabled = previousDailySummary.length > 0
@@ -387,6 +425,29 @@ export function useGA4(dateRange = null, comparisonMode = 'mom') {
               totalUsers: null,
               totalNewUsers: null,
               totalReturningUsers: null
+            }
+
+            // Calculate previous period device breakdown for comparison
+            if (prevGscDevices && prevGscDevices.length > 0) {
+              const prevDeviceMap = new Map()
+              prevGscDevices.forEach(row => {
+                const device = row.device
+                prevDeviceMap.set(device, (prevDeviceMap.get(device) || 0) + (row.clicks || 0))
+              })
+              const prevDeviceTotal = Array.from(prevDeviceMap.values()).reduce((a, b) => a + b, 0)
+
+              // Add change percentages to current deviceBreakdown
+              deviceBreakdown = deviceBreakdown.map(d => {
+                const prevClicks = prevDeviceMap.get(d.device) || 0
+                const prevPercentage = prevDeviceTotal > 0 ? Math.round((prevClicks / prevDeviceTotal) * 100) : 0
+                const change = prevClicks > 0 ? ((d.sessions - prevClicks) / prevClicks) * 100 : null
+                return {
+                  ...d,
+                  previousSessions: prevClicks,
+                  previousPercentage: prevPercentage,
+                  change: change !== null ? Math.round(change * 10) / 10 : null
+                }
+              })
             }
           }
         } else {
@@ -555,6 +616,7 @@ export function useGA4(dateRange = null, comparisonMode = 'mom') {
         trafficSources,
         landingPages,
         deviceBreakdown,
+        channelData: sourcesRes.data || [], // Raw channel data with dates for chart
         summary: {
           totalSessions,
           totalImpressions,

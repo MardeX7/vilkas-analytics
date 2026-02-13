@@ -371,6 +371,7 @@ export function useAnalytics(dateRange = null) {
     weeklySales: [],
     monthlySales: [],
     topProducts: [],
+    previousTopProducts: [],
     paymentMethods: [],
     shippingMethods: [],
     customerGeography: [],
@@ -428,6 +429,26 @@ export function useAnalytics(dateRange = null) {
       if (startDate) productsQuery = productsQuery.gte('creation_date', startDate)
       if (endDate) productsQuery = productsQuery.lte('creation_date', endDate + 'T23:59:59')
 
+      // Previous period top products for comparison
+      let previousProductsQuery = null
+      if (compare && previousStartDate && previousEndDate) {
+        previousProductsQuery = supabase
+          .from('orders')
+          .select(`
+            id,
+            order_line_items (
+              product_name,
+              product_number,
+              quantity,
+              total_price
+            )
+          `)
+          .eq('store_id', STORE_ID)
+          .neq('status', 'cancelled')
+          .gte('creation_date', previousStartDate)
+          .lte('creation_date', previousEndDate + 'T23:59:59')
+      }
+
       // Fetch product cost prices for margin calculation
       const productCostQuery = supabase
         .from('products')
@@ -459,6 +480,7 @@ export function useAnalytics(dateRange = null) {
         weeklyRes,
         monthlyRes,
         ordersForProducts,
+        ordersForPreviousProducts,
         ordersForPayment,
         ordersForShipping,
         weekdayRes,
@@ -480,6 +502,7 @@ export function useAnalytics(dateRange = null) {
         supabase.from('v_weekly_sales').select('*').eq('store_id', STORE_ID).order('week_start', { ascending: false }).limit(12),
         supabase.from('v_monthly_sales').select('*').eq('store_id', STORE_ID).order('sale_month', { ascending: false }).limit(12),
         productsQuery,
+        previousProductsQuery || Promise.resolve({ data: null }),
         paymentQuery,
         shippingQuery,
         supabase.from('v_weekday_analysis').select('*').eq('store_id', STORE_ID),
@@ -539,6 +562,42 @@ export function useAnalytics(dateRange = null) {
         }))
         .sort((a, b) => b.total_revenue - a.total_revenue)
         .slice(0, 10)
+
+      // Aggregate previous period top products for comparison
+      let previousTopProducts = []
+      if (ordersForPreviousProducts?.data) {
+        const prevProductMap = new Map()
+        ordersForPreviousProducts.data.forEach(order => {
+          order.order_line_items?.forEach(item => {
+            const key = item.product_number || item.product_name
+            if (!prevProductMap.has(key)) {
+              prevProductMap.set(key, {
+                product_name: item.product_name,
+                product_number: item.product_number,
+                total_quantity: 0,
+                total_revenue: 0,
+                total_cost: 0,
+                order_ids: new Set()
+              })
+            }
+            const prod = prevProductMap.get(key)
+            const qty = item.quantity || 0
+            const costPrice = costPriceMap.get(item.product_number) || 0
+            prod.total_quantity += qty
+            prod.total_revenue += item.total_price || 0
+            prod.total_cost += costPrice * qty
+            prod.order_ids.add(order.id)
+          })
+        })
+        previousTopProducts = Array.from(prevProductMap.values())
+          .map(p => ({
+            ...p,
+            order_count: p.order_ids.size,
+            gross_margin: p.total_revenue - p.total_cost,
+            margin_percent: p.total_revenue > 0 ? ((p.total_revenue - p.total_cost) / p.total_revenue) * 100 : 0
+          }))
+          .sort((a, b) => b.total_revenue - a.total_revenue)
+      }
 
       // Aggregate payment methods
       const paymentMap = new Map()
@@ -607,6 +666,7 @@ export function useAnalytics(dateRange = null) {
         weeklySales: weeklyRes.data || [],
         monthlySales: monthlyRes.data || [],
         topProducts,
+        previousTopProducts,
         paymentMethods,
         shippingMethods,
         customerGeography: [],

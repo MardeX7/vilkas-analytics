@@ -211,9 +211,12 @@ export function MerchantGoalsCard({ className }) {
     }
   }
 
+  // User input card styling - distinct purple/indigo border to indicate user-editable content
+  const cardStyles = 'rounded-lg border-2 border-indigo-500/30 bg-gradient-to-br from-indigo-500/5 to-background-elevated p-5 ring-1 ring-indigo-500/10'
+
   if (isLoading) {
     return (
-      <div className={cn('rounded-lg border border-card-border bg-background-elevated p-5', className)}>
+      <div className={cn(cardStyles, className)}>
         <div className="animate-pulse">
           <div className="h-5 w-32 bg-background-subtle rounded mb-4" />
           <div className="space-y-3">
@@ -234,12 +237,17 @@ export function MerchantGoalsCard({ className }) {
   }
 
   return (
-    <div className={cn('rounded-lg border border-card-border bg-background-elevated p-5', className)}>
-      {/* Header */}
+    <div className={cn(cardStyles, className)}>
+      {/* Header with user input indicator */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
-          <Target className="w-5 h-5 text-primary" />
-          <h3 className="font-semibold text-foreground">Tavoitteet</h3>
+          <div className="w-8 h-8 rounded-lg bg-indigo-500/20 flex items-center justify-center">
+            <Target className="w-4 h-4 text-indigo-400" />
+          </div>
+          <div>
+            <h3 className="font-semibold text-foreground">Tavoitteet</h3>
+            <p className="text-[10px] text-indigo-400/70 uppercase tracking-wide">Omat asetukset</p>
+          </div>
         </div>
         {canAddGoal && !isAdding && (
           <button

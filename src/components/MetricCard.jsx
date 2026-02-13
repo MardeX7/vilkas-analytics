@@ -46,16 +46,16 @@ export function MetricCard({
     },
     default: {
       card: 'p-5',
-      label: 'text-sm',
+      label: 'text-xs uppercase tracking-wider',
       value: 'text-2xl',
-      suffix: 'text-base',
-      delta: 'text-sm',
+      suffix: 'text-sm',
+      delta: 'text-xs',
     },
     large: {
       card: 'p-6',
-      label: 'text-sm',
+      label: 'text-xs uppercase tracking-wider',
       value: 'text-3xl',
-      suffix: 'text-lg',
+      suffix: 'text-base',
       delta: 'text-sm',
     },
   }
@@ -65,8 +65,8 @@ export function MetricCard({
   return (
     <div
       className={cn(
-        'rounded-lg border border-card-border bg-background-elevated',
-        'transition-colors duration-200',
+        'rounded-xl border border-card-border bg-background-elevated',
+        'transition-all duration-200 hover:border-primary/20',
         s.card,
         className
       )}

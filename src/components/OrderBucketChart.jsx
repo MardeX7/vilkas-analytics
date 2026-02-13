@@ -126,8 +126,16 @@ export function OrderBucketChart({ startDate, endDate, label, metric = 'tilaukse
               tickLine={false}
               axisLine={false}
               tickFormatter={(value) => metric === 'liikevaihto' ? `${(value / 1000).toFixed(0)}k` : value}
+              label={{
+                value: metric === 'liikevaihto' ? 'kr' : 'kpl',
+                angle: -90,
+                position: 'insideLeft',
+                fill: 'var(--foreground-muted)',
+                fontSize: 11,
+                offset: 15
+              }}
             />
-            <Tooltip content={<CustomTooltip />} />
+            <Tooltip content={<CustomTooltip />} cursor={{ fill: 'transparent' }} />
             <Bar
               dataKey={metric}
               radius={[4, 4, 0, 0]}

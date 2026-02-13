@@ -1,16 +1,24 @@
 /**
- * KPI Dashboard (formerly IndicatorsPage)
+ * Tilannekuva-sivu (KPI Dashboard)
  *
- * Indeksipohjainen analytiikkanäkymä.
- * 4 pääindeksiä (0-100): Core, PPI, SPI, OI
+ * Verkkokaupan suorituskykymittaristo:
+ * - Growth Engine YoY-mittarit
+ * - 4 KPI-aluetta (Kysynnän kasvu, Liikenteen laatu, Myynnin tehokkuus, Tuotevalikoima)
+ * - Tavoitteet & Muistiinpanot
+ * - Growth Engine historia
  *
- * Versio: 2.0 - KPI Index Engine
+ * Versio: 2.5
  */
 
 import { useState, useMemo } from 'react'
-import { RefreshCw, AlertTriangle, TrendingUp, TrendingDown, Minus, ChevronRight, ChevronLeft, Package, Search, Truck, DollarSign } from 'lucide-react'
+import { RefreshCw, AlertTriangle, TrendingUp, TrendingDown, Minus, ChevronRight, ChevronLeft, Package, Search, Truck, DollarSign, Users, ShoppingCart } from 'lucide-react'
 import { useKPIDashboard } from '@/hooks/useKPIDashboard'
 import { KPIHistoryChart } from '@/components/SalesChart'
+import { MerchantGoalsCard } from '@/components/MerchantGoalsCard'
+import { ContextNotesCard } from '@/components/ContextNotesCard'
+import { WeeklyAnalysisCard } from '@/components/WeeklyAnalysisCard'
+import { useGrowthEngine } from '@/hooks/useGrowthEngine'
+import { useGrowthEngineHistory } from '@/hooks/useGrowthEngineHistory'
 import { useTranslation } from '@/lib/i18n'
 
 // Index icons
@@ -35,35 +43,53 @@ export function IndicatorsPage() {
   const { t, locale } = useTranslation()
   const [granularity, setGranularity] = useState('week')
   const [selectedIndex, setSelectedIndex] = useState(null)
+  // Default to current/newest week (offset 0)
   const [periodOffset, setPeriodOffset] = useState(0)
 
   const {
     dashboard,
     indexes,
-    history,
     alerts,
-    topDrivers,
-    capitalTraps,
     profitSummary,
     isLoading,
     error,
     hasData,
     refresh,
     triggerCalculation,
-    totalPeriods,
-    currentPeriodIndex
+    totalPeriods
   } = useKPIDashboard({ granularity, periodOffset })
 
-  // Reset period offset when granularity changes
+  // Growth Engine YoY metrics
+  const dateRange = dashboard?.period ? { startDate: dashboard.period.start, endDate: dashboard.period.end } : null
+  const {
+    overallIndex: growthIndex,
+    indexLevel: growthLevel,
+    demandGrowth,
+    trafficQuality,
+    salesEfficiency,
+    productLeverage,
+    dataWarning: gscDataWarning,
+    effectiveDateRange
+  } = useGrowthEngine(dateRange)
+
+  // Growth Engine REAL history (from growth_engine_snapshots table)
+  const {
+    history: growthEngineHistory,
+    loading: growthHistoryLoading,
+    hasData: hasGrowthHistory
+  } = useGrowthEngineHistory({ periodType: 'week', limit: 52 })
+
+  // Reset period offset when granularity changes - show newest period
   const handleGranularityChange = (newGranularity) => {
     setGranularity(newGranularity)
-    setPeriodOffset(0)
+    setPeriodOffset(0) // Always show the newest/current period
   }
 
   // Navigation handlers
   const canGoBack = periodOffset < totalPeriods - 1
   const canGoForward = periodOffset > 0
   const isLatest = periodOffset === 0
+  const isCurrentPeriodIncomplete = periodOffset === 0 // Current week/month is still in progress
 
   const goToPreviousPeriod = () => {
     if (canGoBack) {
@@ -104,7 +130,6 @@ export function IndicatorsPage() {
 
   // Overall index (first in array)
   const overallIndex = indexes.find(i => i.id === 'overall')
-  const subIndexes = indexes.filter(i => i.id !== 'overall')
 
   if (isLoading) {
     return (
@@ -226,6 +251,51 @@ export function IndicatorsPage() {
           </div>
         )}
 
+        {/* GSC Data Warning - shown when falling back to older period */}
+        {gscDataWarning && effectiveDateRange && (
+          <div className="bg-warning/10 border border-warning/30 rounded-lg p-4 mb-6 flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-warning flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-warning font-medium text-sm">
+                Hakukone-data ei ole valmis valitulle jaksolle. Näytetään viimeisin täysi viikko.
+              </p>
+              <div className="text-foreground-muted text-xs mt-2 space-y-1">
+                <p>
+                  <span className="text-foreground-subtle">Nykyinen:</span>{' '}
+                  <span className="text-foreground font-medium">
+                    {new Date(effectiveDateRange.startDate).getDate()}.{new Date(effectiveDateRange.startDate).getMonth() + 1}-{new Date(effectiveDateRange.endDate).getDate()}.{new Date(effectiveDateRange.endDate).getMonth() + 1}.{new Date(effectiveDateRange.startDate).getFullYear()}
+                  </span>
+                </p>
+                <p>
+                  <span className="text-foreground-subtle">Vertailu (YoY):</span>{' '}
+                  <span className="text-foreground font-medium">
+                    {new Date(effectiveDateRange.startDate).getDate()}.{new Date(effectiveDateRange.startDate).getMonth() + 1}-{new Date(effectiveDateRange.endDate).getDate()}.{new Date(effectiveDateRange.endDate).getMonth() + 1}.{new Date(effectiveDateRange.startDate).getFullYear() - 1}
+                  </span>
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Current Period Incomplete Warning */}
+        {isCurrentPeriodIncomplete && hasData && (
+          <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4 mb-6 flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-blue-400 font-medium text-sm">
+                {granularity === 'week'
+                  ? (locale === 'fi' ? 'Viikko kesken – data ei ole vielä valmis' : 'Veckan pågår – data inte färdig ännu')
+                  : (locale === 'fi' ? 'Kuukausi kesken – data ei ole vielä valmis' : 'Månaden pågår – data inte färdig ännu')}
+              </p>
+              <p className="text-foreground-subtle text-xs mt-1">
+                {locale === 'fi'
+                  ? 'Suosittelemme tarkastelemaan edellisen jakson dataa luotettavampien tulosten saamiseksi.'
+                  : 'Vi rekommenderar att granska föregående periods data för mer tillförlitliga resultat.'}
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* No Data State */}
         {!hasData && !isLoading && (
           <NoDataState onCalculate={triggerCalculation} t={t} />
@@ -234,24 +304,54 @@ export function IndicatorsPage() {
         {/* Main Dashboard */}
         {hasData && (
           <>
-            {/* Hero: Overall Index + Alerts */}
-            <div className="grid grid-cols-12 gap-6 mb-10">
+            {/* Weekly AI Analysis */}
+            <div className="mb-6">
+              <WeeklyAnalysisCard dateRange={dateRange} granularity={granularity} />
+            </div>
 
+            {/* KPI Overview: Overall Index + 4 Growth Engine KPIs */}
+            <div className="grid grid-cols-12 gap-6 mb-6">
               {/* Overall Index - Large */}
               <div className="col-span-12 lg:col-span-5">
-                <OverallIndexCard index={overallIndex} alerts={alerts} t={t} />
+                <OverallIndexCard
+                  index={overallIndex}
+                  alerts={alerts}
+                  t={t}
+                  growthIndex={growthIndex}
+                  growthLevel={growthLevel}
+                />
               </div>
 
-              {/* 4 Sub-Indexes */}
+              {/* 4 Growth Engine KPIs */}
               <div className="col-span-12 lg:col-span-7 grid grid-cols-2 gap-4">
-                {subIndexes.map(index => (
-                  <IndexCard
-                    key={index.id}
-                    index={index}
-                    onClick={() => setSelectedIndex(index.id)}
-                    isSelected={selectedIndex === index.id}
-                  />
-                ))}
+                <GrowthKPICard
+                  areaKey="demandGrowth"
+                  data={demandGrowth}
+                  isExpanded={selectedIndex === 'demandGrowth'}
+                  onToggle={() => setSelectedIndex(selectedIndex === 'demandGrowth' ? null : 'demandGrowth')}
+                  t={t}
+                />
+                <GrowthKPICard
+                  areaKey="trafficQuality"
+                  data={trafficQuality}
+                  isExpanded={selectedIndex === 'trafficQuality'}
+                  onToggle={() => setSelectedIndex(selectedIndex === 'trafficQuality' ? null : 'trafficQuality')}
+                  t={t}
+                />
+                <GrowthKPICard
+                  areaKey="salesEfficiency"
+                  data={salesEfficiency}
+                  isExpanded={selectedIndex === 'salesEfficiency'}
+                  onToggle={() => setSelectedIndex(selectedIndex === 'salesEfficiency' ? null : 'salesEfficiency')}
+                  t={t}
+                />
+                <GrowthKPICard
+                  areaKey="productLeverage"
+                  data={productLeverage}
+                  isExpanded={selectedIndex === 'productLeverage'}
+                  onToggle={() => setSelectedIndex(selectedIndex === 'productLeverage' ? null : 'productLeverage')}
+                  t={t}
+                />
               </div>
             </div>
 
@@ -260,11 +360,15 @@ export function IndicatorsPage() {
               <AlertsBanner alerts={alerts} t={t} />
             )}
 
-            {/* Index Detail (if selected) */}
-            {selectedIndex && (
-              <IndexDetail
-                index={indexes.find(i => i.id === selectedIndex)}
+            {/* Expanded KPI Detail */}
+            {selectedIndex && ['demandGrowth', 'trafficQuality', 'salesEfficiency', 'productLeverage'].includes(selectedIndex) && (
+              <GrowthKPIDetail
+                areaKey={selectedIndex}
+                data={selectedIndex === 'demandGrowth' ? demandGrowth :
+                      selectedIndex === 'trafficQuality' ? trafficQuality :
+                      selectedIndex === 'salesEfficiency' ? salesEfficiency : productLeverage}
                 onClose={() => setSelectedIndex(null)}
+                effectiveDateRange={effectiveDateRange}
                 t={t}
               />
             )}
@@ -274,51 +378,34 @@ export function IndicatorsPage() {
               <GrossProfitCard profitSummary={profitSummary} t={t} />
             )}
 
-            {/* KPI History Chart - changes based on selected index and granularity */}
-            {history && history.length > 0 && (
+            {/* Growth Engine History Chart - REAL data from growth_engine_snapshots */}
+            {hasGrowthHistory && (
               <div className="mt-6">
                 <KPIHistoryChart
-                  data={history}
-                  title={selectedIndex
-                    ? `${indexes.find(i => i.id === selectedIndex)?.name || t('kpi.index')} - ${granularity === 'week' ? t('kpi.weeksCount') : t('kpi.monthsCount')}`
-                    : `${t('kpi.overallIndex')} - ${granularity === 'week' ? t('kpi.weeksCount') : t('kpi.monthsCount')}`
-                  }
-                  indexKey={selectedIndex
-                    ? (selectedIndex === 'ppi' ? 'product_profitability_index' :
-                       selectedIndex === 'spi' ? 'seo_performance_index' :
-                       selectedIndex === 'oi' ? 'operational_index' :
-                       selectedIndex === 'core' ? 'core_index' : 'overall_index')
-                    : 'overall_index'
-                  }
-                  granularity={granularity}
+                  data={growthEngineHistory.map(h => ({
+                    period_end: h.periodEnd,
+                    overall_index: h.overall,
+                    demand_growth: h.demandGrowth,
+                    traffic_quality: h.trafficQuality,
+                    sales_efficiency: h.salesEfficiency,
+                    product_leverage: h.productLeverage
+                  }))}
+                  title={`${t('growthEngine.title')} - ${t('kpi.weeksCount')}`}
+                  indexKey="overall_index"
+                  granularity="week"
                 />
               </div>
             )}
-
-            {/* Products Section */}
-            <div className="grid grid-cols-12 gap-6 mt-6">
-
-              {/* Top Profit Drivers */}
-              <div className="col-span-12 lg:col-span-6">
-                <ProductsCard
-                  title={t('kpi.products.topDrivers')}
-                  subtitle={t('kpi.products.topDriversDesc')}
-                  products={topDrivers}
-                  type="drivers"
-                  t={t}
-                />
+            {!hasGrowthHistory && !growthHistoryLoading && (
+              <div className="mt-6 p-4 bg-background-subtle rounded-lg text-center text-foreground-muted text-sm">
+                {t('charts.noHistory')} - {t('growthEngine.historyStarting')}
               </div>
+            )}
 
-              {/* Capital Traps */}
-              <div className="col-span-12 lg:col-span-6">
-                <ProductsCard
-                  title={t('kpi.products.capitalTraps')}
-                  subtitle={t('kpi.products.capitalTrapsDesc')}
-                  products={capitalTraps}
-                  type="traps"
-                  t={t}
-                />
-              </div>
+            {/* Goals & Notes */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-10">
+              <MerchantGoalsCard />
+              <ContextNotesCard />
             </div>
 
             {/* Period Info */}
@@ -343,17 +430,19 @@ export function IndicatorsPage() {
 
 /**
  * Overall Index Card - Large hero display
+ * Now uses Growth Engine index
  */
-function OverallIndexCard({ index, alerts, t }) {
-  if (!index) return null
-
-  const { value, delta, interpretation } = index
+function OverallIndexCard({ index, alerts, t, growthIndex, growthLevel }) {
+  // Use growth index if available, otherwise fall back to KPI index
+  const displayValue = growthIndex ?? index?.value ?? 0
+  const displayLevel = growthLevel || index?.interpretation?.level || 'unknown'
 
   const getColorClass = (level) => {
     switch (level) {
       case 'excellent': return 'text-success'
       case 'good': return 'text-success'
-      case 'fair': return 'text-warning'
+      case 'fair':
+      case 'needs_work': return 'text-warning'
       case 'poor': return 'text-orange-400'
       case 'critical': return 'text-destructive'
       default: return 'text-foreground-subtle'
@@ -364,18 +453,32 @@ function OverallIndexCard({ index, alerts, t }) {
     switch (level) {
       case 'excellent': return 'from-success/10 to-success/5'
       case 'good': return 'from-success/10 to-success/5'
-      case 'fair': return 'from-warning/10 to-warning/5'
+      case 'fair':
+      case 'needs_work': return 'from-warning/10 to-warning/5'
       case 'poor': return 'from-orange-500/10 to-orange-500/5'
       case 'critical': return 'from-destructive/10 to-destructive/5'
       default: return 'from-background-elevated to-background'
     }
   }
 
+  const getLevelLabel = (level) => {
+    switch (level) {
+      case 'excellent': return t('growthEngine.indexLevels.excellent')
+      case 'good': return t('growthEngine.indexLevels.good')
+      case 'needs_work': return t('growthEngine.indexLevels.needs_work')
+      case 'poor': return t('growthEngine.indexLevels.poor')
+      default: return '—'
+    }
+  }
+
   return (
-    <div className={`bg-gradient-to-br ${getBgGradient(interpretation?.level)} rounded-2xl p-8 h-full border border-card-border`}>
+    <div className={`bg-gradient-to-br ${getBgGradient(displayLevel)} rounded-2xl p-8 h-full border border-card-border`}>
       <div className="flex items-center justify-between mb-6">
-        <p className="text-foreground-muted text-sm font-medium">{t('kpi.overallIndex')}</p>
-        {alerts.length > 0 && (
+        <div>
+          <p className="text-foreground-muted text-sm font-medium">{t('growthEngine.title')}</p>
+          <p className="text-foreground-subtle text-xs mt-0.5">{t('growthEngine.subtitle')}</p>
+        </div>
+        {alerts && alerts.length > 0 && (
           <div className="flex items-center gap-1.5 bg-warning-muted text-warning px-2 py-1 rounded-lg">
             <AlertTriangle className="w-3.5 h-3.5" />
             <span className="text-xs font-medium">{alerts.length}</span>
@@ -384,18 +487,16 @@ function OverallIndexCard({ index, alerts, t }) {
       </div>
 
       <div className="flex items-end gap-4 mb-4">
-        <span className={`text-8xl font-bold tabular-nums ${getColorClass(interpretation?.level)}`}>
-          {value ?? '—'}
+        <span className={`text-8xl font-bold tabular-nums ${getColorClass(displayLevel)}`}>
+          {displayValue}
         </span>
+        <span className="text-foreground-subtle text-2xl mb-2">/100</span>
       </div>
 
       <div className="flex items-center gap-3 mb-6">
-        <span className={`text-lg font-semibold ${getColorClass(interpretation?.level)}`}>
-          {interpretation?.label}
+        <span className={`text-lg font-semibold ${getColorClass(displayLevel)}`}>
+          {getLevelLabel(displayLevel)}
         </span>
-        {delta !== 0 && (
-          <DeltaBadge delta={delta} />
-        )}
       </div>
 
       {/* Index Gauge */}
@@ -403,19 +504,318 @@ function OverallIndexCard({ index, alerts, t }) {
         <div className="h-3 bg-background-subtle rounded-full overflow-hidden">
           <div
             className={`h-full rounded-full transition-all duration-500 ${
-              interpretation?.level === 'excellent' ? 'bg-success' :
-              interpretation?.level === 'good' ? 'bg-success' :
-              interpretation?.level === 'fair' ? 'bg-warning' :
-              interpretation?.level === 'poor' ? 'bg-orange-500' : 'bg-destructive'
+              displayLevel === 'excellent' ? 'bg-success' :
+              displayLevel === 'good' ? 'bg-success' :
+              displayLevel === 'fair' || displayLevel === 'needs_work' ? 'bg-warning' :
+              displayLevel === 'poor' ? 'bg-orange-500' : 'bg-destructive'
             }`}
-            style={{ width: `${value || 0}%` }}
+            style={{ width: `${displayValue || 0}%` }}
           />
         </div>
         <div className="flex justify-between mt-2 text-xs text-foreground-subtle">
           <span>0</span>
-          <span>50</span>
+          <span className="text-foreground-muted">60 = {t('growthEngine.target.description')}</span>
           <span>100</span>
         </div>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Growth KPI Card - Shows one of the 4 Growth Engine KPIs
+ */
+const GROWTH_KPI_ICONS = {
+  demandGrowth: Search,
+  trafficQuality: Users,
+  salesEfficiency: ShoppingCart,
+  productLeverage: Package
+}
+
+const GROWTH_KPI_COLORS = {
+  demandGrowth: 'emerald',
+  trafficQuality: 'blue',
+  salesEfficiency: 'violet',
+  productLeverage: 'amber'
+}
+
+function GrowthKPICard({ areaKey, data, isExpanded, onToggle, t }) {
+  if (!data) return null
+
+  const Icon = GROWTH_KPI_ICONS[areaKey] || Package
+  const color = GROWTH_KPI_COLORS[areaKey] || 'slate'
+
+  const getKpiColorClasses = (color, score) => {
+    if (score < 40) {
+      return { text: 'text-destructive', bg: 'bg-destructive/5', border: 'border-destructive/20', iconBg: 'bg-destructive-muted' }
+    }
+    if (score < 60) {
+      return { text: 'text-warning', bg: 'bg-warning/5', border: 'border-warning/20', iconBg: 'bg-warning-muted' }
+    }
+    const colors = {
+      emerald: { text: 'text-success', bg: 'bg-success/5', border: 'border-success/20', iconBg: 'bg-success-muted' },
+      blue: { text: 'text-info', bg: 'bg-info/5', border: 'border-info/20', iconBg: 'bg-info-muted' },
+      violet: { text: 'text-purple-400', bg: 'bg-purple-500/5', border: 'border-purple-500/20', iconBg: 'bg-purple-500/10' },
+      amber: { text: 'text-amber-400', bg: 'bg-amber-500/5', border: 'border-amber-500/20', iconBg: 'bg-amber-500/10' }
+    }
+    return colors[color] || colors.emerald
+  }
+
+  const colorClasses = getKpiColorClasses(color, data.score)
+
+  return (
+    <div
+      onClick={onToggle}
+      className={`
+        group relative overflow-hidden cursor-pointer
+        ${colorClasses.bg} hover:brightness-95
+        border ${isExpanded ? 'border-primary' : colorClasses.border}
+        rounded-lg p-5 transition-all duration-200
+      `}
+    >
+      {/* Icon */}
+      <div className={`w-10 h-10 rounded-lg ${colorClasses.iconBg} flex items-center justify-center mb-4`}>
+        <Icon className={`w-5 h-5 ${colorClasses.text}`} />
+      </div>
+
+      {/* Title */}
+      <p className="text-foreground font-medium text-sm mb-1">
+        {t(`growthEngine.${areaKey}.title`)}
+      </p>
+      <p className="text-foreground-subtle text-xs mb-3">
+        {t(`growthEngine.${areaKey}.subtitle`)}
+      </p>
+
+      {/* Value */}
+      <div className="flex items-baseline gap-2 mb-2">
+        <span className={`text-4xl font-bold tabular-nums ${colorClasses.text}`}>
+          {data.score}
+        </span>
+      </div>
+
+      {/* Weight */}
+      <p className="text-foreground-subtle text-xs">
+        {t('growthEngine.weight')}: {data.weight}%
+      </p>
+
+      {/* Expand icon */}
+      <ChevronRight className={`absolute top-5 right-5 w-4 h-4 text-foreground-subtle group-hover:text-foreground-muted transition-all ${isExpanded ? 'rotate-90' : ''}`} />
+    </div>
+  )
+}
+
+/**
+ * Metric tooltips - what each metric means
+ */
+const METRIC_TOOLTIPS = {
+  // Demand Growth
+  organicClicks: 'Google-hauista tulleet klikkaukset sivustollesi. Mittaa orgaanisen näkyvyyden tehokkuutta.',
+  impressions: 'Kuinka monta kertaa sivustosi näkyi Google-hakutuloksissa. Kertoo hakukonenäkyvyydestä.',
+  top10Keywords: 'Hakusanat, joissa sivustosi on TOP 10 -sijoituksella. Arvokkaat sijat tuovat eniten liikennettä.',
+  // Traffic Quality
+  engagementRate: 'Sitoutuneiden istuntojen osuus kaikista istunnoista (GA4). Korkea % = laadukas liikenne.',
+  organicShare: 'Orgaanisen liikenteen osuus kaikesta liikenteestä. Ilmainen vs. maksettu liikenne.',
+  bounceRate: 'Välittömästi poistuneiden osuus. Pienempi = parempi. Käänteinen pisteytys.',
+  // Sales Efficiency
+  conversionRate: 'Tilausten määrä / istuntojen määrä. Kuinka hyvin liikenne muuttuu myynniksi.',
+  aov: 'Keskimääräinen tilausarvo (Average Order Value). Mitä enemmän per tilaus, sitä parempi.',
+  orderCount: 'Tilausten kokonaismäärä jaksolla. Perusmetriikka myynnin volyymille.',
+  revenue: 'Kokonaisliikevaihto (kr). Kaikki tilaukset yhteensä.',
+  uniqueCustomers: 'Uniikkien asiakkaiden määrä (sähköpostin perusteella).',
+  // Product Leverage (GSC-based - all pages)
+  avgPosition: 'Sivuston keskimääräinen sijainti Google-hauissa (painotettu klikeillä). Pienempi = parempi, käänteinen pisteytys.',
+  avgCTR: 'Sivuston keskimääräinen klikkausprosentti hauissa. Korkea CTR = houkuttelevat otsikot ja kuvaukset.',
+  top10Pages: 'Kuinka monta sivua näkyy Googlen TOP 10 -tuloksissa (1. sivu). Enemmän = parempi näkyvyys.'
+}
+
+/**
+ * Growth KPI Detail - Expanded view with metrics
+ */
+function GrowthKPIDetail({ areaKey, data, onClose, effectiveDateRange, t }) {
+  if (!data || !data.metrics) return null
+
+  const Icon = GROWTH_KPI_ICONS[areaKey] || Package
+
+  const formatValue = (value, metricKey) => {
+    if (value === null || value === undefined) return '—'
+    if (['engagementRate', 'organicShare', 'bounceRate', 'conversionRate'].includes(metricKey)) {
+      return `${Number(value).toFixed(1)}%`
+    }
+    if (['avgCTR'].includes(metricKey)) {
+      return `${Number(value).toFixed(2)}%`
+    }
+    if (['avgPosition'].includes(metricKey)) {
+      return Number(value).toFixed(1)
+    }
+    if (['aov', 'revenue'].includes(metricKey)) {
+      return `${Math.round(value).toLocaleString('sv-SE')} kr`
+    }
+    if (['orderCount', 'uniqueCustomers', 'top10Pages'].includes(metricKey)) {
+      return value.toLocaleString('sv-SE')
+    }
+    if (value >= 1000) {
+      return Math.round(value).toLocaleString('sv-SE')
+    }
+    return value.toString()
+  }
+
+  const getScoreColor = (score) => {
+    if (score >= 80) return 'text-success'
+    if (score >= 60) return 'text-success/80'
+    if (score >= 40) return 'text-warning'
+    if (score >= 20) return 'text-orange-400'
+    return 'text-destructive'
+  }
+
+  // Format date range for display
+  const formatDateRange = (range) => {
+    if (!range) return null
+    const formatDate = (dateStr) => {
+      const d = new Date(dateStr)
+      return `${d.getDate()}.${d.getMonth() + 1}`
+    }
+    const year = new Date(range.startDate).getFullYear()
+    return `${formatDate(range.startDate)}-${formatDate(range.endDate)}.${year}`
+  }
+
+  const currentPeriodLabel = effectiveDateRange ? formatDateRange(effectiveDateRange) : null
+  const prevPeriodLabel = effectiveDateRange ? formatDateRange({
+    startDate: new Date(new Date(effectiveDateRange.startDate).setFullYear(new Date(effectiveDateRange.startDate).getFullYear() - 1)).toISOString().split('T')[0],
+    endDate: new Date(new Date(effectiveDateRange.endDate).setFullYear(new Date(effectiveDateRange.endDate).getFullYear() - 1)).toISOString().split('T')[0]
+  }) : null
+
+  return (
+    <div className="bg-background-elevated border border-card-border rounded-lg p-6 mb-6">
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-3">
+          <Icon className="w-6 h-6 text-primary" />
+          <div>
+            <h3 className="text-lg font-semibold text-foreground">
+              {t(`growthEngine.${areaKey}.title`)}
+            </h3>
+            <p className="text-foreground-subtle text-sm">
+              {t(`growthEngine.${areaKey}.subtitle`)}
+            </p>
+          </div>
+        </div>
+        <button
+          onClick={onClose}
+          className="text-foreground-subtle hover:text-foreground text-sm"
+        >
+          {t('kpi.detail.close')}
+        </button>
+      </div>
+
+      {/* Comparison Period Info */}
+      {effectiveDateRange && (
+        <div className="mb-4 px-3 py-2 bg-background-subtle rounded-lg text-xs text-foreground-muted">
+          <span className="font-medium">Vertailujakso:</span>{' '}
+          <span className="text-foreground">{currentPeriodLabel}</span>
+          {' vs '}
+          <span className="text-foreground">{prevPeriodLabel}</span>
+          <span className="text-foreground-subtle ml-1">(YoY)</span>
+        </div>
+      )}
+
+      {/* Column Headers */}
+      <div className="flex items-center justify-between gap-4 mb-3 pb-2 border-b border-border">
+        <div className="flex-1 min-w-0">
+          <p className="text-foreground-subtle text-xs font-medium uppercase tracking-wide">
+            Metriikka
+          </p>
+        </div>
+        <div className="flex items-center gap-4">
+          <div className="text-right min-w-[80px]">
+            <p className="text-foreground-subtle text-xs font-medium uppercase tracking-wide">
+              Nyt
+            </p>
+          </div>
+          <div className="text-right min-w-[80px]">
+            <p className="text-foreground-subtle text-xs font-medium uppercase tracking-wide">
+              Viime v.
+            </p>
+          </div>
+          <div className="min-w-[70px] text-right">
+            <p className="text-foreground-subtle text-xs font-medium uppercase tracking-wide">
+              YoY
+            </p>
+          </div>
+          <div className="min-w-[50px] text-right">
+            <p className="text-foreground-subtle text-xs font-medium uppercase tracking-wide">
+              Pisteet
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Metrics */}
+      <div className="space-y-3">
+        {Object.entries(data.metrics).map(([metricKey, metric]) => (
+          <div key={metricKey} className="flex items-center justify-between gap-4 group">
+            <div className="flex-1 min-w-0 flex items-center gap-2">
+              <p className="text-foreground-muted text-sm truncate">
+                {t(`growthEngine.${areaKey}.metrics.${metricKey}`)}
+              </p>
+              {/* Info tooltip */}
+              {METRIC_TOOLTIPS[metricKey] && (
+                <div className="relative group/tooltip flex-shrink-0">
+                  <span className="w-4 h-4 rounded-full bg-foreground-subtle/20 text-foreground-subtle text-xs flex items-center justify-center cursor-help hover:bg-foreground-subtle/30 transition-colors">
+                    i
+                  </span>
+                  <div className="absolute left-6 top-1/2 -translate-y-1/2 z-50 hidden group-hover/tooltip:block w-64 p-2 bg-background-elevated border border-border rounded-lg shadow-lg">
+                    <p className="text-foreground-muted text-xs leading-relaxed">
+                      {METRIC_TOOLTIPS[metricKey]}
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="flex items-center gap-4">
+              {/* Current value */}
+              <div className="text-right min-w-[80px]">
+                <p className="text-foreground text-sm font-medium tabular-nums">
+                  {formatValue(metric.current, metricKey)}
+                </p>
+              </div>
+              {/* Previous year value */}
+              <div className="text-right min-w-[80px]">
+                <p className="text-foreground-subtle text-sm tabular-nums">
+                  {formatValue(metric.previous, metricKey)}
+                </p>
+              </div>
+              {/* YoY change */}
+              <div className="min-w-[70px] text-right">
+                {metric.yoyChange === null || metric.yoyChange === undefined ? (
+                  <span className="text-foreground-subtle text-sm" title="Ei vertailudataa viime vuodelta">—</span>
+                ) : metric.yoyChange === 0 ? (
+                  <span className="flex items-center justify-end gap-1 text-foreground-subtle text-sm">
+                    <Minus className="w-3 h-3" />
+                    <span>0%</span>
+                  </span>
+                ) : (
+                  <span className={`flex items-center justify-end gap-1 text-sm font-medium tabular-nums ${
+                    metric.yoyChange > 0 ? 'text-success' : 'text-destructive'
+                  }`}>
+                    {metric.yoyChange > 0 ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
+                    <span>{metric.yoyChange > 0 ? '+' : ''}{metric.yoyChange.toFixed(1)}%</span>
+                  </span>
+                )}
+              </div>
+              {/* Score */}
+              <div className={`min-w-[50px] text-right font-bold tabular-nums ${getScoreColor(metric.score)}`}>
+                {metric.score}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Scoring explanation */}
+      <div className="mt-4 pt-4 border-t border-border">
+        <p className="text-foreground-subtle text-xs">
+          <span className="font-medium text-foreground-muted">Pisteytys:</span>{' '}
+          YoY ≥+20% = 100, +10-19% = 80, +1-9% = 60, 0% = 50, -1-9% = 30, ≤-10% = 10
+        </p>
       </div>
     </div>
   )
@@ -782,59 +1182,6 @@ function ComponentBar({ name, component, t }) {
             </span>
           </div>
         </div>
-      </div>
-    </div>
-  )
-}
-
-/**
- * Products Card
- */
-function ProductsCard({ title, subtitle, products, type, t }) {
-  if (!products || products.length === 0) {
-    return (
-      <div className="bg-background-elevated border border-card-border rounded-lg p-6">
-        <h3 className="text-lg font-semibold text-foreground mb-1">{title}</h3>
-        <p className="text-foreground-subtle text-sm mb-4">{subtitle}</p>
-        <p className="text-foreground-subtle text-sm">{t('kpi.products.noData')}</p>
-      </div>
-    )
-  }
-
-  return (
-    <div className="bg-background-elevated border border-card-border rounded-lg p-6">
-      <h3 className="text-lg font-semibold text-foreground mb-1">{title}</h3>
-      <p className="text-foreground-subtle text-sm mb-4">{subtitle}</p>
-
-      <div className="space-y-3">
-        {products.slice(0, 5).map((product, i) => (
-          <div key={product.product_id || i} className="flex items-center gap-3">
-            <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold ${
-              type === 'drivers' ? 'bg-success-muted text-success' : 'bg-destructive-muted text-destructive'
-            }`}>
-              {i + 1}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-foreground text-sm truncate">
-                {product.products?.name || product.product_name || 'N/A'}
-              </p>
-              <p className="text-foreground-subtle text-xs">
-                {product.products?.product_number || product.sku || ''}
-              </p>
-            </div>
-            <div className="text-right">
-              {type === 'drivers' ? (
-                <p className="text-success text-sm font-medium tabular-nums">
-                  {product.total_score?.toFixed(0) ?? '—'} pts
-                </p>
-              ) : (
-                <p className="text-destructive text-sm font-medium tabular-nums">
-                  {product.stock_days?.toFixed(0) ?? '—'} pv
-                </p>
-              )}
-            </div>
-          </div>
-        ))}
       </div>
     </div>
   )

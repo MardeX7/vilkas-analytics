@@ -11,9 +11,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
-
-// Default store ID (Billackering) - this is shops.store_id, NOT shops.id
-const STORE_ID = 'a28836f6-9487-4b67-9194-e907eaf94b69'
+import { STORE_ID } from '@/config/storeConfig'
 
 /**
  * Calculate YoY change for an indicator using history data

@@ -1,5 +1,5 @@
 /**
- * LoginPage - Email & password login
+ * LoginPage - Email & password login (only)
  */
 
 import { useState } from 'react'
@@ -11,7 +11,7 @@ import { Mail, Lock, Loader2, AlertCircle, ArrowRight } from 'lucide-react'
 
 export function LoginPage() {
   const { t } = useTranslation()
-  const { login, loginWithMagicLink, error: authError } = useAuth()
+  const { login, error: authError } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -19,13 +19,11 @@ export function LoginPage() {
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
-  const [magicLinkSent, setMagicLinkSent] = useState(false)
-  const [mode, setMode] = useState('password') // 'password' | 'magic'
 
   // Redirect after login
   const from = location.state?.from?.pathname || '/'
 
-  const handlePasswordLogin = async (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault()
     setLoading(true)
     setError(null)
@@ -47,50 +45,6 @@ export function LoginPage() {
       setError(err.message || 'Kirjautuminen epäonnistui')
       setLoading(false)
     }
-  }
-
-  const handleMagicLink = async (e) => {
-    e.preventDefault()
-    setLoading(true)
-    setError(null)
-
-    const { error } = await loginWithMagicLink(email)
-
-    if (error) {
-      setError(error.message)
-    } else {
-      setMagicLinkSent(true)
-    }
-
-    setLoading(false)
-  }
-
-  // Magic link sent confirmation
-  if (magicLinkSent) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 px-4">
-        <div className="max-w-md w-full">
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 text-center">
-            <div className="w-16 h-16 bg-green-100 dark:bg-green-900 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Mail className="w-8 h-8 text-green-600 dark:text-green-400" />
-            </div>
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-              {t('auth.checkEmail')}
-            </h2>
-            <p className="text-gray-600 dark:text-gray-400 mb-6">
-              {t('auth.magicLinkSent', { email })}
-            </p>
-            <Button
-              variant="outline"
-              onClick={() => setMagicLinkSent(false)}
-              className="w-full"
-            >
-              {t('auth.tryAgain')}
-            </Button>
-          </div>
-        </div>
-      </div>
-    )
   }
 
   return (
@@ -122,33 +76,7 @@ export function LoginPage() {
             </div>
           )}
 
-          {/* Mode Toggle */}
-          <div className="flex gap-2 mb-6">
-            <button
-              type="button"
-              onClick={() => setMode('password')}
-              className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors ${
-                mode === 'password'
-                  ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300'
-                  : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
-              }`}
-            >
-              {t('auth.withPassword')}
-            </button>
-            <button
-              type="button"
-              onClick={() => setMode('magic')}
-              className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors ${
-                mode === 'magic'
-                  ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300'
-                  : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
-              }`}
-            >
-              {t('auth.withMagicLink')}
-            </button>
-          </div>
-
-          <form onSubmit={mode === 'password' ? handlePasswordLogin : handleMagicLink}>
+          <form onSubmit={handleLogin}>
             {/* Email */}
             <div className="mb-4">
               <label
@@ -171,29 +99,27 @@ export function LoginPage() {
               </div>
             </div>
 
-            {/* Password (only in password mode) */}
-            {mode === 'password' && (
-              <div className="mb-6">
-                <label
-                  htmlFor="password"
-                  className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
-                >
-                  {t('auth.password')}
-                </label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                  <input
-                    id="password"
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="********"
-                    required
-                    className="w-full pl-10 pr-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
+            {/* Password */}
+            <div className="mb-6">
+              <label
+                htmlFor="password"
+                className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+              >
+                {t('auth.password')}
+              </label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="********"
+                  required
+                  className="w-full pl-10 pr-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
               </div>
-            )}
+            </div>
 
             {/* Submit Button */}
             <Button
@@ -205,7 +131,7 @@ export function LoginPage() {
                 <Loader2 className="w-5 h-5 animate-spin" />
               ) : (
                 <>
-                  {mode === 'password' ? t('auth.loginButton') : t('auth.sendMagicLink')}
+                  {t('auth.loginButton')}
                   <ArrowRight className="w-4 h-4 ml-2" />
                 </>
               )}

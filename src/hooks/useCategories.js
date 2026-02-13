@@ -6,9 +6,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
-
-// Kovakoodattu store_id (billackering) - sama kuin useAnalytics
-const STORE_ID = 'a28836f6-9487-4b67-9194-e907eaf94b69'
+import { STORE_ID } from '@/config/storeConfig'
 
 export function useCategories(days = 30) {
   const [categories, setCategories] = useState([])

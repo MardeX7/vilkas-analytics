@@ -2,6 +2,30 @@ import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import { STORE_ID } from '@/config/storeConfig'
 
+// Helper to fetch all rows with pagination (Supabase has 1000 row limit per request)
+async function fetchAllRows(query, pageSize = 1000) {
+  let allRows = []
+  let page = 0
+  let hasMore = true
+
+  while (hasMore) {
+    const from = page * pageSize
+    const to = from + pageSize - 1
+    const { data, error } = await query.range(from, to)
+
+    if (error) throw error
+    if (!data || data.length === 0) {
+      hasMore = false
+    } else {
+      allRows = allRows.concat(data)
+      hasMore = data.length === pageSize
+      page++
+    }
+  }
+
+  return allRows
+}
+
 export function useGSC(dateRange = null, comparisonMode = 'mom') {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -311,30 +335,42 @@ export function useGSC(dateRange = null, comparisonMode = 'mom') {
 
       // === RISK RADAR: Weekly comparison for top pages ===
       // Calculate 3-week rolling data to detect 2-week decline patterns
+      // Use date strings to avoid timezone issues (database stores YYYY-MM-DD)
       const today = new Date()
-      const threeWeeksAgo = new Date(today)
-      threeWeeksAgo.setDate(threeWeeksAgo.getDate() - 21)
-      const twoWeeksAgo = new Date(today)
-      twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14)
-      const oneWeekAgo = new Date(today)
-      oneWeekAgo.setDate(oneWeekAgo.getDate() - 7)
+      const threeWeeksAgoDate = new Date(today)
+      threeWeeksAgoDate.setDate(threeWeeksAgoDate.getDate() - 21)
+      const twoWeeksAgoDate = new Date(today)
+      twoWeeksAgoDate.setDate(twoWeeksAgoDate.getDate() - 14)
+      const oneWeekAgoDate = new Date(today)
+      oneWeekAgoDate.setDate(oneWeekAgoDate.getDate() - 7)
 
-      // Fetch page-level data for 3 weeks
-      const { data: riskData } = await supabase
-        .from('gsc_search_analytics')
-        .select('page, clicks, impressions, ctr, position, date')
-        .eq('store_id', STORE_ID)
-        .not('page', 'is', null)
-        .gte('date', threeWeeksAgo.toISOString().split('T')[0])
-        .order('date', { ascending: true })
+      // Convert to YYYY-MM-DD strings for comparison
+      const threeWeeksAgoStr = threeWeeksAgoDate.toISOString().split('T')[0]
+      const twoWeeksAgoStr = twoWeeksAgoDate.toISOString().split('T')[0]
+      const oneWeekAgoStr = oneWeekAgoDate.toISOString().split('T')[0]
+
+      // Fetch page-level data for 3 weeks using pagination
+      // Supabase has 1000 row limit per request, so we need to paginate
+      const riskData = await fetchAllRows(
+        supabase
+          .from('gsc_search_analytics')
+          .select('page, clicks, impressions, ctr, position, date')
+          .eq('store_id', STORE_ID)
+          .not('page', 'is', null)
+          .gte('date', threeWeeksAgoStr)
+          .order('date', { ascending: true })
+      )
 
       // Group data by page and week
       const pageWeeklyData = new Map()
 
       riskData?.forEach(row => {
-        const date = new Date(row.date)
-        let week = 'week3' // most recent
-        if (date < oneWeekAgo) week = date < twoWeeksAgo ? 'week1' : 'week2'
+        // Compare date strings directly (YYYY-MM-DD format)
+        const rowDateStr = row.date
+        let week = 'week3' // most recent (last 7 days)
+        if (rowDateStr < oneWeekAgoStr) {
+          week = rowDateStr < twoWeeksAgoStr ? 'week1' : 'week2'
+        }
 
         const key = row.page
         if (!pageWeeklyData.has(key)) {

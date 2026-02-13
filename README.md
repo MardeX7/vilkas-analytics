@@ -2,36 +2,35 @@
 
 ```
 ╔══════════════════════════════════════════════════════════════════════════════╗
-║  🟩 PROJEKTI: VilkasAnalytics                                                ║
-║  📁 KANSIO: /Desktop/VilkasAnalytics                                         ║
-║  🗄️ SUPABASE: tlothekaphtiwvusgwzh.supabase.co                               ║
-║  🌐 VERCEL: vilkas-analytics.vercel.app                                      ║
+║  PROJEKTI: VilkasAnalytics                                                  ║
+║  KANSIO: /Desktop/VilkasAnalytics                                           ║
+║  SUPABASE: tlothekaphtiwvusgwzh.supabase.co                                 ║
+║  VERCEL: vilkas-analytics.vercel.app                                        ║
 ╠══════════════════════════════════════════════════════════════════════════════╣
-║  ⚠️ TÄMÄ ON ERI PROJEKTI KUIN:                                               ║
-║     🟦 VilkasInsight (/Desktop/VilkasInsight-Vercel)                         ║
-║        → abbwfjishojcbifbruia.supabase.co                                    ║
+║  TAMA ON ERI PROJEKTI KUIN:                                                 ║
+║     VilkasInsight (/Desktop/VilkasInsight-Vercel)                           ║
+║        -> abbwfjishojcbifbruia.supabase.co                                  ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 ```
 
-Verkkokauppiaan sisäinen analytiikkasovellus, joka yhdistää datan useista lähteistä yhteen näkymään.
+Verkkokauppiaan sisainen analytiikkasovellus, joka yhdistaa ePages/Vilkas-myyntidatan, Google Search Consolen ja Google Analytics 4:n yhteen nakymaan. Sisaltaa KPI-indikaattorit, AI-avusteisen Emma-chatin ja automaattiset Slack-ilmoitukset.
 
-## Ominaisuudet
-
-- **Kojelauta** - Myyntidatan yleiskatsaus (ePages)
-- **Search Console** - Google-hakujen seuranta (positiot, klikkaukset, impressiot)
-- **Google Analytics** - Liikennelähteet, bounce rate, landing pages
-- **Indikaattorit** - 7 liiketoiminnan avainmittaria
-- **Analyysit** - AI-pohjaiset oivallukset ja suositukset
+**Production:** [vilkas-analytics.vercel.app](https://vilkas-analytics.vercel.app)
 
 ## Tech Stack
 
 | Kerros | Teknologia |
-|--------|------------|
-| Frontend | React 18, Vite, Tailwind CSS, shadcn/ui |
-| Backend | Supabase (PostgreSQL + Edge Functions) |
+|--------|-----------|
+| Frontend | React 19, React Router 7, Vite 7 |
+| Tyylitys | Tailwind CSS 3, shadcn/ui, Framer Motion |
+| Tietovarasto | Supabase (PostgreSQL + RLS) |
 | Auth | Supabase Auth (Google OAuth) |
-| APIs | ePages, Google Search Console, Google Analytics 4 |
-| Hosting | Vercel |
+| Data-haku | TanStack React Query |
+| Visualisointi | Recharts |
+| AI | OpenAI API (Emma-chat) |
+| Integraatiot | ePages REST API, Google Search Console, Google Analytics 4 |
+| Ilmoitukset | Slack Webhooks |
+| Hosting | Vercel (Serverless Functions + Cron Jobs) |
 
 ## Datan hierarkia
 
@@ -41,144 +40,255 @@ GSC        = SEO         Haut, positiot            100% luotettava
 GA4        = BEHAVIORAL  Traffic, bounce rate      ~70% kattavuus (ad blockers)
 ```
 
-**Tärkeää:** GA4:stä EI käytetä transaktiotietoja - ePages on ainoa totuus myyntidatalle.
+**Tarkeaa:** GA4:sta EI kayteta transaktiotietoja - ePages on ainoa totuus myyntidatalle.
 
-## Kehitysympäristö
+## Alkuun paaseminen
 
 ### Vaatimukset
 
 - Node.js 18+
-- npm tai pnpm
+- npm
 
 ### Asennus
 
 ```bash
-# Kloonaa repo
 git clone https://github.com/MardeX7/vilkas-analytics.git
 cd vilkas-analytics
-
-# Asenna riippuvuudet
 npm install
+```
 
-# Kopioi ympäristömuuttujat
-cp .env.example .env.local
-# Täytä oikeat arvot .env.local -tiedostoon
+### Ymparistomuuttujat
 
-# Käynnistä dev-serveri
+Luo `.env.local` projektin juureen:
+
+```bash
+# Supabase (frontend)
+VITE_SUPABASE_URL="https://tlothekaphtiwvusgwzh.supabase.co"
+VITE_SUPABASE_ANON_KEY="eyJ..."
+
+# Supabase (backend, vain serverless functions)
+SUPABASE_SERVICE_ROLE_KEY="eyJ..."
+
+# Google OAuth (GA4 + GSC)
+GOOGLE_CLIENT_ID="..."
+GOOGLE_CLIENT_SECRET="..."
+GOOGLE_REDIRECT_URI="https://vilkas-analytics.vercel.app/api/auth/callback/google"
+
+# AI (Emma-chat)
+OPENAI_API_KEY="sk-..."
+```
+
+### Kehityspalvelin
+
+```bash
 npm run dev
-```
-
-Sovellus käynnistyy osoitteeseen http://localhost:5173
-
-### Ympäristömuuttujat
-
-```bash
-# .env.local
-VITE_SUPABASE_URL=https://tlothekaphtiwvusgwzh.supabase.co
-VITE_SUPABASE_ANON_KEY=eyJ...
-SUPABASE_SERVICE_ROLE_KEY=eyJ...  # Vain backend-skripteille
-```
-
-### Skriptit
-
-```bash
-npm run dev      # Kehitysserveri
-npm run build    # Tuotanto-build
-npm run preview  # Esikatsele buildia
-npm run lint     # ESLint
+# http://localhost:5173
 ```
 
 ## Kansiorakenne
 
 ```
-vilkas-analytics/
+VilkasAnalytics/
+├── api/                          # Vercel Serverless Functions
+│   ├── auth/callback/google.js   # Google OAuth callback
+│   ├── ga4/                      # GA4 connect & sync
+│   │   ├── connect.js
+│   │   ├── sync.js
+│   │   └── sync-ecommerce.js
+│   ├── gsc/                      # GSC connect & sync
+│   │   ├── connect.js
+│   │   └── sync.js
+│   ├── cron/                     # Ajastetut taustatyot (9 kpl)
+│   │   ├── sync-data.js          # Paasynkronointi
+│   │   ├── sync-products.js
+│   │   ├── calculate-kpi.js
+│   │   ├── save-growth-snapshot.js
+│   │   ├── index-emma-documents.js
+│   │   ├── send-orders-slack.js
+│   │   ├── send-stock-slack.js
+│   │   ├── send-lowstock-slack.js
+│   │   ├── send-reorder-slack.js
+│   │   ├── send-daily-slack.js
+│   │   └── send-weekly-slack.js
+│   ├── chat.js                   # Emma AI chat endpoint
+│   ├── generate-analysis.js      # AI-analyysi
+│   ├── generate-recommendations.js
+│   └── lib/slack.js              # Slack-apukirjasto
 ├── src/
-│   ├── components/     # React-komponentit
-│   │   ├── ui/         # shadcn/ui peruskomponentit
-│   │   └── auth/       # Kirjautumiskomponentit
-│   ├── contexts/       # React Context (Auth, ym.)
-│   ├── hooks/          # Custom hooks (useGA4, useGSC, ym.)
-│   ├── lib/            # Utilities, Supabase client
-│   │   └── indicators/ # Indikaattori-engine
-│   └── pages/          # Sivukomponentit
-├── api/                # Vercel Serverless Functions
-│   └── ga4/            # GA4 OAuth & sync
-├── scripts/            # Apuskriptit (sync, calculate)
+│   ├── components/               # React-komponentit (~39 kpl)
+│   │   ├── ui/                   # shadcn/ui peruskomponentit
+│   │   ├── auth/                 # Kirjautumiskomponentit
+│   │   ├── EmmaChat.jsx          # AI-chat
+│   │   ├── EmmaChatFullscreen.jsx
+│   │   ├── Layout.jsx            # Paasovelluskehys
+│   │   ├── Sidebar.jsx           # Navigaatio
+│   │   └── MobileNav.jsx         # Mobiilinavigaatio
+│   ├── config/
+│   │   └── storeConfig.js        # Kaupan ID-konfiguraatio
+│   ├── hooks/                    # Custom hookit (~25 kpl)
+│   ├── lib/
+│   │   ├── supabase.js           # Supabase client
+│   │   ├── csvExport.js          # CSV-vienti
+│   │   └── i18n/translations/    # Kaannokset (fi, sv)
+│   ├── pages/                    # Sivut (9 kpl)
+│   └── main.jsx                  # Entry point
+├── scripts/                      # Node.js apuskriptit
+│   └── db.cjs                    # Supabase client (skripteille)
 ├── supabase/
-│   ├── migrations/     # Tietokantamigraatiot
-│   └── functions/      # Edge Functions
-└── public/             # Staattiset tiedostot
+│   └── migrations/               # SQL-migraatiot (~45 kpl)
+├── docs/                         # Tekninen dokumentaatio
+├── vercel.json                   # Cron-ajastukset + rewrite-saannot
+└── package.json
 ```
+
+## Sivut ja reititys
+
+| Polku | Sivu | Kuvaus |
+|-------|------|--------|
+| `/` | Tilannekuva | KPI-indikaattorit (oletusnakymä) |
+| `/insights` | Oivallukset | AI-analyysit, Emma-chat, viikkoanalyysi |
+| `/sales` | Myynti | ePages-myyntidata, trendit, top-tuotteet |
+| `/customers` | Asiakkaat | Asiakassegmentit, RFM-analyysi, marginaali |
+| `/search-console` | Haku | GSC: positiot, klikkaukset, impressiot |
+| `/analytics` | Analytiikka | GA4: liikennelahteet, kayttaytyminen |
+| `/inventory` | Varasto | Varastotasot, halytykset, taydennyssuositukset |
+| `/indicators/:id` | Indikaattori | Yksittaisen KPI:n syvaanalyysi |
+| `/settings` | Asetukset | Kaupan konfiguraatio |
+
+## KPI-indikaattorit (Indicator Engine)
+
+7 MVP-indikaattoria kolmesta datalahtesta:
+
+| Indikaattori | Lahde | Kategoria |
+|-------------|-------|-----------|
+| Myyntitrendi (`sales_trend`) | ePages | Sales |
+| Keskiostos (`aov`) | ePages | Sales |
+| Myyntikate (`gross_margin`) | ePages | Sales |
+| SEO-positiot (`position_change`) | GSC | SEO |
+| Non-brand-haut (`brand_vs_nonbrand`) | GSC | SEO |
+| Orgaaninen konversio (`organic_conversion_rate`) | ePages + GSC | Combined |
+| Varastoriski (`stock_availability_risk`) | ePages + GSC | Combined |
+
+Aikavalit: `7d`, `30d` (oletus), `90d`
+
+## Store ID vs Shop ID
+
+Projektissa on kaksi eri UUID:ta samalle kaupalle. Kayta aina keskitettya konfiguraatiota:
+
+```javascript
+// Frontend
+import { STORE_ID, SHOP_ID, getStoreIdForTable } from '@/config/storeConfig'
+
+// Node.js-skriptit
+const { STORE_ID, SHOP_ID, getStoreIdForTable } = require('./scripts/db.cjs')
+```
+
+| Taulut | Kayttaa |
+|--------|---------|
+| `orders`, `products`, `gsc_*`, `ga4_tokens`, `order_line_items` | `STORE_ID` |
+| `shops`, `ga4_ecommerce`, `weekly_analyses`, `chat_sessions`, `merchant_goals` | `SHOP_ID` |
+
+**Ala koskaan kovakoodaa UUID:ta suoraan koodiin!**
 
 ## Tietokanta (Supabase)
 
-### Päätaulut
+### Paataulut
 
 | Taulu | Kuvaus |
 |-------|--------|
 | `shops` | Kaupat (multi-tenant) |
 | `orders` | Tilaukset (ePages) |
-| `products` | Tuotteet |
+| `order_line_items` | Tilausrivit |
+| `products` | Tuotteet (+ cost_price) |
 | `gsc_search_analytics` | Search Console data |
-| `ga4_analytics` | Google Analytics data |
+| `gsc_tokens` | GSC OAuth tokenit |
+| `ga4_ecommerce` | GA4 tuotedata |
 | `ga4_tokens` | GA4 OAuth tokenit |
 | `indicators` | Lasketut indikaattorit |
+| `indicator_history` | Historiadata trendeihin |
+| `alerts` | Halytykset |
+| `weekly_analyses` | Viikkoanalyysit (AI) |
+| `chat_sessions` | Emma-chat historia |
+| `merchant_goals` | Kauppiaan tavoitteet |
+| `context_notes` | Kontekstimuistiinpanot |
+| `growth_engine_snapshots` | Kasvumoottori-snapshotit |
+| `action_recommendations` | Toimenpidesuositukset |
+| `emma_rag_documents` | Emma RAG -dokumentit |
 
-### Views
+### RPC-funktiot
 
-- `v_ga4_daily_summary` - Päivittäinen GA4-yhteenveto
-- `v_ga4_traffic_sources` - Liikennelähteet
-- `v_ga4_landing_pages` - Landing page -tilastot
+- `get_indicators(store_id, period_label)` - Hae indikaattorit
+- `upsert_indicator(...)` - Tallenna indikaattori
+- `get_indicator_history(store_id, indicator_id, days)` - Historia
+- `get_active_alerts(store_id)` - Aktiiviset halytykset
 
-## Indikaattorit (MVP)
+## Cron-ajastukset (Vercel)
 
-| ID | Nimi | Lähde |
-|----|------|-------|
-| `sales_trend` | Myyntitrendi | ePages |
-| `aov` | Keskiostos (AOV) | ePages |
-| `gross_margin` | Myyntikate | ePages |
-| `position_change` | SEO-positiot | GSC |
-| `brand_vs_nonbrand` | Non-brand % | GSC |
-| `organic_conversion_rate` | Orgaaninen CR | ePages + GSC |
-| `stock_availability_risk` | Varastoriski | ePages + GSC |
+Kaikki ajat UTC (Suomen aika = UTC + 2/3).
+
+| Aika (UTC) | Endpoint | Kuvaus |
+|------------|----------|--------|
+| 05:00 | `send-orders-slack` | Eilisen tilaukset Slackiin |
+| 05:15 | `send-stock-slack` | Varastohalytys |
+| 05:30 | `send-lowstock-slack` | Matalat varastotasot |
+| 06:00 | `sync-data` | **Paasynkronointi** (ePages, GA4, GSC, KPI) |
+| 06:15 ma | `send-reorder-slack` | Taydennyssuositukset (viikoittain) |
+| 06:30 | `send-daily-slack` | Paivittainen yhteenveto |
+| 06:45 | `index-emma-documents` | Emma RAG -dokumenttien indeksointi |
+| 07:00 ma | `save-growth-snapshot` | Kasvumoottori-snapshot (viikoittain) |
+| 07:30 ma | `send-weekly-slack` | Viikkoyhteenveto |
+
+## Skriptit
+
+```bash
+npm run dev       # Kehityspalvelin (Vite)
+npm run build     # Tuotantobuildi
+npm run preview   # Esikatselu buildista
+npm run lint      # ESLint
+npm run deploy    # Vercel production deploy
+```
+
+### Hyodyllisia apuskripteja
+
+```bash
+node scripts/sync_epages.js          # Synkkaa ePages-tilaukset manuaalisesti
+node scripts/sync_ga4_now.cjs        # Synkkaa GA4 manuaalisesti
+node scripts/sync_gsc_now.cjs        # Synkkaa GSC manuaalisesti
+```
 
 ## Deployment
 
-### Vercel
-
-**HUOM: Git push EI aina triggeröi Vercel deployta automaattisesti!**
+**Git push EI aina triggeroidy Vercel-deployta automaattisesti!**
 
 ```bash
-# ✅ KÄYTÄ AINA TÄTÄ deployaukseen:
-cd /Users/markkukorkiakoski/Desktop/VilkasAnalytics
-npx vercel --prod --yes
+# Aja aina manuaalinen deploy muutosten jalkeen:
+npm run deploy    # = npx vercel --prod --yes
 
-# ❌ ÄLÄ luota pelkkään git pushiin - webhook ei aina toimi!
+# Tarkista deployment:
+npx vercel list | head -5
 ```
 
-**Deploy-prosessi:**
-1. Tee muutokset ja commitoi
-2. `git push origin main`
-3. **AJA AINA:** `npx vercel --prod --yes`
-4. Tarkista: https://vercel.com/mardex7s-projects/vilkas-analytics
+### Ymparistomuuttujat Vercelissa
 
-### Ympäristömuuttujat Vercelissä
-
-Aseta seuraavat Vercel Dashboard > Settings > Environment Variables:
+Aseta Vercel Dashboard > Settings > Environment Variables:
 
 - `VITE_SUPABASE_URL`
 - `VITE_SUPABASE_ANON_KEY`
-- `GOOGLE_CLIENT_ID` (GA4 OAuth)
-- `GOOGLE_CLIENT_SECRET` (GA4 OAuth)
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `GOOGLE_CLIENT_ID`
+- `GOOGLE_CLIENT_SECRET`
+- `GOOGLE_REDIRECT_URI`
+- `OPENAI_API_KEY`
 
-## Liittyvät projektit
+## Liittyvat projektit
 
 | Projekti | Kuvaus | Supabase |
 |----------|--------|----------|
-| **VilkasAnalytics** (tämä) | Kauppiaan oma analytiikka | `tlothekaphtiwvusgwzh` |
+| **VilkasAnalytics** (tama) | Kauppiaan oma analytiikka | `tlothekaphtiwvusgwzh` |
 | VilkasInsight | Benchmark-palvelu | `abbwfjishojcbifbruia` |
+| ParasX | Autokorjaamo-liidit | `dkqbzsphgqorstfcqthx` |
 
-**Älä sekoita näitä tietokantoja keskenään!**
+**Ala sekoita naita tietokantoja keskenaan!**
 
 ## Lisenssi
 

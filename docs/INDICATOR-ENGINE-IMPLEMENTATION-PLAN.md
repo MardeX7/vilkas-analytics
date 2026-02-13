@@ -1,7 +1,20 @@
 # Indicator Engine - Toteutussuunnitelma
 
+> **⚠️ HUOM: Tämä dokumentti on VANHENTUNUT (2026-01-26)**
+>
+> Alkuperäinen suunnitelma korvattiin **Growth Engine** -toteutuksella.
+>
+> **Nykyinen toteutus:**
+> - `src/hooks/useGrowthEngine.js` - 4 KPI-aluetta, 13 metriikkaa
+> - YoY-pohjainen pisteytys (0-100)
+> - Katso: `docs/INTEGRATIONS.md` → "Growth Engine" -osio
+>
+> Tämä dokumentti säilytetään historiallisena referenssinä.
+
+---
+
 **Päivämäärä:** 2026-01-05
-**Status:** Suunnitelma (toteutus alkaa huomenna)
+**Status:** ARKISTOITU
 
 ---
 

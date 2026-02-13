@@ -195,11 +195,11 @@ export function DateRangePicker({ value, onChange, compareEnabled }) {
         <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
-      {/* Dropdown */}
+      {/* Dropdown - responsive positioning */}
       {isOpen && (
-        <div className="absolute top-full right-0 mt-2 w-80 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-50 overflow-hidden">
+        <div className="absolute top-full left-0 sm:left-auto sm:right-0 mt-2 w-[calc(100vw-2rem)] sm:w-80 max-w-80 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-50 overflow-hidden">
           {/* Presets list */}
-          <div className="p-2">
+          <div className="p-2 max-h-[60vh] overflow-y-auto">
             <p className="text-xs text-slate-500 uppercase tracking-wider px-2 py-1 mb-1">{t('datePicker.quickSelect')}</p>
             {PRESET_VALUES.map((preset) => {
               const range = getDateRange(preset.value)
@@ -215,11 +215,11 @@ export function DateRangePicker({ value, onChange, compareEnabled }) {
                       : 'text-slate-300 hover:bg-slate-700'
                   }`}
                 >
-                  <div className="flex items-center gap-2">
-                    {isSelected && <Check className="w-4 h-4" />}
-                    <span className={`text-sm ${isSelected ? '' : 'ml-6'}`}>{t(`datePicker.presets.${preset.value}`)}</span>
+                  <div className="flex items-center gap-2 min-w-0">
+                    {isSelected && <Check className="w-4 h-4 flex-shrink-0" />}
+                    <span className={`text-sm truncate ${isSelected ? '' : 'ml-6'}`}>{t(`datePicker.presets.${preset.value}`)}</span>
                   </div>
-                  <span className="text-xs text-slate-500">
+                  <span className="text-xs text-slate-500 flex-shrink-0 ml-2">
                     {formatDate(range.startDate).split(' ').slice(0, 2).join(' ')} – {formatDate(range.endDate).split(' ').slice(0, 2).join(' ')}
                   </span>
                 </button>

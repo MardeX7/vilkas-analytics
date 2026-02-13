@@ -228,7 +228,7 @@ export function DailyMarginChart({ data, previousData = null, compare = false })
                 tickLine={false}
                 axisLine={false}
                 domain={[0, 100]}
-                tickFormatter={(v) => `${v}%`}
+                tickFormatter={(v) => `${Math.round(v)}%`}
               />
               <Tooltip
                 contentStyle={{ backgroundColor: COLORS.tooltip, border: `1px solid ${COLORS.grid}`, borderRadius: '8px' }}

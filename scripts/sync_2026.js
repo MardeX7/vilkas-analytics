@@ -73,7 +73,7 @@ async function syncProducts(storeId) {
     short_description: p.shortDescription,
     price_amount: p.priceInfo?.price?.amount || 0,
     price_currency: p.priceInfo?.price?.currency || 'SEK',
-    stock_level: p.stockLevel ?? 0,
+    stock_level: p.stocklevel ?? 0,
     for_sale: p.forSale !== false,
     category_name: p.categoryName,
     image_url: p.images?.[0]?.url

@@ -22,15 +22,50 @@ const NoteIcon = {
 }
 
 /**
+ * Calculate days remaining or passed
+ */
+function getDaysInfo(startDate, endDate) {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const start = new Date(startDate)
+  start.setHours(0, 0, 0, 0)
+  const end = new Date(endDate)
+  end.setHours(0, 0, 0, 0)
+
+  // Note is in the future
+  if (start > today) {
+    const daysUntilStart = Math.ceil((start - today) / (1000 * 60 * 60 * 24))
+    return { status: 'upcoming', days: daysUntilStart, label: `Alkaa ${daysUntilStart} pv kuluttua` }
+  }
+
+  // Note is currently active
+  if (today >= start && today <= end) {
+    const daysRemaining = Math.ceil((end - today) / (1000 * 60 * 60 * 24))
+    if (daysRemaining === 0) return { status: 'active', days: 0, label: 'Viimeinen päivä' }
+    return { status: 'active', days: daysRemaining, label: `${daysRemaining} pv jäljellä` }
+  }
+
+  // Note is in the past
+  const daysPassed = Math.ceil((today - end) / (1000 * 60 * 60 * 24))
+  return { status: 'past', days: daysPassed, label: `${daysPassed} pv sitten` }
+}
+
+/**
  * Single note item
  */
 function NoteItem({ note, onDelete, isDeleting }) {
   const config = NOTE_TYPES[note.note_type] || NOTE_TYPES.other
   const Icon = NoteIcon[note.note_type] || MessageSquare
+  const daysInfo = getDaysInfo(note.start_date, note.end_date)
 
   const formatDate = (date) => {
-    return new Date(date).toLocaleDateString('fi-FI', { day: 'numeric', month: 'short' })
+    return new Date(date).toLocaleDateString('fi-FI', { day: 'numeric', month: 'numeric' })
   }
+
+  // Calculate duration in days
+  const start = new Date(note.start_date)
+  const end = new Date(note.end_date)
+  const durationDays = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1
 
   return (
     <div className="flex items-start gap-3 p-3 bg-background-subtle rounded-lg group">
@@ -41,9 +76,10 @@ function NoteItem({ note, onDelete, isDeleting }) {
         <div className="flex items-start justify-between gap-2">
           <div>
             <p className="text-sm font-medium text-foreground">{note.title}</p>
+            {/* Clear date range with duration */}
             <p className="text-xs text-foreground-muted">
-              {formatDate(note.start_date)}
-              {note.start_date !== note.end_date && ` - ${formatDate(note.end_date)}`}
+              {formatDate(note.start_date)} - {formatDate(note.end_date)}
+              <span className="text-foreground-subtle ml-1">({durationDays} pv)</span>
             </p>
           </div>
           <button
@@ -58,9 +94,20 @@ function NoteItem({ note, onDelete, isDeleting }) {
         {note.description && (
           <p className="text-xs text-foreground-muted mt-1 line-clamp-2">{note.description}</p>
         )}
-        <span className="inline-block mt-1.5 text-[10px] px-1.5 py-0.5 bg-background rounded text-foreground-muted">
-          {config.label}
-        </span>
+        <div className="flex items-center gap-2 mt-1.5">
+          <span className="text-[10px] px-1.5 py-0.5 bg-background rounded text-foreground-muted">
+            {config.label}
+          </span>
+          {/* Time status badge */}
+          <span className={cn(
+            'text-[10px] px-1.5 py-0.5 rounded font-medium',
+            daysInfo.status === 'active' && 'bg-emerald-500/20 text-emerald-400',
+            daysInfo.status === 'upcoming' && 'bg-blue-500/20 text-blue-400',
+            daysInfo.status === 'past' && 'bg-foreground-subtle/10 text-foreground-subtle'
+          )}>
+            {daysInfo.label}
+          </span>
+        </div>
       </div>
     </div>
   )
@@ -196,9 +243,12 @@ export function ContextNotesCard({ startDate, endDate, label, className }) {
     }
   }
 
+  // User input card styling - distinct purple/indigo border to indicate user-editable content
+  const cardStyles = 'rounded-lg border-2 border-indigo-500/30 bg-gradient-to-br from-indigo-500/5 to-background-elevated p-5 ring-1 ring-indigo-500/10'
+
   if (isLoading) {
     return (
-      <div className={cn('rounded-lg border border-card-border bg-background-elevated p-5', className)}>
+      <div className={cn(cardStyles, className)}>
         <div className="animate-pulse">
           <div className="h-5 w-32 bg-background-subtle rounded mb-4" />
           <div className="space-y-3">
@@ -219,12 +269,17 @@ export function ContextNotesCard({ startDate, endDate, label, className }) {
   }
 
   return (
-    <div className={cn('rounded-lg border border-card-border bg-background-elevated p-5', className)}>
-      {/* Header */}
+    <div className={cn(cardStyles, className)}>
+      {/* Header with user input indicator */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
-          <MessageSquare className="w-5 h-5 text-primary" />
-          <h3 className="font-semibold text-foreground">Muistiinpanot</h3>
+          <div className="w-8 h-8 rounded-lg bg-indigo-500/20 flex items-center justify-center">
+            <MessageSquare className="w-4 h-4 text-indigo-400" />
+          </div>
+          <div>
+            <h3 className="font-semibold text-foreground">Muistiinpanot</h3>
+            <p className="text-[10px] text-indigo-400/70 uppercase tracking-wide">Omat merkinnät</p>
+          </div>
         </div>
         <div className="flex items-center gap-2">
           {label && (

@@ -9,9 +9,16 @@ import { supabase } from '@/lib/supabase'
 import { STORE_ID } from '@/config/storeConfig'
 
 /**
- * Hae aktiiviset tavoitteet
+ * Hae aktiiviset tavoitteet ja päivitä niiden edistyminen automaattisesti
  */
 async function fetchActiveGoals(storeId) {
+  // First, calculate/refresh all goals progress (ensures current_value is up to date)
+  await supabase.rpc('calculate_goal_progress', {
+    p_store_id: storeId,
+    p_goal_id: null
+  })
+
+  // Then fetch the goals with fresh data
   const { data, error } = await supabase.rpc('get_active_goals', {
     p_store_id: storeId
   })
@@ -83,8 +90,8 @@ export function useMerchantGoals() {
   const query = useQuery({
     queryKey: ['merchantGoals', STORE_ID],
     queryFn: () => fetchActiveGoals(STORE_ID),
-    staleTime: 5 * 60 * 1000, // 5 min
-    cacheTime: 30 * 60 * 1000 // 30 min
+    staleTime: 60 * 1000, // 1 min - refresh frequently since it recalculates progress
+    cacheTime: 5 * 60 * 1000 // 5 min
   })
 
   // Upsert mutation

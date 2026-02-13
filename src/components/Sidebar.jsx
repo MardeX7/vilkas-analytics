@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { BarChart3, Search, TrendingUp, Target, Settings, Globe, LogOut, Activity } from 'lucide-react'
+import { BarChart3, Search, TrendingUp, Target, Settings, Globe, LogOut, Activity, Warehouse, Users } from 'lucide-react'
 import { useTranslation } from '@/lib/i18n'
 import { useAuth } from '@/contexts/AuthContext'
 
@@ -16,16 +16,25 @@ export function Sidebar() {
     { to: '/insights', icon: TrendingUp, label: t('nav.insights') },
     // Data & todisteet
     { to: '/sales', icon: BarChart3, label: t('nav.sales') },
+    { to: '/customers', icon: Users, label: t('nav.customers') },
+    { to: '/inventory', icon: Warehouse, label: t('nav.inventory') },
     { to: '/search-console', icon: Search, label: t('nav.searchConsole') },
     { to: '/analytics', icon: Activity, label: t('nav.analytics') },
   ]
 
   return (
-    <aside className="fixed left-0 top-0 h-screen w-64 bg-background-elevated border-r border-border flex flex-col z-20">
+    <aside className="fixed left-0 top-0 h-screen w-64 bg-background-elevated border-r border-card-border flex flex-col z-20">
       {/* Logo */}
-      <div className="p-6 border-b border-border">
-        <h1 className="text-xl font-bold text-foreground">Billackering.eu</h1>
-        <p className="text-foreground-subtle text-xs mt-1">Analytics Agent</p>
+      <div className="p-6 border-b border-card-border">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#00b4e9] to-[#0090c0] flex items-center justify-center shadow-lg shadow-[#00b4e9]/20">
+            <BarChart3 className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <h1 className="text-base font-bold text-foreground">Billackering.eu</h1>
+            <p className="text-foreground-subtle text-xs">Analytics Agent</p>
+          </div>
+        </div>
       </div>
 
       {/* Navigation */}
@@ -36,9 +45,9 @@ export function Sidebar() {
               <NavLink
                 to={to}
                 className={({ isActive }) =>
-                  `flex items-center gap-3 px-4 py-2.5 rounded-lg transition-colors ${
+                  `flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 ${
                     isActive
-                      ? 'bg-primary-muted text-primary'
+                      ? 'bg-[#00b4e9]/10 text-[#00b4e9] border-l-2 border-[#00b4e9]'
                       : 'text-foreground-muted hover:bg-background-subtle hover:text-foreground'
                   }`
                 }

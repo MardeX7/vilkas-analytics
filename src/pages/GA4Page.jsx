@@ -21,6 +21,9 @@ import {
 } from 'lucide-react'
 import { BrowseAnalysisCard } from '@/components/BrowseAnalysisCard'
 import { TopProductsGA4 } from '@/components/TopProductsGA4'
+import { TrafficChart } from '@/components/TrafficChart'
+import { TrafficQualityCard } from '@/components/TrafficQualityCard'
+import { ConversionFunnel } from '@/components/ConversionFunnel'
 
 // Helper to create default date range
 function createDefaultDateRange() {
@@ -72,6 +75,7 @@ export function GA4Page() {
     trafficSources = [],
     landingPages = [],
     deviceBreakdown = [],
+    channelData = [],
     summary,
     previousSummary,
     comparisonEnabled,
@@ -169,67 +173,78 @@ export function GA4Page() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
+      {/* Header - Responsive */}
       <header className="border-b border-border bg-background-elevated/80 backdrop-blur-sm sticky top-0 z-10">
-        <div className="px-8 py-5 flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-semibold text-foreground flex items-center gap-2">
-              <BarChart3 className="w-6 h-6 text-primary" />
-              {t('ga4.title')}
-            </h1>
-            {propertyName && (
-              <p className="text-foreground-muted text-sm mt-1">{propertyName}</p>
-            )}
-          </div>
-          <div className="flex items-center gap-3">
-            <DateRangePicker
-              value={dateRange?.preset || 'last30'}
-              onChange={setDateRange}
-            />
-            {/* MoM/YoY Toggle */}
-            <div className="flex bg-background-subtle rounded-lg p-1">
-              <button
-                onClick={() => setComparisonMode('mom')}
-                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
-                  comparisonMode === 'mom'
-                    ? 'bg-primary text-primary-foreground shadow-sm'
-                    : 'text-foreground-muted hover:text-foreground'
-                }`}
-                title={t('comparison.momFull')}
-              >
-                {t('comparison.mom')}
-              </button>
-              <button
-                onClick={() => setComparisonMode('yoy')}
-                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
-                  comparisonMode === 'yoy'
-                    ? 'bg-primary text-primary-foreground shadow-sm'
-                    : 'text-foreground-muted hover:text-foreground'
-                }`}
-                title={t('comparison.yoyFull')}
-              >
-                {t('comparison.yoy')}
-              </button>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleSync}
-              disabled={syncing || loading}
-              className="bg-background-elevated border-border text-foreground-muted hover:bg-background-subtle hover:text-foreground"
-            >
-              {syncing ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <RefreshCw className="w-4 h-4" />
+        <div className="px-4 sm:px-6 lg:px-8 py-4 sm:py-5">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            {/* Title */}
+            <div className="flex-shrink-0">
+              <h1 className="text-lg sm:text-xl lg:text-2xl font-semibold text-foreground flex items-center gap-2">
+                <BarChart3 className="w-5 h-5 sm:w-6 sm:h-6 text-primary flex-shrink-0" />
+                <span className="truncate">{t('ga4.title')}</span>
+              </h1>
+              {propertyName && (
+                <p className="text-foreground-muted text-xs sm:text-sm mt-1 truncate">{propertyName}</p>
               )}
-            </Button>
+            </div>
+
+            {/* Controls - wrap on mobile */}
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+              {/* Date picker */}
+              <div className="order-1">
+                <DateRangePicker
+                  value={dateRange?.preset || 'last30'}
+                  onChange={setDateRange}
+                />
+              </div>
+
+              {/* MoM/YoY Toggle */}
+              <div className="flex bg-background-subtle rounded-lg p-0.5 sm:p-1 order-2">
+                <button
+                  onClick={() => setComparisonMode('mom')}
+                  className={`px-2 sm:px-3 py-1 sm:py-1.5 text-xs sm:text-sm font-medium rounded-md transition-all ${
+                    comparisonMode === 'mom'
+                      ? 'bg-primary text-primary-foreground shadow-sm'
+                      : 'text-foreground-muted hover:text-foreground'
+                  }`}
+                  title={t('comparison.momFull')}
+                >
+                  {t('comparison.mom')}
+                </button>
+                <button
+                  onClick={() => setComparisonMode('yoy')}
+                  className={`px-2 sm:px-3 py-1 sm:py-1.5 text-xs sm:text-sm font-medium rounded-md transition-all ${
+                    comparisonMode === 'yoy'
+                      ? 'bg-primary text-primary-foreground shadow-sm'
+                      : 'text-foreground-muted hover:text-foreground'
+                  }`}
+                  title={t('comparison.yoyFull')}
+                >
+                  {t('comparison.yoy')}
+                </button>
+              </div>
+
+              {/* Refresh button */}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleSync}
+                disabled={syncing || loading}
+                className="bg-background-elevated border-border text-foreground-muted hover:bg-background-subtle hover:text-foreground p-2 order-3"
+              >
+                {syncing ? (
+                  <Loader2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                )}
+              </Button>
+            </div>
           </div>
         </div>
       </header>
 
       {/* Content */}
-      <main className="px-8 py-8 max-w-7xl mx-auto">
+      <main className="px-4 sm:px-6 lg:px-8 py-6 sm:py-8 max-w-7xl mx-auto">
         {loading ? (
           <div className="flex items-center justify-center py-20">
             <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -278,26 +293,42 @@ export function GA4Page() {
             {/* Device Breakdown - Real GSC data */}
             <MetricCardGroup columns={1} className="mb-8">
               <div className="bg-background-elevated rounded-xl p-5 border border-border">
-                <h3 className="text-sm font-medium text-foreground-muted mb-3">{t('ga4.deviceBreakdown')}</h3>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-medium text-foreground-muted">{t('ga4.deviceBreakdown')}</h3>
+                  {comparisonEnabled && (
+                    <span className="text-xs text-foreground-subtle px-2 py-0.5 bg-background-subtle rounded">
+                      {comparisonMode.toUpperCase()}
+                    </span>
+                  )}
+                </div>
                 {deviceBreakdown.length > 0 ? (
-                  <div className="flex gap-8">
+                  <div className="flex flex-col sm:flex-row gap-4 sm:gap-8">
                     {deviceBreakdown.map((device) => (
-                      <div key={device.device} className="flex items-center gap-3">
-                        <span className="text-sm text-foreground capitalize">{device.device.toLowerCase()}</span>
-                        <div className="flex items-center gap-2">
-                          <div className="w-24 h-2 bg-background-subtle rounded-full overflow-hidden">
+                      <div key={device.device} className="flex items-center justify-between sm:justify-start gap-3">
+                        <span className="text-sm text-foreground capitalize min-w-[60px]">{device.device.toLowerCase()}</span>
+                        <div className="flex items-center gap-2 flex-1 sm:flex-none">
+                          <div className="w-full sm:w-24 max-w-[120px] h-2 bg-background-subtle rounded-full overflow-hidden">
                             <div
                               className="h-full bg-primary rounded-full"
                               style={{ width: `${device.percentage}%` }}
                             />
                           </div>
-                          <span className="text-sm font-medium text-foreground w-12 text-right">{device.percentage}%</span>
+                          <span className="text-sm font-medium text-foreground w-10 text-right tabular-nums">{device.percentage}%</span>
+                          {device.change !== null && device.change !== undefined && (
+                            <span className={`text-xs tabular-nums flex items-center gap-0.5 min-w-[50px] ${
+                              device.change > 0 ? 'text-success' : device.change < 0 ? 'text-destructive' : 'text-foreground-subtle'
+                            }`}>
+                              {device.change > 0 && <TrendingUp className="w-3 h-3" />}
+                              {device.change < 0 && <TrendingDown className="w-3 h-3" />}
+                              {device.change > 0 && '+'}{device.change.toFixed(0)}%
+                            </span>
+                          )}
                         </div>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <p className="text-sm text-foreground-muted">{t('common.loading')}</p>
+                  <p className="text-sm text-foreground-muted">{t('ga4.noDeviceData')}</p>
                 )}
               </div>
             </MetricCardGroup>
@@ -419,44 +450,12 @@ export function GA4Page() {
               </div>
             </div>
 
-            {/* Daily Chart */}
-            <div className="bg-background-elevated rounded-lg border border-card-border p-5">
-              <h3 className="text-base font-medium text-foreground mb-4 flex items-center gap-2">
-                <TrendingUp className="w-5 h-5 text-primary" />
-                {t('ga4.dailyTraffic')}
-              </h3>
-              <div className="h-64 flex items-center justify-center">
-                {dailySummary.length > 0 ? (
-                  <div className="w-full">
-                    {/* Simple bar chart */}
-                    <div className="flex items-end justify-between h-48 gap-1">
-                      {dailySummary.slice(0, 30).reverse().map((day, i) => {
-                        const maxSessions = Math.max(...dailySummary.map(d => d.total_sessions || 0))
-                        const height = maxSessions > 0 ? ((day.total_sessions || 0) / maxSessions) * 100 : 0
-                        return (
-                          <div
-                            key={i}
-                            className="flex-1 bg-primary/60 hover:bg-primary transition-colors rounded-t cursor-pointer group relative"
-                            style={{ height: `${height}%`, minHeight: '4px' }}
-                            title={`${day.date}: ${day.total_sessions} ${t('ga4.sessions').toLowerCase()}`}
-                          >
-                            <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 bg-background-subtle border border-border text-foreground text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-10">
-                              {day.date}: {day.total_sessions}
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </div>
-                    <div className="flex justify-between mt-2 text-xs text-foreground-subtle">
-                      <span>{dailySummary[dailySummary.length - 1]?.date}</span>
-                      <span>{dailySummary[0]?.date}</span>
-                    </div>
-                  </div>
-                ) : (
-                  <p className="text-foreground-subtle">{t('ga4.noDataForPeriod')}</p>
-                )}
-              </div>
-            </div>
+            {/* Daily Traffic Chart - Interactive with channel breakdown */}
+            <TrafficChart
+              dailySummary={dailySummary}
+              channelData={channelData}
+              showTrend={true}
+            />
 
             {/* Risk Radar Section */}
             <div className="mb-8">
@@ -507,72 +506,26 @@ export function GA4Page() {
                   )}
                 </div>
 
-                {/* Traffic Health Summary */}
-                <div className="bg-background-elevated rounded-lg border border-card-border p-4">
-                  <div className="flex items-center gap-2 mb-3">
-                    <Globe className="w-4 h-4 text-primary" />
-                    <h3 className="text-sm font-medium text-foreground">{t('ga4.trafficHealth')}</h3>
-                  </div>
-                  <p className="text-xs text-foreground-muted mb-3">{t('ga4.trafficHealthDesc')}</p>
-
-                  <div className="space-y-3">
-                    {/* Organic Search status */}
-                    <div className="flex items-center justify-between p-2 bg-background-subtle rounded-md">
-                      <span className="text-sm text-foreground">Organic Search</span>
-                      <span className={`text-sm font-medium ${
-                        riskRadar.decliningPages.length === 0 ? 'text-success' : 'text-warning'
-                      }`}>
-                        {riskRadar.decliningPages.length === 0 ? t('ga4.healthy') : `${riskRadar.decliningPages.length} ${t('ga4.pagesAtRisk')}`}
-                      </span>
-                    </div>
-
-                    {/* Device breakdown health */}
-                    {deviceBreakdown.length > 0 && (
-                      <div className="flex items-center justify-between p-2 bg-background-subtle rounded-md">
-                        <span className="text-sm text-foreground">{t('ga4.deviceBreakdown')}</span>
-                        <span className="text-sm font-medium text-success">{t('ga4.balanced')}</span>
-                      </div>
-                    )}
-
-                    {/* Total pages monitored */}
-                    <div className="flex items-center justify-between p-2 bg-background-subtle rounded-md">
-                      <span className="text-sm text-foreground">{t('ga4.pagesMonitored')}</span>
-                      <span className="text-sm font-medium text-foreground">{landingPages.length}</span>
-                    </div>
-                  </div>
-                </div>
+                {/* Traffic Quality Card */}
+                <TrafficQualityCard
+                  summary={summary}
+                  previousSummary={previousSummary}
+                  trafficSources={trafficSources}
+                  comparisonEnabled={comparisonEnabled}
+                  comparisonMode={comparisonMode}
+                />
               </div>
             </div>
 
             {/* E-commerce Section */}
             {topProducts.length > 0 && (
               <>
-                {/* E-commerce Funnel KPIs */}
+                {/* Conversion Funnel - Visual */}
                 <div className="mt-8">
-                  <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
-                    <ShoppingCart className="w-5 h-5 text-primary" />
-                    {t('ga4.ecommerce.title')}
-                  </h2>
-                  <MetricCardGroup columns={4} className="mb-6">
-                    <MetricCard
-                      label={t('ga4.ecommerce.itemsViewed')}
-                      value={productFunnel?.totalViews?.toLocaleString() || 0}
-                    />
-                    <MetricCard
-                      label={t('ga4.ecommerce.addedToCart')}
-                      value={productFunnel?.totalAddToCart?.toLocaleString() || 0}
-                      subtitle={productFunnel?.totalViews > 0 ? `${((productFunnel.viewToCartRate) * 100).toFixed(1)}% ${t('ga4.ecommerce.conversionRate')}` : undefined}
-                    />
-                    <MetricCard
-                      label={t('ga4.ecommerce.purchased')}
-                      value={productFunnel?.totalPurchased?.toLocaleString() || 0}
-                      subtitle={productFunnel?.totalAddToCart > 0 ? `${((productFunnel.cartToPurchaseRate) * 100).toFixed(1)}% ${t('ga4.ecommerce.conversionRate')}` : undefined}
-                    />
-                    <MetricCard
-                      label={t('ga4.ecommerce.revenue')}
-                      value={`kr${(productFunnel?.totalRevenue || 0).toLocaleString('sv-SE', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`}
-                    />
-                  </MetricCardGroup>
+                  <ConversionFunnel
+                    productFunnel={productFunnel}
+                    currency="kr"
+                  />
                 </div>
 
                 {/* Top Products by Revenue (with comparison) */}

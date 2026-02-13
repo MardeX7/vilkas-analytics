@@ -46,6 +46,7 @@ export default async function handler(req, res) {
   const results = {
     started_at: new Date().toISOString(),
     epages_sync: [],
+    products_sync: [],
     ga4_sync: [],
     gsc_sync: [],
     inventory_snapshots: [],
@@ -114,6 +115,52 @@ export default async function handler(req, res) {
       } else {
         console.log(`  ⏭️ No ePages connection, skipping ePages sync`)
         results.epages_sync.push({
+          store_id: store.id,
+          store_name: store.name,
+          status: 'skipped',
+          reason: 'No ePages credentials'
+        })
+      }
+
+      // ============================================
+      // 2aa. SYNC EPAGES PRODUCTS (daily stock update)
+      // ============================================
+      if (store.access_token && store.epages_shop_id) {
+        try {
+          const productsResponse = await fetch(
+            `${baseUrl}/api/cron/sync-products`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                store_id: store.id
+              })
+            }
+          )
+
+          const productsResult = await productsResponse.json()
+
+          results.products_sync.push({
+            store_id: store.id,
+            store_name: store.name,
+            status: productsResponse.ok ? 'success' : 'error',
+            ...productsResult
+          })
+
+          console.log(`  ✅ Products sync: ${productsResult.products_synced || 0} products`)
+        } catch (err) {
+          console.error(`  ❌ Products sync error:`, err.message)
+          results.products_sync.push({
+            store_id: store.id,
+            store_name: store.name,
+            status: 'error',
+            error: err.message
+          })
+          results.errors.push(`Products sync failed for ${store.name}: ${err.message}`)
+        }
+      } else {
+        console.log(`  ⏭️ No ePages connection, skipping products sync`)
+        results.products_sync.push({
           store_id: store.id,
           store_name: store.name,
           status: 'skipped',
@@ -271,11 +318,57 @@ export default async function handler(req, res) {
       }
 
       // ============================================
-      // 2e. CALCULATE PRODUCT ROLES (weekly on Mondays)
+      // 2e. CALCULATE KPI SNAPSHOTS (weekly on Mondays, monthly on 1st)
       // ============================================
       const today = new Date()
       const isMonday = today.getUTCDay() === 1
+      const isFirstOfMonth = today.getUTCDate() === 1
 
+      // Weekly KPI snapshot on Mondays
+      if (isMonday) {
+        try {
+          const kpiResponse = await fetch(
+            `${baseUrl}/api/cron/calculate-kpi`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ granularity: 'week' })
+            }
+          )
+          const kpiResult = await kpiResponse.json()
+          console.log(`  ✅ Weekly KPI snapshot: ${kpiResult.period || 'calculated'}`)
+          results.kpi_snapshots = results.kpi_snapshots || []
+          results.kpi_snapshots.push({ granularity: 'week', ...kpiResult })
+        } catch (err) {
+          console.log(`  ℹ️ Weekly KPI snapshot: ${err.message}`)
+          results.errors.push(`Weekly KPI snapshot failed: ${err.message}`)
+        }
+      }
+
+      // Monthly KPI snapshot on 1st of month
+      if (isFirstOfMonth) {
+        try {
+          const kpiResponse = await fetch(
+            `${baseUrl}/api/cron/calculate-kpi`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ granularity: 'month' })
+            }
+          )
+          const kpiResult = await kpiResponse.json()
+          console.log(`  ✅ Monthly KPI snapshot: ${kpiResult.period || 'calculated'}`)
+          results.kpi_snapshots = results.kpi_snapshots || []
+          results.kpi_snapshots.push({ granularity: 'month', ...kpiResult })
+        } catch (err) {
+          console.log(`  ℹ️ Monthly KPI snapshot: ${err.message}`)
+          results.errors.push(`Monthly KPI snapshot failed: ${err.message}`)
+        }
+      }
+
+      // ============================================
+      // 2f. CALCULATE PRODUCT ROLES (weekly on Mondays)
+      // ============================================
       if (isMonday) {
         try {
           // Calculate 90-day product roles

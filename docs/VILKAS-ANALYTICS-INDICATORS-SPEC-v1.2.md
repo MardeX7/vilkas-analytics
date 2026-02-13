@@ -1,6 +1,17 @@
 # VilkasAnalytics - Indikaattorijärjestelmä
 
-## Tekninen spesifikaatio v1.1
+> **⚠️ HUOM: Tämä dokumentti on OSITTAIN VANHENTUNUT (2026-01-26)**
+>
+> Alkuperäinen 7 MVP -indikaattorin suunnitelma korvattiin **Growth Engine** -toteutuksella.
+>
+> **Nykyinen toteutus:**
+> - `src/hooks/useGrowthEngine.js` - 4 KPI-aluetta, 13 metriikkaa
+> - YoY-pohjainen pisteytys (0-100)
+> - Katso: `docs/INTEGRATIONS.md` → "Growth Engine" -osio
+>
+> **Validia edelleen:** Data Mastership -periaate (ePages = master, GA4 = behavioral)
+
+## Tekninen spesifikaatio v1.1 (ARKISTOITU)
 
 ---
 

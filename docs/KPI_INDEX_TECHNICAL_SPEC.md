@@ -1,6 +1,19 @@
 # KPI Index Engine - Tekninen Toteutussuunnitelma
 
-**Versio:** 1.0
+> **⚠️ HUOM: Tämä dokumentti on VANHENTUNUT (2026-01-26)**
+>
+> Alkuperäinen suunnitelma (CORE INDEX, PPI, SPI, OI) korvattiin **Growth Engine** -toteutuksella.
+>
+> **Nykyinen toteutus:**
+> - `src/hooks/useGrowthEngine.js` - 4 KPI-aluetta (Kysynnän kasvu, Liikenteen laatu, Myynnin tehokkuus, Sivuston näkyvyys)
+> - YoY-pohjainen pisteytys (0-100)
+> - Katso: `docs/INTEGRATIONS.md` → "Growth Engine" -osio
+>
+> Tämä dokumentti säilytetään historiallisena referenssinä.
+
+---
+
+**Versio:** 1.0 (ARKISTOITU)
 **Päivitetty:** 2026-01-07
 **Projekti:** VilkasAnalytics
 **Supabase:** tlothekaphtiwvusgwzh

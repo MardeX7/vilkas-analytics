@@ -4,23 +4,10 @@
  * Shows top and bottom categories by margin percentage.
  */
 
-import { TrendingUp, Package, Target, AlertTriangle, Sparkles, BarChart3 } from 'lucide-react'
+import { AlertTriangle, Sparkles } from 'lucide-react'
 import { useTranslation } from '@/lib/i18n'
 import { useCategoryMargin } from '@/hooks/useCategoryMargin'
 import { cn } from '@/lib/utils'
-
-function SummaryCard({ icon, label, value, subValue }) {
-  return (
-    <div className="bg-background-elevated rounded-lg border border-border p-4">
-      <div className="flex items-center gap-2 mb-2 text-foreground-muted">
-        {icon}
-        <span className="text-sm">{label}</span>
-      </div>
-      <div className="text-2xl font-bold text-foreground">{value}</div>
-      {subValue && <div className="text-sm text-foreground-muted mt-1">{subValue}</div>}
-    </div>
-  )
-}
 
 function MarginBadge({ value }) {
   const color = value >= 50 ? 'bg-green-500/20 text-green-400' :
@@ -99,32 +86,6 @@ export function CategoryMarginCard({ startDate, endDate, className }) {
 
   return (
     <div className={cn('space-y-6', className)}>
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <SummaryCard
-          icon={<BarChart3 className="w-5 h-5" />}
-          label={t('insights.category.totalSales')}
-          value={`${formatCurrency(totalMargin.revenue)} kr`}
-        />
-        <SummaryCard
-          icon={<TrendingUp className="w-5 h-5" />}
-          label={t('insights.category.totalMargin')}
-          value={`${formatPercent(totalMargin.percent)}%`}
-          subValue={`${formatCurrency(totalMargin.profit)} kr`}
-        />
-        <SummaryCard
-          icon={<Package className="w-5 h-5" />}
-          label={t('insights.category.categoriesCount')}
-          value={categoryMargins.length}
-        />
-        <SummaryCard
-          icon={<Target className="w-5 h-5" />}
-          label={t('insights.category.bestMargin')}
-          value={topCategories[0] ? `${formatPercent(topCategories[0].marginPercent)}%` : '—'}
-          subValue={topCategories[0]?.category}
-        />
-      </div>
-
       {/* Top 10 Categories by Margin */}
       <div className="bg-background-elevated rounded-lg border border-border overflow-hidden">
         <div className="px-4 py-3 border-b border-border">

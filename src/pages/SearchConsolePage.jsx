@@ -12,6 +12,7 @@ import {
 } from '@/components/GSCCharts'
 import { Search, RefreshCw, Download, AlertTriangle, TrendingDown, FileWarning, Users } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { DataLoadingScreen } from '@/components/ui/DataLoadingScreen'
 import { useTranslation } from '@/lib/i18n'
 
 // Helper to create default date range with YoY comparison enabled
@@ -87,6 +88,22 @@ export function SearchConsolePage() {
   const page1KeywordsChange = comparisonEnabled && previousPage1Keywords
     ? getChangePercent(page1Keywords, previousPage1Keywords)
     : null
+
+  // Keyword bucket changes (for ranking distribution)
+  const bucketChanges = {
+    top3: comparisonEnabled && previousKeywordBuckets?.top3
+      ? getChangePercent(keywordBuckets.top3, previousKeywordBuckets.top3)
+      : null,
+    top10: comparisonEnabled && previousKeywordBuckets?.top10
+      ? getChangePercent(keywordBuckets.top10, previousKeywordBuckets.top10)
+      : null,
+    top20: comparisonEnabled && previousKeywordBuckets?.top20
+      ? getChangePercent(keywordBuckets.top20, previousKeywordBuckets.top20)
+      : null,
+    beyond20: comparisonEnabled && previousKeywordBuckets?.beyond20
+      ? getChangePercent(keywordBuckets.beyond20, previousKeywordBuckets.beyond20)
+      : null
+  }
 
   const handleSync = async () => {
     setSyncing(true)
@@ -184,10 +201,7 @@ export function SearchConsolePage() {
         {!connected ? (
           <GSCConnectCard onConnect={connectGSC} />
         ) : loading ? (
-          <div className="text-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-            <p className="text-foreground-muted text-sm">{t('common.loading')}</p>
-          </div>
+          <DataLoadingScreen />
         ) : (
           <>
             {/* KPI Cards */}
@@ -246,7 +260,12 @@ export function SearchConsolePage() {
                           style={{ width: `${totalUniqueKeywords > 0 ? (keywordBuckets.top3 / totalUniqueKeywords) * 100 : 0}%` }}
                         />
                       </div>
-                      <span className="text-sm font-medium text-foreground w-8 text-right">{keywordBuckets.top3}</span>
+                      <span className="text-sm font-medium text-foreground w-12 text-right">{keywordBuckets.top3}</span>
+                      {bucketChanges.top3 !== null && (
+                        <span className={`text-xs w-14 text-right ${bucketChanges.top3 >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                          {bucketChanges.top3 >= 0 ? '+' : ''}{bucketChanges.top3.toFixed(0)}%
+                        </span>
+                      )}
                     </div>
                   </div>
                   <div className="flex items-center justify-between">
@@ -258,7 +277,12 @@ export function SearchConsolePage() {
                           style={{ width: `${totalUniqueKeywords > 0 ? (keywordBuckets.top10 / totalUniqueKeywords) * 100 : 0}%` }}
                         />
                       </div>
-                      <span className="text-sm font-medium text-foreground w-8 text-right">{keywordBuckets.top10}</span>
+                      <span className="text-sm font-medium text-foreground w-12 text-right">{keywordBuckets.top10}</span>
+                      {bucketChanges.top10 !== null && (
+                        <span className={`text-xs w-14 text-right ${bucketChanges.top10 >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                          {bucketChanges.top10 >= 0 ? '+' : ''}{bucketChanges.top10.toFixed(0)}%
+                        </span>
+                      )}
                     </div>
                   </div>
                   <div className="flex items-center justify-between">
@@ -270,7 +294,12 @@ export function SearchConsolePage() {
                           style={{ width: `${totalUniqueKeywords > 0 ? (keywordBuckets.top20 / totalUniqueKeywords) * 100 : 0}%` }}
                         />
                       </div>
-                      <span className="text-sm font-medium text-foreground w-8 text-right">{keywordBuckets.top20}</span>
+                      <span className="text-sm font-medium text-foreground w-12 text-right">{keywordBuckets.top20}</span>
+                      {bucketChanges.top20 !== null && (
+                        <span className={`text-xs w-14 text-right ${bucketChanges.top20 >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                          {bucketChanges.top20 >= 0 ? '+' : ''}{bucketChanges.top20.toFixed(0)}%
+                        </span>
+                      )}
                     </div>
                   </div>
                   <div className="flex items-center justify-between">
@@ -282,7 +311,12 @@ export function SearchConsolePage() {
                           style={{ width: `${totalUniqueKeywords > 0 ? (keywordBuckets.beyond20 / totalUniqueKeywords) * 100 : 0}%` }}
                         />
                       </div>
-                      <span className="text-sm font-medium text-foreground w-8 text-right">{keywordBuckets.beyond20}</span>
+                      <span className="text-sm font-medium text-foreground w-12 text-right">{keywordBuckets.beyond20}</span>
+                      {bucketChanges.beyond20 !== null && (
+                        <span className={`text-xs w-14 text-right ${bucketChanges.beyond20 <= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                          {bucketChanges.beyond20 >= 0 ? '+' : ''}{bucketChanges.beyond20.toFixed(0)}%
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
