@@ -1,17 +1,16 @@
 /**
- * Morning Brief - Unified Slack Report
+ * Morning Brief - Unified Slack Report (Multi-tenant)
  *
- * Runs daily at 06:30 UTC (08:30 Finland / 07:30 Sweden)
+ * Runs daily at 06:15 UTC
  * AFTER sync-data (06:00) so all data is fresh
  *
+ * Iterates all shops and sends per-shop morning brief
+ * to each shop's Slack channel via slack_webhook_url
+ *
  * Combines:
- * 1. New orders since yesterday 15:00 UTC (16:00 Swedish time)
+ * 1. New orders since yesterday 15:00 UTC
  * 2. Daily sales summary (yesterday)
  * 3. Stock warnings (out of stock + critical low)
- *
- * Replaces: send-orders-slack, send-stock-slack, send-lowstock-slack, send-daily-slack
- *
- * ID: STORE_ID = a28836f6-9487-4b67-9194-e907eaf94b69
  */
 
 import { createClient } from '@supabase/supabase-js'
@@ -28,36 +27,32 @@ import {
   divider
 } from '../lib/slack.js'
 
-const STORE_ID = 'a28836f6-9487-4b67-9194-e907eaf94b69'
-
 // Bundle/package products don't have their own stock (composed of other products)
 const BUNDLE_NAME_PATTERN = /paket|paketet|bundle/i
 function isBundle(product) {
   return BUNDLE_NAME_PATTERN.test(product?.name || '')
 }
-const SLACK_WEBHOOK_URL = process.env.SLACK_WEBHOOK_URL
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
 export const config = {
-  maxDuration: 60,
+  maxDuration: 120,
 }
 
 // ============================================
 // 1. ORDERS - New orders since yesterday 15:00 UTC
 // ============================================
-async function fetchNewOrders(supabase) {
+async function fetchNewOrders(supabase, storeId) {
   const now = new Date()
   const yesterday = new Date(now)
   yesterday.setDate(yesterday.getDate() - 1)
-  // Use UTC hours explicitly to avoid timezone issues on server
-  yesterday.setUTCHours(15, 0, 0, 0) // 15:00 UTC = 16:00 CET
+  yesterday.setUTCHours(15, 0, 0, 0)
 
   const { data: orders, error } = await supabase
     .from('orders')
     .select('order_number, creation_date, grand_total, billing_company, billing_city, currency')
-    .eq('store_id', STORE_ID)
+    .eq('store_id', storeId)
     .neq('status', 'cancelled')
     .gte('creation_date', yesterday.toISOString())
     .order('grand_total', { ascending: false })
@@ -72,11 +67,11 @@ async function fetchNewOrders(supabase) {
 // ============================================
 // 2. DAILY SALES - Yesterday's summary
 // ============================================
-async function fetchDailySales(supabase, yesterdayStr) {
+async function fetchDailySales(supabase, storeId, yesterdayStr, defaultCurrency) {
   const { data: sales } = await supabase
     .from('v_daily_sales')
     .select('total_revenue, order_count, unique_customers, avg_order_value, currency')
-    .eq('store_id', STORE_ID)
+    .eq('store_id', storeId)
     .eq('sale_date', yesterdayStr)
     .maybeSingle()
 
@@ -89,7 +84,7 @@ async function fetchDailySales(supabase, yesterdayStr) {
   const { data: prev7Days } = await supabase
     .from('v_daily_sales')
     .select('total_revenue, order_count')
-    .eq('store_id', STORE_ID)
+    .eq('store_id', storeId)
     .gte('sale_date', weekAgoStart.toISOString().split('T')[0])
     .lte('sale_date', weekAgoEnd.toISOString().split('T')[0])
 
@@ -102,14 +97,14 @@ async function fetchDailySales(supabase, yesterdayStr) {
     : 0
 
   // Gross margin
-  const margin = await calculateGrossMargin(supabase, yesterdayStr)
+  const margin = await calculateGrossMargin(supabase, storeId, yesterdayStr)
 
   return {
     revenue: sales?.total_revenue || 0,
     orders: sales?.order_count || 0,
     customers: sales?.unique_customers || 0,
     aov: sales?.avg_order_value || 0,
-    currency: sales?.currency || 'SEK',
+    currency: sales?.currency || defaultCurrency || 'EUR',
     marginPercent: margin.marginPercent,
     grossProfit: margin.grossProfit,
     prevRevenue: avgRevenue,
@@ -117,11 +112,11 @@ async function fetchDailySales(supabase, yesterdayStr) {
   }
 }
 
-async function calculateGrossMargin(supabase, dateStr) {
+async function calculateGrossMargin(supabase, storeId, dateStr) {
   const { data: orders } = await supabase
     .from('orders')
     .select('id, grand_total, order_line_items (quantity, total_price, product_number)')
-    .eq('store_id', STORE_ID)
+    .eq('store_id', storeId)
     .neq('status', 'cancelled')
     .gte('creation_date', `${dateStr}T00:00:00`)
     .lte('creation_date', `${dateStr}T23:59:59`)
@@ -138,7 +133,7 @@ async function calculateGrossMargin(supabase, dateStr) {
   const { data: products } = await supabase
     .from('products')
     .select('product_number, cost_price')
-    .eq('store_id', STORE_ID)
+    .eq('store_id', storeId)
     .in('product_number', Array.from(productNumbers))
 
   const costMap = new Map()
@@ -157,26 +152,24 @@ async function calculateGrossMargin(supabase, dateStr) {
 // ============================================
 // 3. STOCK WARNINGS - Out of stock + critical
 // ============================================
-async function fetchStockWarnings(supabase) {
-  // Get products that are for sale with low/no stock
+async function fetchStockWarnings(supabase, storeId) {
   const { data: products } = await supabase
     .from('products')
     .select('product_number, name, stock_level')
-    .eq('store_id', STORE_ID)
+    .eq('store_id', storeId)
     .eq('for_sale', true)
     .not('stock_level', 'is', null)
     .lte('stock_level', 3)
 
   if (!products || products.length === 0) return { outOfStock: 0, criticalLow: 0, topItems: [] }
 
-  // Check which ones are actively selling (last 90 days)
   const ninetyDaysAgo = new Date()
   ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90)
 
   const { data: orders } = await supabase
     .from('orders')
     .select('id')
-    .eq('store_id', STORE_ID)
+    .eq('store_id', storeId)
     .neq('status', 'cancelled')
     .gte('creation_date', ninetyDaysAgo.toISOString())
 
@@ -196,7 +189,6 @@ async function fetchStockWarnings(supabase) {
     })
   }
 
-  // Only include products that are actively selling and not bundles/packages
   const activeProducts = products
     .filter(p => salesMap.has(p.product_number) && !isBundle(p))
     .map(p => ({
@@ -209,11 +201,10 @@ async function fetchStockWarnings(supabase) {
   const outOfStock = activeProducts.filter(p => p.stock_level <= 0)
   const criticalLow = activeProducts.filter(p => p.stock_level > 0)
 
-  // Top 5 most urgent items for brief display
   const topItems = activeProducts.slice(0, 5).map(p => {
     const shortName = p.name.length > 30 ? p.name.substring(0, 28) + '..' : p.name
     const emoji = p.stock_level <= 0 ? ':red_circle:' : ':warning:'
-    const stockText = p.stock_level <= 0 ? 'slut' : `${p.stock_level} st (~${p.daysLeft}d)`
+    const stockText = p.stock_level <= 0 ? 'loppu' : `${p.stock_level} kpl (~${p.daysLeft}pv)`
     return `${emoji} ${shortName} | ${stockText}`
   })
 
@@ -228,37 +219,36 @@ async function fetchStockWarnings(supabase) {
 // ============================================
 // BUILD MESSAGE
 // ============================================
-function buildMorningBrief(ordersData, salesData, stockData, yesterdayStr) {
+function buildMorningBrief(ordersData, salesData, stockData, yesterdayStr, shopName) {
   const yesterdayDate = new Date(yesterdayStr)
   const weekday = getWeekdayName(yesterdayDate)
-  const currency = salesData.currency || 'SEK'
+  const currency = salesData.currency || 'EUR'
   const dateDisplay = yesterdayStr
 
   const blocks = [
-    header(`:sunrise: Aamubrief ${dateDisplay} (${weekday})`)
+    header(`:sunrise: Aamubrief ${shopName} ${dateDisplay} (${weekday})`)
   ]
 
   // --- SECTION 1: New Orders ---
   blocks.push(divider())
   if (ordersData.length === 0) {
-    blocks.push(section(`:package: *Nya ordrar sedan igår kl 16*\n:zzz: Inga nya ordrar`))
+    blocks.push(section(`:package: *Uudet tilaukset eilisestä klo 17*\n:zzz: Ei uusia tilauksia`))
   } else {
     const totalValue = ordersData.reduce((sum, o) => sum + (o.grand_total || 0), 0)
     blocks.push(section(
-      `:package: *Nya ordrar sedan igår kl 16*\n` +
-      `*${ordersData.length} ordrar* totalt *${formatNumber(Math.round(totalValue))} ${currency}*`
+      `:package: *Uudet tilaukset eilisestä klo 17*\n` +
+      `*${ordersData.length} tilausta* yhteensä *${formatNumber(Math.round(totalValue))} ${currency}*`
     ))
 
-    // Show top 5 orders
     const orderLines = ordersData.slice(0, 5).map(o => {
-      const customer = o.billing_company || o.billing_city || 'Okänd'
+      const customer = o.billing_company || o.billing_city || 'Tuntematon'
       const shortCustomer = customer.length > 20 ? customer.substring(0, 18) + '..' : customer
       return `\`#${o.order_number}\` ${formatNumber(Math.round(o.grand_total))} ${currency} - ${shortCustomer}`
     })
     blocks.push(section(orderLines.join('\n')))
 
     if (ordersData.length > 5) {
-      blocks.push(context(`_...och ${ordersData.length - 5} till_`))
+      blocks.push(context(`_...ja ${ordersData.length - 5} lisää_`))
     }
   }
 
@@ -270,47 +260,47 @@ function buildMorningBrief(ordersData, salesData, stockData, yesterdayStr) {
   const revFmt = formatChange(revenueChange)
   const ordFmt = formatChange(ordersChange)
 
-  const revCompare = revenueChange !== null ? ` ${revFmt.emoji} ${revFmt.text} vs 7d snitt` : ''
-  const ordCompare = ordersChange !== null ? ` ${ordFmt.emoji} ${ordFmt.text} vs 7d snitt` : ''
+  const revCompare = revenueChange !== null ? ` ${revFmt.emoji} ${revFmt.text} vs 7pv ka.` : ''
+  const ordCompare = ordersChange !== null ? ` ${ordFmt.emoji} ${ordFmt.text} vs 7pv ka.` : ''
 
   blocks.push(sectionFields([
-    `*Omsättning*\n${formatNumber(Math.round(salesData.revenue))} ${currency}${revCompare}`,
-    `*Beställningar*\n${salesData.orders} st${ordCompare}`
+    `*Liikevaihto*\n${formatNumber(Math.round(salesData.revenue))} ${currency}${revCompare}`,
+    `*Tilaukset*\n${salesData.orders} kpl${ordCompare}`
   ]))
 
   blocks.push(sectionFields([
-    `*Bruttomarginal*\n${formatNumber(salesData.marginPercent, 1)}% (${formatNumber(Math.round(salesData.grossProfit))} ${currency})`,
-    `*Snittorder*\n${formatNumber(Math.round(salesData.aov))} ${currency}`
+    `*Bruttokate*\n${formatNumber(salesData.marginPercent, 1)}% (${formatNumber(Math.round(salesData.grossProfit))} ${currency})`,
+    `*Keskitilaus*\n${formatNumber(Math.round(salesData.aov))} ${currency}`
   ]))
 
-  // --- SECTION 3: Stock Warnings (only if issues exist) ---
+  // --- SECTION 3: Stock Warnings ---
   if (stockData.outOfStock > 0 || stockData.criticalLow > 0) {
     blocks.push(divider())
 
     const stockParts = []
-    if (stockData.outOfStock > 0) stockParts.push(`:x: ${stockData.outOfStock} slut`)
-    if (stockData.criticalLow > 0) stockParts.push(`:warning: ${stockData.criticalLow} kritiskt låg`)
+    if (stockData.outOfStock > 0) stockParts.push(`:x: ${stockData.outOfStock} loppu`)
+    if (stockData.criticalLow > 0) stockParts.push(`:warning: ${stockData.criticalLow} kriittinen`)
 
     blocks.push(section(
-      `:rotating_light: *Lagervarning* (${stockData.totalActive} aktiva)\n${stockParts.join(' | ')}`
+      `:rotating_light: *Varastovaroitus* (${stockData.totalActive} aktiivista)\n${stockParts.join(' | ')}`
     ))
 
     if (stockData.topItems.length > 0) {
       blocks.push(section(stockData.topItems.join('\n')))
     }
 
-    blocks.push(context(`<https://vilkas-analytics.vercel.app/inventory|Se alla i Lagervy>`))
+    blocks.push(context(`<https://vilkas-analytics.vercel.app/inventory|Katso kaikki Varastonäkymässä>`))
   }
 
   // --- FOOTER ---
   blocks.push(divider())
-  blocks.push(context(`:link: <https://vilkas-analytics.vercel.app|Öppna Vilkas Analytics>`))
+  blocks.push(context(`:link: <https://vilkas-analytics.vercel.app|Avaa Vilkas Analytics>`))
 
   return { blocks }
 }
 
 // ============================================
-// MAIN HANDLER
+// MAIN HANDLER (Multi-tenant)
 // ============================================
 export default async function handler(req, res) {
   const authHeader = req.headers.authorization
@@ -318,7 +308,7 @@ export default async function handler(req, res) {
     return res.status(401).json({ error: 'Unauthorized' })
   }
 
-  console.log('Starting morning brief:', new Date().toISOString())
+  console.log('Starting morning brief (multi-tenant):', new Date().toISOString())
 
   if (!supabaseUrl || !supabaseServiceKey) {
     return res.status(500).json({ error: 'Missing Supabase credentials' })
@@ -326,39 +316,65 @@ export default async function handler(req, res) {
 
   const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
+  // Fetch all shops with their store_id and webhook
+  const { data: shops, error: shopsError } = await supabase
+    .from('shops')
+    .select('id, name, store_id, currency, slack_webhook_url')
+
+  if (shopsError || !shops?.length) {
+    console.error('Failed to fetch shops:', shopsError?.message)
+    return res.status(500).json({ error: 'No shops found' })
+  }
+
   const now = new Date()
   const yesterday = new Date(now)
   yesterday.setDate(yesterday.getDate() - 1)
   const yesterdayStr = yesterday.toISOString().split('T')[0]
 
-  try {
-    // Fetch all data in parallel
-    const [ordersData, salesData, stockData] = await Promise.all([
-      fetchNewOrders(supabase),
-      fetchDailySales(supabase, yesterdayStr),
-      fetchStockWarnings(supabase)
-    ])
+  const results = []
 
-    console.log(`Morning brief: ${ordersData.length} orders, ${salesData.revenue} revenue, ${stockData.outOfStock} out of stock`)
-
-    const message = buildMorningBrief(ordersData, salesData, stockData, yesterdayStr)
-    const slackResult = await sendToSlack(SLACK_WEBHOOK_URL, message)
-
-    if (!slackResult.success) {
-      console.error('Slack send failed:', slackResult.error)
-      return res.status(200).json({ success: false, slackError: slackResult.error })
+  for (const shop of shops) {
+    const webhookUrl = shop.slack_webhook_url || process.env.SLACK_WEBHOOK_URL
+    if (!webhookUrl) {
+      console.log(`Skipping ${shop.name}: no Slack webhook configured`)
+      results.push({ shop: shop.name, skipped: true, reason: 'no webhook' })
+      continue
     }
 
-    return res.status(200).json({
-      success: true,
-      orders: ordersData.length,
-      revenue: salesData.revenue,
-      stockWarnings: stockData.outOfStock + stockData.criticalLow,
-      slackSent: true
-    })
+    const storeId = shop.store_id
+    if (!storeId) {
+      console.log(`Skipping ${shop.name}: no store_id`)
+      results.push({ shop: shop.name, skipped: true, reason: 'no store_id' })
+      continue
+    }
 
-  } catch (error) {
-    console.error('Morning brief error:', error)
-    return res.status(500).json({ error: error.message })
+    try {
+      console.log(`Processing morning brief for ${shop.name} (store: ${storeId})`)
+
+      const [ordersData, salesData, stockData] = await Promise.all([
+        fetchNewOrders(supabase, storeId),
+        fetchDailySales(supabase, storeId, yesterdayStr, shop.currency),
+        fetchStockWarnings(supabase, storeId)
+      ])
+
+      console.log(`${shop.name}: ${ordersData.length} orders, ${salesData.revenue} revenue, ${stockData.outOfStock} out of stock`)
+
+      const message = buildMorningBrief(ordersData, salesData, stockData, yesterdayStr, shop.name)
+      const slackResult = await sendToSlack(webhookUrl, message)
+
+      results.push({
+        shop: shop.name,
+        success: slackResult.success,
+        orders: ordersData.length,
+        revenue: salesData.revenue,
+        stockWarnings: stockData.outOfStock + stockData.criticalLow,
+        slackError: slackResult.error || null
+      })
+    } catch (error) {
+      console.error(`Morning brief error for ${shop.name}:`, error)
+      results.push({ shop: shop.name, success: false, error: error.message })
+    }
   }
+
+  return res.status(200).json({ success: true, results })
 }
