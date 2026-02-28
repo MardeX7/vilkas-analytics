@@ -9,9 +9,7 @@ import { useCallback, useMemo } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { getIndexInterpretation, INDEX_INFO } from '@/lib/kpi/types'
-
-// Billackering store ID
-const DEFAULT_STORE_ID = 'a28836f6-9487-4b67-9194-e907eaf94b69'
+import { useCurrentShop } from '@/config/storeConfig'
 
 /**
  * Hae KPI dashboard RPC:llä
@@ -350,16 +348,15 @@ async function fetchCapitalTraps(storeId) {
  * Main hook: useKPIDashboard
  *
  * @param {Object} options
- * @param {string} options.storeId - Store UUID (default: Billackering)
  * @param {'week' | 'month'} options.granularity - Aikajakson tarkkuus
  * @param {number} options.periodOffset - 0 = uusin, 1 = edellinen, jne.
  * @returns {Object} Dashboard data, loading state, error, helpers
  */
 export function useKPIDashboard({
-  storeId = DEFAULT_STORE_ID,
   granularity = 'week',
   periodOffset = 0
 } = {}) {
+  const { storeId, ready } = useCurrentShop()
   const queryClient = useQueryClient()
 
   // Available periods query (for navigation)
@@ -368,6 +365,7 @@ export function useKPIDashboard({
   } = useQuery({
     queryKey: ['kpi-available-periods', storeId, granularity],
     queryFn: () => fetchAvailablePeriods(storeId, granularity),
+    enabled: ready && !!storeId,
     staleTime: 10 * 60 * 1000,
     cacheTime: 60 * 60 * 1000
   })
@@ -381,6 +379,7 @@ export function useKPIDashboard({
   } = useQuery({
     queryKey: ['kpi-dashboard', storeId, granularity, periodOffset],
     queryFn: () => fetchKPIDashboardFallback(storeId, granularity, periodOffset),
+    enabled: ready && !!storeId,
     staleTime: 5 * 60 * 1000, // 5 min
     cacheTime: 30 * 60 * 1000, // 30 min
     retry: 2
@@ -393,6 +392,7 @@ export function useKPIDashboard({
   } = useQuery({
     queryKey: ['kpi-history', storeId, granularity],
     queryFn: () => fetchKPIHistory(storeId, granularity, granularity === 'week' ? 52 : 12),
+    enabled: ready && !!storeId,
     staleTime: 10 * 60 * 1000,
     cacheTime: 60 * 60 * 1000
   })
@@ -406,7 +406,7 @@ export function useKPIDashboard({
     queryFn: () => fetchTopDrivers(storeId),
     staleTime: 10 * 60 * 1000,
     cacheTime: 60 * 60 * 1000,
-    enabled: !!dashboard
+    enabled: ready && !!storeId && !!dashboard
   })
 
   // Capital Traps query
@@ -418,7 +418,7 @@ export function useKPIDashboard({
     queryFn: () => fetchCapitalTraps(storeId),
     staleTime: 10 * 60 * 1000,
     cacheTime: 60 * 60 * 1000,
-    enabled: !!dashboard
+    enabled: ready && !!storeId && !!dashboard
   })
 
   // Profit Summary query (myyntikate yhteenveto) - follows granularity AND periodOffset

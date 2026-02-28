@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
-import { SHOP_ID } from '@/config/storeConfig'
+import { useCurrentShop } from '@/config/storeConfig'
 
 /**
  * useBrowseAnalysis - Hook for browse/conversion analysis
@@ -12,6 +12,7 @@ import { SHOP_ID } from '@/config/storeConfig'
  * - Category-level conversion insights
  */
 export function useBrowseAnalysis(dateRange = null) {
+  const { shopId, ready } = useCurrentShop()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [data, setData] = useState({
@@ -23,6 +24,8 @@ export function useBrowseAnalysis(dateRange = null) {
   })
 
   const fetchAnalysis = useCallback(async () => {
+    if (!ready || !shopId) return
+
     setLoading(true)
     setError(null)
 
@@ -34,7 +37,7 @@ export function useBrowseAnalysis(dateRange = null) {
       let query = supabase
         .from('ga4_ecommerce')
         .select('item_id, item_name, item_category, items_viewed, items_added_to_cart, items_purchased, item_revenue')
-        .eq('store_id', SHOP_ID)
+        .eq('store_id', shopId)
 
       if (startDate) query = query.gte('date', startDate)
       if (endDate) query = query.lte('date', endDate)
@@ -234,7 +237,7 @@ export function useBrowseAnalysis(dateRange = null) {
     } finally {
       setLoading(false)
     }
-  }, [dateRange?.startDate, dateRange?.endDate])
+  }, [shopId, ready, dateRange?.startDate, dateRange?.endDate])
 
   useEffect(() => {
     fetchAnalysis()

@@ -1,18 +1,22 @@
 import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
-import { STORE_ID } from '@/config/storeConfig'
+import { useCurrentShop } from '@/config/storeConfig'
 
 /**
  * Hook for customer analytics data
  * Provides B2B vs B2C breakdown, new vs returning, and top customers
  */
 export function useCustomers(dateRange) {
+  const { storeId, ready } = useCurrentShop()
+
   const [orders, setOrders] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
   // Fetch orders with customer data
   useEffect(() => {
+    if (!ready || !storeId) return
+
     async function fetchOrders() {
       setLoading(true)
       setError(null)
@@ -21,7 +25,7 @@ export function useCustomers(dateRange) {
         let query = supabase
           .from('orders')
           .select('id, is_b2b, is_b2b_soft, grand_total, total_before_tax, billing_email, billing_company, billing_country, billing_city, billing_first_name, billing_last_name, creation_date, customer_id, locale, note')
-          .eq('store_id', STORE_ID)
+          .eq('store_id', storeId)
           .order('creation_date', { ascending: false })
 
         // Apply date filter if provided
@@ -45,7 +49,7 @@ export function useCustomers(dateRange) {
     }
 
     fetchOrders()
-  }, [dateRange?.startDate, dateRange?.endDate])
+  }, [storeId, dateRange?.startDate, dateRange?.endDate])
 
   // Computed analytics
   const analytics = useMemo(() => {

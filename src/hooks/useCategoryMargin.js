@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
-import { STORE_ID, SHOP_ID } from '@/config/storeConfig'
+import { useCurrentShop } from '@/config/storeConfig'
 
 /**
  * useCategoryMargin - Hook for product category margin analysis
@@ -13,6 +13,7 @@ import { STORE_ID, SHOP_ID } from '@/config/storeConfig'
  * This gives accurate sales figures from the webshop database.
  */
 export function useCategoryMargin(dateRange = null) {
+  const { storeId, shopId, ready } = useCurrentShop()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [data, setData] = useState({
@@ -23,6 +24,8 @@ export function useCategoryMargin(dateRange = null) {
   })
 
   const fetchCategoryMargin = useCallback(async () => {
+    if (!ready || !storeId || !shopId) return
+
     setLoading(true)
     setError(null)
 
@@ -34,7 +37,7 @@ export function useCategoryMargin(dateRange = null) {
       let ordersQuery = supabase
         .from('orders')
         .select('id')
-        .eq('store_id', STORE_ID)
+        .eq('store_id', storeId)
         .neq('status', 'cancelled')
 
       if (startDate) ordersQuery = ordersQuery.gte('creation_date', startDate)
@@ -60,7 +63,7 @@ export function useCategoryMargin(dateRange = null) {
       const { data: items, error: itemsError } = await supabase
         .from('order_items')
         .select('sku, name, quantity, line_total')
-        .eq('shop_id', SHOP_ID)
+        .eq('shop_id', shopId)
         .in('order_id', orderIds)
 
       if (itemsError) throw itemsError
@@ -69,7 +72,7 @@ export function useCategoryMargin(dateRange = null) {
       const { data: products, error: prodError } = await supabase
         .from('products')
         .select('id, product_number, cost_price')
-        .eq('store_id', STORE_ID)
+        .eq('store_id', storeId)
 
       if (prodError) throw prodError
 
@@ -84,7 +87,7 @@ export function useCategoryMargin(dateRange = null) {
       const { data: categories, error: catError } = await supabase
         .from('categories')
         .select('id, level3, display_name')
-        .eq('store_id', STORE_ID)
+        .eq('store_id', storeId)
 
       if (catError) throw catError
 
@@ -199,7 +202,7 @@ export function useCategoryMargin(dateRange = null) {
     } finally {
       setLoading(false)
     }
-  }, [dateRange?.startDate, dateRange?.endDate])
+  }, [storeId, shopId, ready, dateRange?.startDate, dateRange?.endDate])
 
   useEffect(() => {
     fetchCategoryMargin()

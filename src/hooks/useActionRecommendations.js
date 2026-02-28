@@ -7,7 +7,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
-import { SHOP_ID } from '@/config/storeConfig'
+import { useCurrentShop } from '@/config/storeConfig'
 
 /**
  * Get ISO week number from date
@@ -25,6 +25,7 @@ function getISOWeek(date) {
  * Main hook
  */
 export function useActionRecommendations() {
+  const { shopId, ready } = useCurrentShop()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [isUpdating, setIsUpdating] = useState(false)
@@ -41,6 +42,8 @@ export function useActionRecommendations() {
    * Fetch recommendations from database
    */
   const fetchRecommendations = useCallback(async () => {
+    if (!ready || !shopId) return
+
     setLoading(true)
     setError(null)
 
@@ -49,7 +52,7 @@ export function useActionRecommendations() {
       const { data: recData, error: fetchError } = await supabase
         .from('action_recommendations')
         .select('*')
-        .eq('store_id', SHOP_ID)
+        .eq('store_id', shopId)
         .order('year', { ascending: false })
         .order('week_number', { ascending: false })
         .limit(1)
@@ -81,13 +84,13 @@ export function useActionRecommendations() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [shopId, ready])
 
   /**
    * Mark a recommendation as completed or uncompleted
    */
   const markCompleted = useCallback(async (recommendationId, completed = true) => {
-    if (!data.id) return
+    if (!data.id || !ready || !shopId) return
 
     setIsUpdating(true)
     setError(null)
@@ -96,7 +99,7 @@ export function useActionRecommendations() {
       // Call RPC function to update the recommendation
       const { data: result, error: updateError } = await supabase
         .rpc('mark_recommendation_completed', {
-          p_store_id: SHOP_ID,
+          p_store_id: shopId,
           p_recommendation_id: recommendationId,
           p_completed: completed
         })
@@ -125,7 +128,7 @@ export function useActionRecommendations() {
     } finally {
       setIsUpdating(false)
     }
-  }, [data.id, fetchRecommendations])
+  }, [data.id, shopId, ready, fetchRecommendations])
 
   // Fetch on mount
   useEffect(() => {

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
-import { STORE_ID } from '@/config/storeConfig'
+import { useCurrentShop } from '@/config/storeConfig'
 
 /**
  * useShippingPaymentAnalysis - Hook for shipping and payment method cross-analysis
@@ -12,6 +12,7 @@ import { STORE_ID } from '@/config/storeConfig'
  * - Average order value by shipping/payment combination
  */
 export function useShippingPaymentAnalysis(dateRange = null) {
+  const { storeId, ready } = useCurrentShop()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [data, setData] = useState({
@@ -24,6 +25,8 @@ export function useShippingPaymentAnalysis(dateRange = null) {
   })
 
   const fetchAnalysis = useCallback(async () => {
+    if (!ready || !storeId) return
+
     setLoading(true)
     setError(null)
 
@@ -35,7 +38,7 @@ export function useShippingPaymentAnalysis(dateRange = null) {
       let query = supabase
         .from('orders')
         .select('id, grand_total, shipping_method, payment_method, creation_date')
-        .eq('store_id', STORE_ID)
+        .eq('store_id', storeId)
         .neq('status', 'cancelled')
 
       if (startDate) query = query.gte('creation_date', startDate)
@@ -265,7 +268,7 @@ export function useShippingPaymentAnalysis(dateRange = null) {
     } finally {
       setLoading(false)
     }
-  }, [dateRange?.startDate, dateRange?.endDate])
+  }, [storeId, ready, dateRange?.startDate, dateRange?.endDate])
 
   useEffect(() => {
     fetchAnalysis()

@@ -7,7 +7,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
-import { SHOP_ID } from '@/config/storeConfig'
+import { useCurrentShop } from '@/config/storeConfig'
 
 /**
  * Get ISO week number from date
@@ -55,6 +55,7 @@ function getPreviousMonthDate() {
  * @param {string} granularity - 'week' or 'month'
  */
 export function useWeeklyAnalysis(dateRange = null, language = 'fi', granularity = 'week') {
+  const { shopId, ready } = useCurrentShop()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [isGenerating, setIsGenerating] = useState(false)
@@ -78,6 +79,8 @@ export function useWeeklyAnalysis(dateRange = null, language = 'fi', granularity
    * Fetch existing analysis from database
    */
   const fetchAnalysis = useCallback(async () => {
+    if (!ready || !shopId) return
+
     setLoading(true)
     setError(null)
 
@@ -86,7 +89,7 @@ export function useWeeklyAnalysis(dateRange = null, language = 'fi', granularity
       let query = supabase
         .from('weekly_analyses')
         .select('*')
-        .eq('store_id', SHOP_ID)
+        .eq('store_id', shopId)
         .eq('year', year)
 
       if (isMonthly) {
@@ -127,12 +130,14 @@ export function useWeeklyAnalysis(dateRange = null, language = 'fi', granularity
     } finally {
       setLoading(false)
     }
-  }, [periodNumber, year, isMonthly])
+  }, [shopId, ready, periodNumber, year, isMonthly])
 
   /**
    * Generate new analysis using AI
    */
   const generateAnalysis = useCallback(async () => {
+    if (!ready || !shopId) return
+
     setIsGenerating(true)
     setError(null)
 
@@ -180,7 +185,7 @@ export function useWeeklyAnalysis(dateRange = null, language = 'fi', granularity
     } finally {
       setIsGenerating(false)
     }
-  }, [periodNumber, year, dateRange, language, granularity, isMonthly])
+  }, [shopId, ready, periodNumber, year, dateRange, language, granularity, isMonthly])
 
   // Fetch on mount and when period changes
   useEffect(() => {

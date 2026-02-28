@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
-import { STORE_ID } from '@/config/storeConfig'
+import { useCurrentShop } from '@/config/storeConfig'
 
 /**
  * useGrowthEngineHistory - Hook for fetching Growth Engine historical snapshots
@@ -13,11 +13,15 @@ import { STORE_ID } from '@/config/storeConfig'
  * @param {number} options.limit - Maximum number of periods to fetch
  */
 export function useGrowthEngineHistory({ periodType = 'week', limit = 52 } = {}) {
+  const { storeId, ready } = useCurrentShop()
+
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [history, setHistory] = useState([])
 
   useEffect(() => {
+    if (!ready || !storeId) return
+
     async function fetchHistory() {
       setLoading(true)
       setError(null)
@@ -39,7 +43,7 @@ export function useGrowthEngineHistory({ periodType = 'week', limit = 52 } = {})
             product_leverage_score,
             created_at
           `)
-          .eq('store_id', STORE_ID)
+          .eq('store_id', storeId)
           .eq('period_type', periodType)
           .order('period_end', { ascending: true })
           .limit(limit)
@@ -72,7 +76,7 @@ export function useGrowthEngineHistory({ periodType = 'week', limit = 52 } = {})
     }
 
     fetchHistory()
-  }, [periodType, limit])
+  }, [storeId, periodType, limit])
 
   return {
     history,

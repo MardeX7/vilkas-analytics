@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
-import { STORE_ID } from '@/config/storeConfig'
+import { useCurrentShop } from '@/config/storeConfig'
 
 // Helper to fetch all rows with pagination (Supabase has 1000 row limit per request)
 async function fetchAllRows(query, pageSize = 1000) {
@@ -27,6 +27,8 @@ async function fetchAllRows(query, pageSize = 1000) {
 }
 
 export function useGSC(dateRange = null, comparisonMode = 'mom') {
+  const { storeId, ready } = useCurrentShop()
+
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [connected, setConnected] = useState(false)
@@ -59,6 +61,8 @@ export function useGSC(dateRange = null, comparisonMode = 'mom') {
   })
 
   const fetchGSCData = useCallback(async () => {
+    if (!ready || !storeId) return
+
     setLoading(true)
     setError(null)
 
@@ -67,7 +71,7 @@ export function useGSC(dateRange = null, comparisonMode = 'mom') {
       const { data: tokens } = await supabase
         .from('gsc_tokens')
         .select('site_url')
-        .eq('store_id', STORE_ID)
+        .eq('store_id', storeId)
 
       if (!tokens || tokens.length === 0) {
         setConnected(false)
@@ -84,7 +88,7 @@ export function useGSC(dateRange = null, comparisonMode = 'mom') {
       let dailyQuery = supabase
         .from('v_gsc_daily_summary')
         .select('*')
-        .eq('store_id', STORE_ID)
+        .eq('store_id', storeId)
         .order('date', { ascending: false })
 
       if (startDate) dailyQuery = dailyQuery.gte('date', startDate)
@@ -94,7 +98,7 @@ export function useGSC(dateRange = null, comparisonMode = 'mom') {
       let queriesQuery = supabase
         .from('gsc_search_analytics')
         .select('query, clicks, impressions, ctr, position')
-        .eq('store_id', STORE_ID)
+        .eq('store_id', storeId)
         .not('query', 'is', null)
 
       if (startDate) queriesQuery = queriesQuery.gte('date', startDate)
@@ -104,7 +108,7 @@ export function useGSC(dateRange = null, comparisonMode = 'mom') {
       let pagesQuery = supabase
         .from('gsc_search_analytics')
         .select('page, clicks, impressions, ctr, position')
-        .eq('store_id', STORE_ID)
+        .eq('store_id', storeId)
         .not('page', 'is', null)
 
       if (startDate) pagesQuery = pagesQuery.gte('date', startDate)
@@ -114,7 +118,7 @@ export function useGSC(dateRange = null, comparisonMode = 'mom') {
       let deviceQuery = supabase
         .from('gsc_search_analytics')
         .select('device, clicks, impressions')
-        .eq('store_id', STORE_ID)
+        .eq('store_id', storeId)
         .not('device', 'is', null)
 
       if (startDate) deviceQuery = deviceQuery.gte('date', startDate)
@@ -124,7 +128,7 @@ export function useGSC(dateRange = null, comparisonMode = 'mom') {
       let countryQuery = supabase
         .from('gsc_search_analytics')
         .select('country, clicks, impressions')
-        .eq('store_id', STORE_ID)
+        .eq('store_id', storeId)
         .not('country', 'is', null)
 
       if (startDate) countryQuery = countryQuery.gte('date', startDate)
@@ -280,7 +284,7 @@ export function useGSC(dateRange = null, comparisonMode = 'mom') {
         const prevDailyQuery = await supabase
           .from('v_gsc_daily_summary')
           .select('*')
-          .eq('store_id', STORE_ID)
+          .eq('store_id', storeId)
           .gte('date', prevStart)
           .lte('date', prevEnd)
           .order('date', { ascending: false })
@@ -306,7 +310,7 @@ export function useGSC(dateRange = null, comparisonMode = 'mom') {
           const prevQueriesQuery = await supabase
             .from('gsc_search_analytics')
             .select('query, position')
-            .eq('store_id', STORE_ID)
+            .eq('store_id', storeId)
             .not('query', 'is', null)
             .gte('date', prevStart)
             .lte('date', prevEnd)
@@ -355,7 +359,7 @@ export function useGSC(dateRange = null, comparisonMode = 'mom') {
         supabase
           .from('gsc_search_analytics')
           .select('page, clicks, impressions, ctr, position, date')
-          .eq('store_id', STORE_ID)
+          .eq('store_id', storeId)
           .not('page', 'is', null)
           .gte('date', threeWeeksAgoStr)
           .order('date', { ascending: true })
@@ -516,7 +520,7 @@ export function useGSC(dateRange = null, comparisonMode = 'mom') {
     } finally {
       setLoading(false)
     }
-  }, [dateRange?.startDate, dateRange?.endDate, comparisonMode])
+  }, [storeId, dateRange?.startDate, dateRange?.endDate, comparisonMode])
 
   useEffect(() => {
     fetchGSCData()
@@ -524,7 +528,7 @@ export function useGSC(dateRange = null, comparisonMode = 'mom') {
 
   // Connect GSC function - käyttää Vercel serverless API:a
   const connectGSC = () => {
-    window.location.href = `/api/gsc/connect?store_id=${STORE_ID}`
+    window.location.href = `/api/gsc/connect?store_id=${storeId}`
   }
 
   // Sync GSC data function - käyttää Vercel serverless API:a
@@ -535,7 +539,7 @@ export function useGSC(dateRange = null, comparisonMode = 'mom') {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        store_id: STORE_ID,
+        store_id: storeId,
         start_date: startDate,
         end_date: endDate
       })

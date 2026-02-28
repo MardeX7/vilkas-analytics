@@ -31,7 +31,7 @@ import {
 import { useTranslation } from '@/lib/i18n'
 import { useActionRecommendations } from '@/hooks/useActionRecommendations'
 import { supabase } from '@/lib/supabase'
-import { SHOP_ID } from '@/config/storeConfig'
+import { useCurrentShop } from '@/config/storeConfig'
 
 /**
  * Icon mapping for metrics
@@ -58,6 +58,7 @@ const EFFORT_COLORS = {
  * Main ActionRecommendationsCard Component
  */
 export function ActionRecommendationsCard({ onAskEmma }) {
+  const { shopId } = useCurrentShop()
   const { t, language } = useTranslation()
   const isFi = language === 'fi'
 
@@ -81,7 +82,7 @@ export function ActionRecommendationsCard({ onAskEmma }) {
     try {
       const { data, error } = await supabase
         .rpc('get_tracked_recommendations', {
-          p_store_id: SHOP_ID,
+          p_store_id: shopId,
           p_status: 'in_progress'
         })
       if (!error && data) {
@@ -104,7 +105,7 @@ export function ActionRecommendationsCard({ onAskEmma }) {
       const response = await fetch('/api/generate-recommendations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ store_id: SHOP_ID, language })
+        body: JSON.stringify({ store_id: shopId, language })
       })
 
       if (!response.ok) {
@@ -125,7 +126,7 @@ export function ActionRecommendationsCard({ onAskEmma }) {
     try {
       const { data, error } = await supabase
         .rpc('track_recommendation', {
-          p_store_id: SHOP_ID,
+          p_store_id: shopId,
           p_recommendation_id: rec.id,
           p_title: rec.title,
           p_why: rec.why,

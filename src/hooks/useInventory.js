@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
-import { STORE_ID } from '@/config/storeConfig'
+import { useCurrentShop } from '@/config/storeConfig'
 
 /**
  * Bundle/package product detection
@@ -23,6 +23,8 @@ function isBundle(product) {
  * - productInventory: Detailed product-level inventory data
  */
 export function useInventory() {
+  const { storeId, ready } = useCurrentShop()
+
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
@@ -94,6 +96,8 @@ export function useInventory() {
   })
 
   const fetchInventoryData = useCallback(async () => {
+    if (!ready || !storeId) return
+
     setLoading(true)
     setError(null)
 
@@ -102,7 +106,7 @@ export function useInventory() {
       const { data: products, error: productsError } = await supabase
         .from('products')
         .select('id, name, product_number, stock_level, min_stock_level, cost_price, price_amount, for_sale, stock_tracked')
-        .eq('store_id', STORE_ID)
+        .eq('store_id', storeId)
         .eq('for_sale', true)
         .neq('stock_tracked', false)
         .order('stock_level', { ascending: true })
@@ -121,7 +125,7 @@ export function useInventory() {
           quantity,
           orders!inner(creation_date, status, store_id)
         `)
-        .eq('orders.store_id', STORE_ID)
+        .eq('orders.store_id', storeId)
         .gte('orders.creation_date', thirtyDaysAgoStr)
         .neq('orders.status', 'cancelled')
 
@@ -143,7 +147,7 @@ export function useInventory() {
           total_price,
           orders!inner(creation_date, status, store_id)
         `)
-        .eq('orders.store_id', STORE_ID)
+        .eq('orders.store_id', storeId)
         .gte('orders.creation_date', lastYearStartStr)
         .lte('orders.creation_date', lastYearEndStr)
         .neq('orders.status', 'cancelled')
@@ -456,7 +460,7 @@ export function useInventory() {
       // Use RPC function to aggregate in database (avoids 1000 row limit)
       const { data: historyData, error: historyError } = await supabase
         .rpc('get_inventory_history_aggregated', {
-          p_store_id: STORE_ID,
+          p_store_id: storeId,
           p_days_back: 365
         })
 
@@ -558,7 +562,7 @@ export function useInventory() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [storeId])
 
   useEffect(() => {
     fetchInventoryData()

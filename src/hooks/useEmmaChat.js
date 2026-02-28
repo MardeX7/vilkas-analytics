@@ -9,7 +9,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
-import { SHOP_ID, STORE_ID } from '@/config/storeConfig'
+import { useCurrentShop } from '@/config/storeConfig'
 
 /**
  * Main hook
@@ -18,6 +18,8 @@ import { SHOP_ID, STORE_ID } from '@/config/storeConfig'
  * @param {string} options.language - Language code (fi/sv)
  */
 export function useEmmaChat({ dateRange = null, language = 'fi' } = {}) {
+  const { shopId, ready } = useCurrentShop()
+
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [isTyping, setIsTyping] = useState(false)
@@ -30,11 +32,13 @@ export function useEmmaChat({ dateRange = null, language = 'fi' } = {}) {
    * Create new chat session
    */
   const createSession = useCallback(async () => {
+    if (!ready || !shopId) return null
+
     try {
-      // chat_sessions.store_id references shops(id), so use SHOP_ID
+      // chat_sessions.store_id references shops(id), so use shopId
       const { data, error: createError } = await supabase
         .rpc('create_chat_session', {
-          p_store_id: SHOP_ID,
+          p_store_id: shopId,
           p_language: language
         })
 
@@ -50,7 +54,7 @@ export function useEmmaChat({ dateRange = null, language = 'fi' } = {}) {
       setError(err.message)
       return null
     }
-  }, [language])
+  }, [shopId, language, ready])
 
   /**
    * Load existing session messages
@@ -122,7 +126,7 @@ export function useEmmaChat({ dateRange = null, language = 'fi' } = {}) {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          store_id: SHOP_ID,  // Use SHOP_ID for shops reference
+          store_id: shopId,  // Use shopId for shops reference
           session_id: currentSessionId,
           message: content.trim(),
           date_range: dateRange,
@@ -154,7 +158,7 @@ export function useEmmaChat({ dateRange = null, language = 'fi' } = {}) {
     } finally {
       setIsTyping(false)
     }
-  }, [dateRange, createSession])
+  }, [shopId, dateRange, createSession])
 
   /**
    * Clear chat and start new session
@@ -164,8 +168,10 @@ export function useEmmaChat({ dateRange = null, language = 'fi' } = {}) {
     setSessionId(null)
     sessionIdRef.current = null
     setError(null)
-    localStorage.removeItem(`emma_session_${SHOP_ID}`)
-  }, [])
+    if (shopId) {
+      localStorage.removeItem(`emma_session_${shopId}`)
+    }
+  }, [shopId])
 
   /**
    * Load a specific saved session
@@ -175,32 +181,36 @@ export function useEmmaChat({ dateRange = null, language = 'fi' } = {}) {
 
     setSessionId(newSessionId)
     sessionIdRef.current = newSessionId
-    localStorage.setItem(`emma_session_${SHOP_ID}`, newSessionId)
+    if (shopId) {
+      localStorage.setItem(`emma_session_${shopId}`, newSessionId)
+    }
     await loadMessages(newSessionId)
-  }, [loadMessages])
+  }, [shopId, loadMessages])
 
   /**
    * Initialize session on mount
    */
   useEffect(() => {
+    if (!ready || !shopId) return
+
     // Try to get recent session from localStorage
-    const storedSessionId = localStorage.getItem(`emma_session_${SHOP_ID}`)
+    const storedSessionId = localStorage.getItem(`emma_session_${shopId}`)
 
     if (storedSessionId) {
       setSessionId(storedSessionId)
       sessionIdRef.current = storedSessionId
       loadMessages(storedSessionId)
     }
-  }, [loadMessages])
+  }, [shopId, ready, loadMessages])
 
   /**
    * Store session ID when it changes
    */
   useEffect(() => {
-    if (sessionId) {
-      localStorage.setItem(`emma_session_${SHOP_ID}`, sessionId)
+    if (sessionId && shopId) {
+      localStorage.setItem(`emma_session_${shopId}`, sessionId)
     }
-  }, [sessionId])
+  }, [sessionId, shopId])
 
   return {
     messages,

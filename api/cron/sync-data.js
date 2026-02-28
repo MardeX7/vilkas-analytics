@@ -15,10 +15,12 @@
  */
 
 import { createClient } from '@supabase/supabase-js'
+import { sendToSlack, header, section, divider, context } from '../lib/slack.js'
 
 // Supabase client
 const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+const SLACK_ALERTS_URL = process.env.SLACK_ALERTS_WEBHOOK_URL || process.env.SLACK_WEBHOOK_URL
 
 export const config = {
   maxDuration: 300, // 5 minutes max (Vercel Pro limit)
@@ -236,7 +238,6 @@ export default async function handler(req, res) {
 
       if (gscTokens && gscTokens.length > 0) {
         try {
-          // KORJAUS: Käytä Vercel API routea Edge Functionin sijaan
           const gscResponse = await fetch(
             `${baseUrl}/api/gsc/sync`,
             {
@@ -245,22 +246,28 @@ export default async function handler(req, res) {
                 'Content-Type': 'application/json'
               },
               body: JSON.stringify({
-                store_id: store.id  // KORJATTU: STORE_ID
+                store_id: store.id
               })
             }
           )
 
           const gscResult = await gscResponse.json()
+          const gscOk = gscResponse.ok && gscResult.success
 
           results.gsc_sync.push({
             store_id: store.id,
             shop_id: shopId,
             store_name: store.name,
-            status: gscResponse.ok ? 'success' : 'error',
+            status: gscOk ? 'success' : 'error',
             ...gscResult
           })
 
-          console.log(`  ✅ GSC sync: ${gscResult.total_rows_synced || 0} rows`)
+          if (gscOk) {
+            console.log(`  ✅ GSC sync: ${gscResult.daily_totals_synced || 0} daily, ${gscResult.detailed_rows_synced || 0} detailed`)
+          } else {
+            console.error(`  ⚠️ GSC sync problem: ${gscResult.error || gscResult.warning || 'No data received'}`)
+            results.errors.push(`GSC sync issue for ${store.name}: ${gscResult.error || gscResult.warning}`)
+          }
         } catch (err) {
           console.error(`  ❌ GSC sync error:`, err.message)
           results.gsc_sync.push({
@@ -443,6 +450,11 @@ export default async function handler(req, res) {
     console.log(`   Stores: ${results.stores_processed}`)
     console.log(`   Errors: ${results.errors.length}`)
 
+    // 4. Send Slack alert if errors occurred
+    if (results.errors.length > 0 && SLACK_ALERTS_URL) {
+      await sendSyncAlertToSlack(results)
+    }
+
     return res.status(200).json(results)
 
   } catch (error) {
@@ -450,9 +462,72 @@ export default async function handler(req, res) {
     results.errors.push(error.message)
     results.completed_at = new Date().toISOString()
 
+    // Send critical alert for full cron failure
+    if (SLACK_ALERTS_URL) {
+      await sendSyncAlertToSlack(results, true)
+    }
+
     return res.status(500).json({
       ...results,
       error: error.message
     })
+  }
+}
+
+/**
+ * Send Slack alert when sync errors occur
+ */
+async function sendSyncAlertToSlack(results, isCritical = false) {
+  const dateStr = new Date().toISOString().split('T')[0]
+
+  // Helper to get status emoji
+  const statusOf = (syncArray) => {
+    if (!syncArray || syncArray.length === 0) return ':white_circle: -'
+    const hasError = syncArray.some(s => s.status === 'error')
+    const allSkipped = syncArray.every(s => s.status === 'skipped')
+    if (hasError) return ':red_circle: Error'
+    if (allSkipped) return ':white_circle: Skipped'
+    return ':large_green_circle: OK'
+  }
+
+  const blocks = [
+    header(isCritical
+      ? `:fire: Sync CRASH ${dateStr}`
+      : `:rotating_light: Sync-virhe ${dateStr}`
+    ),
+    section(
+      `*Kesto:* ${results.duration_ms ? Math.round(results.duration_ms / 1000) + 's' : '?'} | ` +
+      `*Kaupat:* ${results.stores_processed || '?'} | ` +
+      `*Virheet:* ${results.errors.length}`
+    ),
+    divider(),
+    section(
+      `*ePages:* ${statusOf(results.epages_sync)}\n` +
+      `*Tuotteet:* ${statusOf(results.products_sync)}\n` +
+      `*GA4:* ${statusOf(results.ga4_sync)}\n` +
+      `*GSC:* ${statusOf(results.gsc_sync)}`
+    ),
+    divider(),
+  ]
+
+  // Add each error (max 10 to avoid Slack block limits)
+  const errorsToShow = results.errors.slice(0, 10)
+  errorsToShow.forEach((err, i) => {
+    blocks.push(section(`*${i + 1}.* \`${err}\``))
+  })
+  if (results.errors.length > 10) {
+    blocks.push(section(`_...ja ${results.errors.length - 10} muuta virhetta_`))
+  }
+
+  blocks.push(
+    divider(),
+    context(`:link: <https://vilkas-analytics.vercel.app|Avaa Vilkas Analytics> | Sync klo ${new Date().toISOString().split('T')[1].slice(0, 5)} UTC`)
+  )
+
+  const result = await sendToSlack(SLACK_ALERTS_URL, { blocks })
+  if (result.success) {
+    console.log(`✅ Slack alert sent (${results.errors.length} errors)`)
+  } else {
+    console.error('❌ Failed to send Slack alert:', result.error)
   }
 }

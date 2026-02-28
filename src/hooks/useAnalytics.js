@@ -1,15 +1,15 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
-import { STORE_ID } from '@/config/storeConfig'
+import { useCurrentShop } from '@/config/storeConfig'
 
 // Helper to fetch summary for a period
 // KORJAUS: Käytä v_daily_sales-näkymää RLS-ongelman kiertämiseksi
-async function fetchPeriodSummary(startDate, endDate) {
+async function fetchPeriodSummary(storeId, startDate, endDate) {
   // Hae peruslaskelmat v_daily_sales-näkymästä (ohittaa RLS-ongelmat)
   let viewQuery = supabase
     .from('v_daily_sales')
     .select('total_revenue, order_count, unique_customers, avg_order_value')
-    .eq('store_id', STORE_ID)
+    .eq('store_id', storeId)
 
   if (startDate) viewQuery = viewQuery.gte('sale_date', startDate)
   if (endDate) viewQuery = viewQuery.lte('sale_date', endDate)
@@ -47,7 +47,7 @@ async function fetchPeriodSummary(startDate, endDate) {
     let ordersQuery = supabase
       .from('orders')
       .select('status, shipping_price, discount_amount, billing_email')
-      .eq('store_id', STORE_ID)
+      .eq('store_id', storeId)
 
     if (startDate) ordersQuery = ordersQuery.gte('creation_date', startDate)
     if (endDate) ordersQuery = ordersQuery.lte('creation_date', endDate + 'T23:59:59')
@@ -94,7 +94,7 @@ async function fetchPeriodSummary(startDate, endDate) {
 
 // Helper to fetch gross margin data - REAL-TIME calculation from orders + products.cost_price
 // Uses product_number (SKU) for matching since most line items don't have product_id
-async function fetchGrossMargin(startDate, endDate) {
+async function fetchGrossMargin(storeId, startDate, endDate) {
   let query = supabase
     .from('orders')
     .select(`
@@ -107,7 +107,7 @@ async function fetchGrossMargin(startDate, endDate) {
         product_number
       )
     `)
-    .eq('store_id', STORE_ID)
+    .eq('store_id', storeId)
     .neq('status', 'cancelled')
 
   if (startDate) query = query.gte('creation_date', startDate)
@@ -131,7 +131,7 @@ async function fetchGrossMargin(startDate, endDate) {
   const { data: products } = await supabase
     .from('products')
     .select('id, product_number, cost_price')
-    .eq('store_id', STORE_ID)
+    .eq('store_id', storeId)
     .in('product_number', Array.from(productNumbers))
 
   // Build cost map by product_number (SKU)
@@ -167,7 +167,7 @@ async function fetchGrossMargin(startDate, endDate) {
 
 // Helper to fetch daily gross margin data
 // Uses product_number (SKU) for matching since most line items don't have product_id
-async function fetchDailyMargin(startDate, endDate) {
+async function fetchDailyMargin(storeId, startDate, endDate) {
   let query = supabase
     .from('orders')
     .select(`
@@ -179,7 +179,7 @@ async function fetchDailyMargin(startDate, endDate) {
         product_number
       )
     `)
-    .eq('store_id', STORE_ID)
+    .eq('store_id', storeId)
     .neq('status', 'cancelled')
 
   if (startDate) query = query.gte('creation_date', startDate)
@@ -203,7 +203,7 @@ async function fetchDailyMargin(startDate, endDate) {
   const { data: products } = await supabase
     .from('products')
     .select('product_number, cost_price')
-    .eq('store_id', STORE_ID)
+    .eq('store_id', storeId)
     .in('product_number', Array.from(productNumbers))
 
   const costMapBySku = new Map()
@@ -241,14 +241,14 @@ async function fetchDailyMargin(startDate, endDate) {
 }
 
 // Helper to fetch average items per order
-async function fetchItemsPerOrder(startDate, endDate) {
+async function fetchItemsPerOrder(storeId, startDate, endDate) {
   let query = supabase
     .from('orders')
     .select(`
       id,
       order_line_items (quantity)
     `)
-    .eq('store_id', STORE_ID)
+    .eq('store_id', storeId)
     .neq('status', 'cancelled')
 
   if (startDate) query = query.gte('creation_date', startDate)
@@ -275,7 +275,7 @@ async function fetchItemsPerOrder(startDate, endDate) {
 // Helper to fetch kit/bundle products share and margin
 // Kit products are identified by name containing: paket, kit, set
 // Uses product_number (SKU) for matching since most line items don't have product_id
-async function fetchKitStats(startDate, endDate) {
+async function fetchKitStats(storeId, startDate, endDate) {
   let query = supabase
     .from('orders')
     .select(`
@@ -287,7 +287,7 @@ async function fetchKitStats(startDate, endDate) {
         product_name
       )
     `)
-    .eq('store_id', STORE_ID)
+    .eq('store_id', storeId)
     .neq('status', 'cancelled')
 
   if (startDate) query = query.gte('creation_date', startDate)
@@ -311,7 +311,7 @@ async function fetchKitStats(startDate, endDate) {
   const { data: products } = await supabase
     .from('products')
     .select('product_number, cost_price, name')
-    .eq('store_id', STORE_ID)
+    .eq('store_id', storeId)
     .in('product_number', Array.from(productNumbers))
 
   const productMapBySku = new Map()
@@ -361,6 +361,7 @@ async function fetchKitStats(startDate, endDate) {
 }
 
 export function useAnalytics(dateRange = null) {
+  const { storeId, currency, ready } = useCurrentShop()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [data, setData] = useState({
@@ -384,6 +385,8 @@ export function useAnalytics(dateRange = null) {
   })
 
   const fetchAllData = useCallback(async () => {
+    if (!ready || !storeId) return
+
     setLoading(true)
     setError(null)
 
@@ -396,7 +399,7 @@ export function useAnalytics(dateRange = null) {
       const previousEndDate = dateRange?.previousEndDate
 
       // Fetch daily sales with date filter
-      let dailyQuery = supabase.from('v_daily_sales').select('*').eq('store_id', STORE_ID)
+      let dailyQuery = supabase.from('v_daily_sales').select('*').eq('store_id', storeId)
       if (startDate) dailyQuery = dailyQuery.gte('sale_date', startDate)
       if (endDate) dailyQuery = dailyQuery.lte('sale_date', endDate)
       dailyQuery = dailyQuery.order('sale_date', { ascending: false })
@@ -404,7 +407,7 @@ export function useAnalytics(dateRange = null) {
       // Fetch previous period daily sales for comparison
       let previousDailyQuery = null
       if (compare && previousStartDate && previousEndDate) {
-        previousDailyQuery = supabase.from('v_daily_sales').select('*').eq('store_id', STORE_ID)
+        previousDailyQuery = supabase.from('v_daily_sales').select('*').eq('store_id', storeId)
           .gte('sale_date', previousStartDate)
           .lte('sale_date', previousEndDate)
           .order('sale_date', { ascending: false })
@@ -423,7 +426,7 @@ export function useAnalytics(dateRange = null) {
             total_price
           )
         `)
-        .eq('store_id', STORE_ID)
+        .eq('store_id', storeId)
         .neq('status', 'cancelled')
 
       if (startDate) productsQuery = productsQuery.gte('creation_date', startDate)
@@ -443,7 +446,7 @@ export function useAnalytics(dateRange = null) {
               total_price
             )
           `)
-          .eq('store_id', STORE_ID)
+          .eq('store_id', storeId)
           .neq('status', 'cancelled')
           .gte('creation_date', previousStartDate)
           .lte('creation_date', previousEndDate + 'T23:59:59')
@@ -453,13 +456,13 @@ export function useAnalytics(dateRange = null) {
       const productCostQuery = supabase
         .from('products')
         .select('product_number, cost_price')
-        .eq('store_id', STORE_ID)
+        .eq('store_id', storeId)
 
       // Payment methods in date range
       let paymentQuery = supabase
         .from('orders')
         .select('payment_method, grand_total')
-        .eq('store_id', STORE_ID)
+        .eq('store_id', storeId)
         .neq('status', 'cancelled')
 
       if (startDate) paymentQuery = paymentQuery.gte('creation_date', startDate)
@@ -469,7 +472,7 @@ export function useAnalytics(dateRange = null) {
       let shippingQuery = supabase
         .from('orders')
         .select('shipping_method, grand_total')
-        .eq('store_id', STORE_ID)
+        .eq('store_id', storeId)
         .neq('status', 'cancelled')
 
       if (startDate) shippingQuery = shippingQuery.gte('creation_date', startDate)
@@ -499,25 +502,25 @@ export function useAnalytics(dateRange = null) {
         productCostRes
       ] = await Promise.all([
         dailyQuery,
-        supabase.from('v_weekly_sales').select('*').eq('store_id', STORE_ID).order('week_start', { ascending: false }).limit(12),
-        supabase.from('v_monthly_sales').select('*').eq('store_id', STORE_ID).order('sale_month', { ascending: false }).limit(12),
+        supabase.from('v_weekly_sales').select('*').eq('store_id', storeId).order('week_start', { ascending: false }).limit(12),
+        supabase.from('v_monthly_sales').select('*').eq('store_id', storeId).order('sale_month', { ascending: false }).limit(12),
         productsQuery,
         previousProductsQuery || Promise.resolve({ data: null }),
         paymentQuery,
         shippingQuery,
-        supabase.from('v_weekday_analysis').select('*').eq('store_id', STORE_ID),
-        supabase.from('v_hourly_analysis').select('*').eq('store_id', STORE_ID),
-        fetchPeriodSummary(startDate, endDate),
-        compare && previousStartDate ? fetchPeriodSummary(previousStartDate, previousEndDate) : Promise.resolve(null),
+        supabase.from('v_weekday_analysis').select('*').eq('store_id', storeId),
+        supabase.from('v_hourly_analysis').select('*').eq('store_id', storeId),
+        fetchPeriodSummary(storeId, startDate, endDate),
+        compare && previousStartDate ? fetchPeriodSummary(storeId, previousStartDate, previousEndDate) : Promise.resolve(null),
         previousDailyQuery || Promise.resolve({ data: null }),
-        fetchGrossMargin(startDate, endDate),
-        compare && previousStartDate ? fetchGrossMargin(previousStartDate, previousEndDate) : Promise.resolve(null),
-        fetchItemsPerOrder(startDate, endDate),
-        compare && previousStartDate ? fetchItemsPerOrder(previousStartDate, previousEndDate) : Promise.resolve({ avgItemsPerOrder: 0 }),
-        fetchDailyMargin(startDate, endDate),
-        compare && previousStartDate ? fetchDailyMargin(previousStartDate, previousEndDate) : Promise.resolve([]),
-        fetchKitStats(startDate, endDate),
-        compare && previousStartDate ? fetchKitStats(previousStartDate, previousEndDate) : Promise.resolve({ kitRevenuePercent: 0 }),
+        fetchGrossMargin(storeId, startDate, endDate),
+        compare && previousStartDate ? fetchGrossMargin(storeId, previousStartDate, previousEndDate) : Promise.resolve(null),
+        fetchItemsPerOrder(storeId, startDate, endDate),
+        compare && previousStartDate ? fetchItemsPerOrder(storeId, previousStartDate, previousEndDate) : Promise.resolve({ avgItemsPerOrder: 0 }),
+        fetchDailyMargin(storeId, startDate, endDate),
+        compare && previousStartDate ? fetchDailyMargin(storeId, previousStartDate, previousEndDate) : Promise.resolve([]),
+        fetchKitStats(storeId, startDate, endDate),
+        compare && previousStartDate ? fetchKitStats(storeId, previousStartDate, previousEndDate) : Promise.resolve({ kitRevenuePercent: 0 }),
         productCostQuery
       ])
 
@@ -680,7 +683,7 @@ export function useAnalytics(dateRange = null) {
           ...kitStats,
           // Kate per tilaus (gross profit / order count)
           marginPerOrder: currentSummary.orderCount > 0 ? grossMargin.grossProfit / currentSummary.orderCount : 0,
-          currency: 'SEK'
+          currency
         },
         previousSummary: previousSummary ? {
           ...previousSummary,
@@ -690,7 +693,7 @@ export function useAnalytics(dateRange = null) {
           marginPerOrder: previousSummary.orderCount > 0 && previousGrossMargin
             ? previousGrossMargin.grossProfit / previousSummary.orderCount
             : 0,
-          currency: 'SEK'
+          currency
         } : null,
         comparison
       })
@@ -699,7 +702,7 @@ export function useAnalytics(dateRange = null) {
     } finally {
       setLoading(false)
     }
-  }, [dateRange?.startDate, dateRange?.endDate, dateRange?.compare, dateRange?.previousStartDate, dateRange?.previousEndDate])
+  }, [storeId, currency, ready, dateRange?.startDate, dateRange?.endDate, dateRange?.compare, dateRange?.previousStartDate, dateRange?.previousEndDate])
 
   useEffect(() => {
     fetchAllData()
@@ -710,22 +713,25 @@ export function useAnalytics(dateRange = null) {
 
 // KPI summary hook
 export function useKPISummary() {
+  const { storeId, ready } = useCurrentShop()
   const [loading, setLoading] = useState(true)
   const [kpi, setKpi] = useState(null)
 
   useEffect(() => {
+    if (!ready || !storeId) return
+
     async function fetch() {
       const { data: monthly } = await supabase
         .from('v_monthly_sales')
         .select('*')
-        .eq('store_id', STORE_ID)
+        .eq('store_id', storeId)
         .order('sale_month', { ascending: false })
         .limit(2)
 
       const { data: daily } = await supabase
         .from('v_daily_sales')
         .select('*')
-        .eq('store_id', STORE_ID)
+        .eq('store_id', storeId)
         .order('sale_date', { ascending: false })
         .limit(7)
 
@@ -754,12 +760,12 @@ export function useKPISummary() {
           label: lastMonth?.month_label || '-'
         },
         last7Days,
-        currency: thisMonth?.currency || 'SEK'
+        currency: thisMonth?.currency || 'EUR'
       })
       setLoading(false)
     }
     fetch()
-  }, [])
+  }, [storeId, ready])
 
   return { kpi, loading }
 }

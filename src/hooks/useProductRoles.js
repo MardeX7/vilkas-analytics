@@ -6,7 +6,7 @@
 
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
-import { STORE_ID } from '@/config/storeConfig'
+import { useCurrentShop } from '@/config/storeConfig'
 
 /**
  * Hae tuoteroolien yhteenveto
@@ -63,15 +63,18 @@ async function fetchProductsByRole(storeId, role, startDate, endDate, limit = 20
  * Hook tuoteroolien hakuun
  */
 export function useProductRoles({ startDate, endDate } = {}) {
+  const { storeId, ready } = useCurrentShop()
+
   // Default to last 90 days
   const end = endDate || new Date().toISOString().split('T')[0]
   const start = startDate || new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
 
   const query = useQuery({
-    queryKey: ['productRoles', STORE_ID, start, end],
-    queryFn: () => fetchProductRolesSummary(STORE_ID, start, end),
+    queryKey: ['productRoles', storeId, start, end],
+    queryFn: () => fetchProductRolesSummary(storeId, start, end),
     staleTime: 10 * 60 * 1000, // 10 min
-    cacheTime: 30 * 60 * 1000 // 30 min
+    cacheTime: 30 * 60 * 1000, // 30 min
+    enabled: ready && !!storeId
   })
 
   const roles = query.data?.roles || []
@@ -89,7 +92,7 @@ export function useProductRoles({ startDate, endDate } = {}) {
     roles,
     totals,
     calculatedAt,
-    isLoading: query.isLoading,
+    isLoading: !ready || query.isLoading,
     error: query.error,
     refetch: query.refetch
   }
@@ -99,20 +102,22 @@ export function useProductRoles({ startDate, endDate } = {}) {
  * Hook yksittäisen roolin tuotteiden hakuun
  */
 export function useProductsByRole(role, { startDate, endDate, limit = 20 } = {}) {
+  const { storeId, ready } = useCurrentShop()
+
   const end = endDate || new Date().toISOString().split('T')[0]
   const start = startDate || new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
 
   const query = useQuery({
-    queryKey: ['productsByRole', STORE_ID, role, start, end, limit],
-    queryFn: () => fetchProductsByRole(STORE_ID, role, start, end, limit),
-    enabled: !!role,
+    queryKey: ['productsByRole', storeId, role, start, end, limit],
+    queryFn: () => fetchProductsByRole(storeId, role, start, end, limit),
+    enabled: ready && !!storeId && !!role,
     staleTime: 10 * 60 * 1000,
     cacheTime: 30 * 60 * 1000
   })
 
   return {
     products: query.data || [],
-    isLoading: query.isLoading,
+    isLoading: !ready || query.isLoading,
     error: query.error,
     refetch: query.refetch
   }

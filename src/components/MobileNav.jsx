@@ -18,10 +18,12 @@ import {
   Users
 } from 'lucide-react'
 import { useTranslation } from '@/lib/i18n'
+import { useAuth } from '@/contexts/AuthContext'
 
 export function MobileNav() {
   const [isOpen, setIsOpen] = useState(false)
   const { t, language, toggleLanguage } = useTranslation()
+  const { currentShop } = useAuth()
 
   // Navigaatio järjestetty käyttölogiikan mukaan:
   // 1. JOHTAMINEN: Tilannekuva (entry point) + Analyysit (tulkinta)
@@ -52,7 +54,7 @@ export function MobileNav() {
             </div>
             {/* Title */}
             <div className="flex flex-col">
-              <span className="text-[10px] font-semibold text-[#00b4e9] tracking-wider uppercase">Billackering.eu</span>
+              <span className="text-[10px] font-semibold text-[#00b4e9] tracking-wider uppercase">{currentShop?.shop_name || 'Analytics'}</span>
               <span className="text-sm font-bold text-foreground -mt-0.5">Analytics Agent</span>
             </div>
           </div>
@@ -139,7 +141,7 @@ export function MobileNav() {
 
           {/* Store info */}
           <div className="px-4 pt-2">
-            <p className="text-foreground-subtle text-xs">Billackering.eu</p>
+            <p className="text-foreground-subtle text-xs">{currentShop?.shop_name || 'Analytics'}</p>
           </div>
         </div>
       </nav>

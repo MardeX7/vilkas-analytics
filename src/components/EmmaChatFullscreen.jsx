@@ -38,7 +38,7 @@ import {
 import { useTranslation } from '@/lib/i18n'
 import { useEmmaChat } from '@/hooks/useEmmaChat'
 import { supabase } from '@/lib/supabase'
-import { SHOP_ID } from '@/config/storeConfig'
+import { useCurrentShop } from '@/config/storeConfig'
 
 /**
  * Compact quick prompts for header - horizontal scroll
@@ -352,6 +352,7 @@ function QuickPromptsDropUp({ onSelect, disabled, language }) {
  * Main fullscreen chat component
  */
 export function EmmaChatFullscreen({ isOpen, onClose, dateRange, growthEngineData, initialMessage = '' }) {
+  const { shopId } = useCurrentShop()
   const { t, language } = useTranslation()
   const isFi = language === 'fi'
 
@@ -387,7 +388,7 @@ export function EmmaChatFullscreen({ isOpen, onClose, dateRange, growthEngineDat
     setLoadingSaved(true)
     try {
       const { data, error } = await supabase.rpc('get_saved_conversations', {
-        p_store_id: SHOP_ID,
+        p_store_id: shopId,
         p_limit: 20
       })
       if (!error && data) {

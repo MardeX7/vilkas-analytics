@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
-import { SHOP_ID, STORE_ID } from '@/config/storeConfig'
+import { useCurrentShop } from '@/config/storeConfig'
 
 /**
  * useGA4Ecommerce - Hook for Google Analytics 4 E-commerce data
@@ -13,6 +13,7 @@ import { SHOP_ID, STORE_ID } from '@/config/storeConfig'
  * - Conversion rates (view→cart, cart→purchase)
  */
 export function useGA4Ecommerce(dateRange = null, comparisonMode = 'yoy') {
+  const { storeId, shopId, ready } = useCurrentShop()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [data, setData] = useState({
@@ -33,6 +34,8 @@ export function useGA4Ecommerce(dateRange = null, comparisonMode = 'yoy') {
   })
 
   const fetchEcommerceData = useCallback(async () => {
+    if (!ready || !shopId) return
+
     setLoading(true)
     setError(null)
 
@@ -47,7 +50,7 @@ export function useGA4Ecommerce(dateRange = null, comparisonMode = 'yoy') {
       let query = supabase
         .from('ga4_ecommerce')
         .select('*')
-        .eq('store_id', SHOP_ID)
+        .eq('store_id', shopId)
         .order('items_viewed', { ascending: false })
 
       if (startDate) query = query.gte('date', startDate)
@@ -61,7 +64,7 @@ export function useGA4Ecommerce(dateRange = null, comparisonMode = 'yoy') {
         const { data: allData, error: allError } = await supabase
           .from('ga4_ecommerce')
           .select('*')
-          .eq('store_id', SHOP_ID)
+          .eq('store_id', shopId)
           .order('items_viewed', { ascending: false })
 
         if (!allError) {
@@ -182,7 +185,7 @@ export function useGA4Ecommerce(dateRange = null, comparisonMode = 'yoy') {
         const { data: prevRawData } = await supabase
           .from('ga4_ecommerce')
           .select('*')
-          .eq('store_id', SHOP_ID)
+          .eq('store_id', shopId)
           .gte('date', prevStart)
           .lte('date', prevEnd)
 
@@ -233,7 +236,7 @@ export function useGA4Ecommerce(dateRange = null, comparisonMode = 'yoy') {
     } finally {
       setLoading(false)
     }
-  }, [dateRange?.startDate, dateRange?.endDate, comparisonMode])
+  }, [shopId, ready, dateRange?.startDate, dateRange?.endDate, comparisonMode])
 
   useEffect(() => {
     fetchEcommerceData()
@@ -242,6 +245,8 @@ export function useGA4Ecommerce(dateRange = null, comparisonMode = 'yoy') {
   // Sync E-commerce data function
   // Always sync last 365 days for comprehensive product data
   const syncEcommerce = async (startDate, endDate) => {
+    if (!ready || !storeId) return
+
     // For E-commerce, we want to fetch a full year of data
     // to ensure we have comprehensive product performance metrics
     const oneYearAgo = new Date()
@@ -255,7 +260,7 @@ export function useGA4Ecommerce(dateRange = null, comparisonMode = 'yoy') {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        store_id: STORE_ID,
+        store_id: storeId,
         start_date: syncStartDate,
         end_date: syncEndDate
       })

@@ -6,20 +6,24 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
-import { STORE_ID } from '@/config/storeConfig'
+import { useCurrentShop } from '@/config/storeConfig'
 
 export function useCategories(days = 30) {
+  const { storeId, ready } = useCurrentShop()
+
   const [categories, setCategories] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
   const fetchCategories = useCallback(async () => {
+    if (!ready || !storeId) return
+
     try {
       setLoading(true)
       setError(null)
 
       const { data, error: rpcError } = await supabase.rpc('get_category_summary', {
-        p_store_id: STORE_ID,
+        p_store_id: storeId,
         p_days: days
       })
 
@@ -32,7 +36,7 @@ export function useCategories(days = 30) {
     } finally {
       setLoading(false)
     }
-  }, [days])
+  }, [storeId, days])
 
   useEffect(() => {
     fetchCategories()

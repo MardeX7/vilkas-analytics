@@ -1,78 +1,63 @@
 /**
- * VilkasAnalytics - Store Configuration
+ * VilkasAnalytics - Store Configuration (Multi-tenant)
  *
- * TÄRKEÄ: Kaikki store/shop ID:t keskitetysti yhdessä paikassa!
+ * ID-MAPPAUS:
+ * - STORE_ID = stores.id (UUID) = shops.store_id (TEXT) — orders, products, gsc_*, ga4_tokens
+ * - SHOP_ID  = shops.id (UUID) — ga4_ecommerce, weekly_analyses, chat_sessions jne.
  *
- * ID-MAPPAUS (Billackering.eu):
- * ┌─────────────────────────────────────────────────────────────────┐
- * │  TAULU              │  SARAKE     │  UUID                       │
- * ├─────────────────────────────────────────────────────────────────┤
- * │  shops              │  id         │  3b93e9b1-d64c-4686-...     │
- * │  orders             │  store_id   │  a28836f6-9487-4b67-...     │
- * │  gsc_tokens         │  store_id   │  a28836f6-9487-4b67-...     │
- * │  gsc_search_analytics│ store_id   │  a28836f6-9487-4b67-...     │
- * │  ga4_tokens         │  store_id   │  a28836f6-9487-4b67-...     │
- * │  ga4_ecommerce      │  shop_id    │  3b93e9b1-d64c-4686-...     │
- * │  products           │  store_id   │  a28836f6-9487-4b67-...     │
- * │  weekly_analyses    │  store_id   │  3b93e9b1-d64c-4686-...     │ (FK → shops.id)
- * │  action_recommendations │ store_id │  3b93e9b1-d64c-4686-...   │ (FK → shops.id)
- * │  chat_sessions      │  store_id   │  3b93e9b1-d64c-4686-...     │ (FK → shops.id)
- * │  chat_messages      │  session_id │  (via chat_sessions)        │
- * └─────────────────────────────────────────────────────────────────┘
- *
- * HUOM: Kaksi eri ID:tä koska:
- * - STORE_ID = ePages/Vilkas kaupan alkuperäinen ID (orders, products, gsc, ga4_tokens)
- * - SHOP_ID  = shops-taulun UUID (ga4_ecommerce foreign key)
- *
- * Tulevaisuudessa: Hae nämä kirjautuneen käyttäjän profiilista!
+ * Molemmat haetaan dynaamisesti AuthContextista (currentShop).
+ * get_user_shops() RPC palauttaa: { shop_id, shop_name, store_id, role, joined_at }
  */
 
-// Billackering.eu (Bil Lackering Sverige AB)
-export const BILLACKERING = {
-  // shops.id - käytetään ga4_ecommerce:ssa
-  SHOP_ID: '3b93e9b1-d64c-4686-a14a-bec535495f71',
-
-  // orders.store_id - käytetään orders, products, gsc_*, ga4_tokens
-  STORE_ID: 'a28836f6-9487-4b67-9194-e907eaf94b69',
-
-  // Helpot aliakset
-  name: 'Billackering.eu',
-  domain: 'billackering.eu',
-  currency: 'SEK',
-  locale: 'sv-SE'
-}
-
-// Aktiivinen kauppa (vaihda tätä jos lisätään muita kauppoja)
-export const CURRENT_STORE = BILLACKERING
-
-// Yksinkertaiset exportit (useimmin käytetyt)
-export const STORE_ID = CURRENT_STORE.STORE_ID
-export const SHOP_ID = CURRENT_STORE.SHOP_ID
+import { useAuth } from '@/contexts/AuthContext'
 
 /**
- * Apufunktio: Palauttaa oikean ID:n taulun mukaan
+ * useCurrentShop - Hook joka palauttaa aktiivisen kaupan ID:t
  *
- * @param {string} tableName - Taulun nimi (esim. 'orders', 'ga4_ecommerce')
- * @returns {object} - { column: 'store_id' | 'shop_id', value: UUID }
+ * @returns {{ storeId: string, shopId: string, currency: string, shopName: string, ready: boolean }}
  */
-export function getStoreIdForTable(tableName) {
-  // AI Analytics tables use shops.id FK but column is named store_id
+export function useCurrentShop() {
+  const { currentShop } = useAuth()
+
+  if (!currentShop) {
+    return { storeId: null, shopId: null, currency: 'EUR', shopName: '', ready: false }
+  }
+
+  return {
+    storeId: currentShop.store_id,   // stores.id (UUID as TEXT) — orders, products, gsc_*, ga4_tokens
+    shopId: currentShop.shop_id,     // shops.id (UUID) — ga4_ecommerce, weekly_analyses, chat_sessions
+    currency: currentShop.currency || 'EUR',
+    shopName: currentShop.shop_name || '',
+    domain: currentShop.domain || '',
+    ready: true
+  }
+}
+
+/**
+ * Apufunktio: Palauttaa oikean sarakkeen ja ID:n taulun mukaan
+ *
+ * @param {string} tableName - Taulun nimi
+ * @param {string} storeId - stores.id (ePages)
+ * @param {string} shopId - shops.id (analytics)
+ * @returns {{ column: string, value: string }}
+ */
+export function getStoreIdForTable(tableName, storeId, shopId) {
   const shopIdTables = ['ga4_ecommerce', 'shops', 'weekly_analyses', 'action_recommendations', 'chat_sessions', 'merchant_goals', 'context_notes', 'growth_engine_snapshots']
   const storeIdTables = ['orders', 'products', 'gsc_tokens', 'gsc_search_analytics', 'ga4_tokens', 'order_line_items']
 
   if (shopIdTables.includes(tableName)) {
-    return { column: 'shop_id', value: SHOP_ID }
+    return { column: 'shop_id', value: shopId }
   }
 
   if (storeIdTables.includes(tableName)) {
-    return { column: 'store_id', value: STORE_ID }
+    return { column: 'store_id', value: storeId }
   }
 
-  // Views käyttävät yleensä store_id
+  // Views use store_id
   if (tableName.startsWith('v_')) {
-    return { column: 'store_id', value: STORE_ID }
+    return { column: 'store_id', value: storeId }
   }
 
-  console.warn(`⚠️ Unknown table "${tableName}" - defaulting to store_id`)
-  return { column: 'store_id', value: STORE_ID }
+  console.warn(`Unknown table "${tableName}" - defaulting to store_id`)
+  return { column: 'store_id', value: storeId }
 }

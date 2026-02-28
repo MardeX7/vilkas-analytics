@@ -7,28 +7,16 @@
   ],
   "crons": [
     {
-      "path": "/api/cron/send-orders-slack",
-      "schedule": "0 5 * * *"
-    },
-    {
-      "path": "/api/cron/send-stock-slack",
-      "schedule": "15 5 * * *"
-    },
-    {
-      "path": "/api/cron/send-lowstock-slack",
-      "schedule": "30 5 * * *"
-    },
-    {
       "path": "/api/cron/sync-data",
       "schedule": "0 6 * * *"
     },
     {
-      "path": "/api/cron/send-reorder-slack",
-      "schedule": "15 6 * * 1"
+      "path": "/api/cron/send-morning-brief-slack",
+      "schedule": "15 6 * * *"
     },
     {
-      "path": "/api/cron/send-daily-slack",
-      "schedule": "30 6 * * *"
+      "path": "/api/cron/send-reorder-slack",
+      "schedule": "30 6 * * 1"
     },
     {
       "path": "/api/cron/index-emma-documents",

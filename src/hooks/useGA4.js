@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
-import { STORE_ID } from '@/config/storeConfig'
+import { useCurrentShop } from '@/config/storeConfig'
 
 // Helper to fetch all rows with pagination (Supabase has 1000 row limit per request)
 async function fetchAllRows(query, pageSize = 1000) {
@@ -33,6 +33,8 @@ async function fetchAllRows(query, pageSize = 1000) {
  * NOT for transactions - ePages remains the master for sales data
  */
 export function useGA4(dateRange = null, comparisonMode = 'mom') {
+  const { storeId, ready } = useCurrentShop()
+
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [connected, setConnected] = useState(false)
@@ -56,6 +58,8 @@ export function useGA4(dateRange = null, comparisonMode = 'mom') {
   })
 
   const fetchGA4Data = useCallback(async () => {
+    if (!ready || !storeId) return
+
     setLoading(true)
     setError(null)
 
@@ -64,7 +68,7 @@ export function useGA4(dateRange = null, comparisonMode = 'mom') {
       const { data: tokens } = await supabase
         .from('ga4_tokens')
         .select('property_id, property_name')
-        .eq('store_id', STORE_ID)
+        .eq('store_id', storeId)
 
       if (!tokens || tokens.length === 0) {
         setConnected(false)
@@ -82,7 +86,7 @@ export function useGA4(dateRange = null, comparisonMode = 'mom') {
       let dailyQuery = supabase
         .from('v_ga4_daily_summary')
         .select('*')
-        .eq('store_id', STORE_ID)
+        .eq('store_id', storeId)
         .order('date', { ascending: false })
 
       if (startDate) dailyQuery = dailyQuery.gte('date', startDate)
@@ -92,7 +96,7 @@ export function useGA4(dateRange = null, comparisonMode = 'mom') {
       let sourcesQuery = supabase
         .from('ga4_analytics')
         .select('date, session_default_channel_grouping, sessions, engaged_sessions, bounce_rate')
-        .eq('store_id', STORE_ID)
+        .eq('store_id', storeId)
         .not('session_default_channel_grouping', 'is', null)
 
       if (startDate) sourcesQuery = sourcesQuery.gte('date', startDate)
@@ -102,7 +106,7 @@ export function useGA4(dateRange = null, comparisonMode = 'mom') {
       let landingQuery = supabase
         .from('ga4_analytics')
         .select('landing_page, sessions, engaged_sessions, bounce_rate')
-        .eq('store_id', STORE_ID)
+        .eq('store_id', storeId)
         .not('landing_page', 'is', null)
 
       if (startDate) landingQuery = landingQuery.gte('date', startDate)
@@ -208,7 +212,7 @@ export function useGA4(dateRange = null, comparisonMode = 'mom') {
         let ga4DeviceQuery = supabase
           .from('gsc_search_analytics')
           .select('device, clicks')
-          .eq('store_id', STORE_ID)
+          .eq('store_id', storeId)
           .not('device', 'is', null)
 
         if (startDate) ga4DeviceQuery = ga4DeviceQuery.gte('date', startDate)
@@ -241,7 +245,7 @@ export function useGA4(dateRange = null, comparisonMode = 'mom') {
         let gscQuery = supabase
           .from('v_gsc_daily_summary')
           .select('*')
-          .eq('store_id', STORE_ID)
+          .eq('store_id', storeId)
           .order('date', { ascending: false })
 
         if (startDate) gscQuery = gscQuery.gte('date', startDate)
@@ -253,7 +257,7 @@ export function useGA4(dateRange = null, comparisonMode = 'mom') {
         let gscPagesQuery = supabase
           .from('gsc_search_analytics')
           .select('page, clicks, impressions, ctr, position')
-          .eq('store_id', STORE_ID)
+          .eq('store_id', storeId)
 
         if (startDate) gscPagesQuery = gscPagesQuery.gte('date', startDate)
         if (endDate) gscPagesQuery = gscPagesQuery.lte('date', endDate)
@@ -265,7 +269,7 @@ export function useGA4(dateRange = null, comparisonMode = 'mom') {
         let gscDeviceQuery = supabase
           .from('gsc_search_analytics')
           .select('device, clicks')
-          .eq('store_id', STORE_ID)
+          .eq('store_id', storeId)
           .not('device', 'is', null)
 
         if (startDate) gscDeviceQuery = gscDeviceQuery.gte('date', startDate)
@@ -392,7 +396,7 @@ export function useGA4(dateRange = null, comparisonMode = 'mom') {
             supabase
               .from('v_gsc_daily_summary')
               .select('*')
-              .eq('store_id', STORE_ID)
+              .eq('store_id', storeId)
               .gte('date', prevStart)
               .lte('date', prevEnd)
               .order('date', { ascending: false })
@@ -400,7 +404,7 @@ export function useGA4(dateRange = null, comparisonMode = 'mom') {
             supabase
               .from('gsc_search_analytics')
               .select('device, clicks')
-              .eq('store_id', STORE_ID)
+              .eq('store_id', storeId)
               .not('device', 'is', null)
               .gte('date', prevStart)
               .lte('date', prevEnd)
@@ -456,7 +460,7 @@ export function useGA4(dateRange = null, comparisonMode = 'mom') {
             supabase
               .from('v_ga4_daily_summary')
               .select('*')
-              .eq('store_id', STORE_ID)
+              .eq('store_id', storeId)
               .gte('date', prevStart)
               .lte('date', prevEnd)
               .order('date', { ascending: false })
@@ -464,7 +468,7 @@ export function useGA4(dateRange = null, comparisonMode = 'mom') {
             supabase
               .from('ga4_analytics')
               .select('session_default_channel_grouping, sessions')
-              .eq('store_id', STORE_ID)
+              .eq('store_id', storeId)
               .not('session_default_channel_grouping', 'is', null)
               .gte('date', prevStart)
               .lte('date', prevEnd)
@@ -536,7 +540,7 @@ export function useGA4(dateRange = null, comparisonMode = 'mom') {
         supabase
           .from('gsc_search_analytics')
           .select('page, clicks, impressions, position, date')
-          .eq('store_id', STORE_ID)
+          .eq('store_id', storeId)
           .not('page', 'is', null)
           .gte('date', threeWeeksAgoStr)
           .order('date', { ascending: true })
@@ -588,7 +592,7 @@ export function useGA4(dateRange = null, comparisonMode = 'mom') {
         if (w1toW2Drop < -0.2 && w2toW3Drop < -0.2 && w1.clicks >= 3) {
           const totalDrop = w1.clicks > 0 ? ((w3.clicks - w1.clicks) / w1.clicks) * 100 : -100
           decliningPages.push({
-            page: page.replace('https://www.billackering.eu', ''),
+            page: page.replace(/https?:\/\/[^/]+/, ''),
             clicks: w3.clicks,
             clicksChange: totalDrop,
             week1Clicks: w1.clicks,
@@ -639,7 +643,7 @@ export function useGA4(dateRange = null, comparisonMode = 'mom') {
     } finally {
       setLoading(false)
     }
-  }, [dateRange?.startDate, dateRange?.endDate, comparisonMode])
+  }, [storeId, dateRange?.startDate, dateRange?.endDate, comparisonMode])
 
   useEffect(() => {
     fetchGA4Data()
@@ -647,7 +651,7 @@ export function useGA4(dateRange = null, comparisonMode = 'mom') {
 
   // Connect GA4 function - uses Vercel serverless API
   const connectGA4 = () => {
-    window.location.href = `/api/ga4/connect?store_id=${STORE_ID}`
+    window.location.href = `/api/ga4/connect?store_id=${storeId}`
   }
 
   // Sync GA4 data function - uses Vercel serverless API
@@ -658,7 +662,7 @@ export function useGA4(dateRange = null, comparisonMode = 'mom') {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        store_id: STORE_ID,
+        store_id: storeId,
         start_date: startDate,
         end_date: endDate
       })
@@ -671,12 +675,12 @@ export function useGA4(dateRange = null, comparisonMode = 'mom') {
     await supabase
       .from('ga4_tokens')
       .delete()
-      .eq('store_id', STORE_ID)
+      .eq('store_id', storeId)
 
     await supabase
       .from('shops')
       .update({ ga4_property_id: null })
-      .eq('id', STORE_ID)
+      .eq('id', storeId)
 
     setConnected(false)
     setPropertyName(null)

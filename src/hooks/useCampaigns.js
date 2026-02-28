@@ -6,7 +6,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
-import { STORE_ID } from '@/config/storeConfig'
+import { useCurrentShop } from '@/config/storeConfig'
 
 /**
  * Hae kampanjat aikavälille
@@ -83,6 +83,7 @@ async function calculatePerformance(storeId, campaignId = null) {
  * Hook kampanjoiden hallintaan
  */
 export function useCampaigns({ startDate, endDate, activeOnly = false } = {}) {
+  const { storeId, ready } = useCurrentShop()
   const queryClient = useQueryClient()
 
   // Default to wide date range
@@ -90,17 +91,18 @@ export function useCampaigns({ startDate, endDate, activeOnly = false } = {}) {
   const start = startDate || '1900-01-01'
 
   const query = useQuery({
-    queryKey: ['campaigns', STORE_ID, start, end, activeOnly],
-    queryFn: () => fetchCampaigns(STORE_ID, start, end, activeOnly),
+    queryKey: ['campaigns', storeId, start, end, activeOnly],
+    queryFn: () => fetchCampaigns(storeId, start, end, activeOnly),
     staleTime: 5 * 60 * 1000,
-    cacheTime: 30 * 60 * 1000
+    cacheTime: 30 * 60 * 1000,
+    enabled: ready && !!storeId
   })
 
   // Create mutation
   const createMutation = useMutation({
-    mutationFn: (campaignData) => createCampaign(STORE_ID, campaignData),
+    mutationFn: (campaignData) => createCampaign(storeId, campaignData),
     onSuccess: () => {
-      queryClient.invalidateQueries(['campaigns', STORE_ID])
+      queryClient.invalidateQueries(['campaigns', storeId])
     }
   })
 
@@ -108,15 +110,15 @@ export function useCampaigns({ startDate, endDate, activeOnly = false } = {}) {
   const deleteMutation = useMutation({
     mutationFn: (campaignId) => deleteCampaign(campaignId),
     onSuccess: () => {
-      queryClient.invalidateQueries(['campaigns', STORE_ID])
+      queryClient.invalidateQueries(['campaigns', storeId])
     }
   })
 
   // Calculate performance mutation
   const performanceMutation = useMutation({
-    mutationFn: (campaignId) => calculatePerformance(STORE_ID, campaignId),
+    mutationFn: (campaignId) => calculatePerformance(storeId, campaignId),
     onSuccess: () => {
-      queryClient.invalidateQueries(['campaigns', STORE_ID])
+      queryClient.invalidateQueries(['campaigns', storeId])
     }
   })
 
@@ -135,7 +137,7 @@ export function useCampaigns({ startDate, endDate, activeOnly = false } = {}) {
   return {
     campaigns: query.data || [],
     summary,
-    isLoading: query.isLoading,
+    isLoading: !ready || query.isLoading,
     error: query.error,
     refetch: query.refetch,
     createCampaign: createMutation.mutateAsync,

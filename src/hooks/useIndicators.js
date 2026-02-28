@@ -11,7 +11,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
-import { STORE_ID } from '@/config/storeConfig'
+import { useCurrentShop } from '@/config/storeConfig'
 
 /**
  * Calculate YoY change for an indicator using history data
@@ -118,18 +118,17 @@ async function fetchAlerts(storeId) {
  * Main hook for fetching indicators
  *
  * @param {Object} options
- * @param {string} options.storeId - Store UUID (default: Billackering)
  * @param {'7d' | '30d' | '90d'} options.period - Period label
  * @param {'mom' | 'yoy'} options.comparisonMode - Comparison mode (MoM or YoY)
  * @param {boolean} options.includeAlerts - Include active alerts
  * @returns {Object} Indicators data, loading state, and error
  */
 export function useIndicators({
-  storeId = STORE_ID,
   period = '30d',
   comparisonMode = 'mom',
   includeAlerts = true
 } = {}) {
+  const { storeId, ready } = useCurrentShop()
   const queryClient = useQueryClient()
 
   // Main indicators query
@@ -143,7 +142,8 @@ export function useIndicators({
     queryFn: () => fetchIndicators(storeId, period),
     staleTime: 5 * 60 * 1000, // 5 minutes
     cacheTime: 30 * 60 * 1000, // 30 minutes
-    retry: 2
+    retry: 2,
+    enabled: ready && !!storeId
   })
 
   // Fetch history for all indicators for YoY calculation
@@ -166,7 +166,7 @@ export function useIndicators({
       }
       return histories
     },
-    enabled: comparisonMode === 'yoy' && indicatorIds.length > 0,
+    enabled: ready && !!storeId && comparisonMode === 'yoy' && indicatorIds.length > 0,
     staleTime: 10 * 60 * 1000, // 10 minutes
     cacheTime: 60 * 60 * 1000 // 1 hour
   })
@@ -222,7 +222,7 @@ export function useIndicators({
   } = useQuery({
     queryKey: ['alerts', storeId],
     queryFn: () => fetchAlerts(storeId),
-    enabled: includeAlerts,
+    enabled: ready && !!storeId && includeAlerts,
     staleTime: 2 * 60 * 1000, // 2 minutes
     cacheTime: 10 * 60 * 1000 // 10 minutes
   })
@@ -274,7 +274,7 @@ export function useIndicators({
     stockRisk: getIndicator('stock_availability_risk'),
 
     // State
-    isLoading: indicatorsLoading || (includeAlerts && alertsLoading) || (comparisonMode === 'yoy' && historyLoading),
+    isLoading: !ready || indicatorsLoading || (includeAlerts && alertsLoading) || (comparisonMode === 'yoy' && historyLoading),
     error: indicatorsError || alertsError,
 
     // Actions
@@ -288,13 +288,13 @@ export function useIndicators({
  *
  * @param {string} indicatorId - Indicator ID
  * @param {Object} options
- * @param {string} options.storeId - Store UUID
  * @param {number} options.days - Number of days of history
  */
 export function useIndicatorHistory(indicatorId, {
-  storeId = STORE_ID,
   days = 90
 } = {}) {
+  const { storeId, ready } = useCurrentShop()
+
   const {
     data: history,
     isLoading,
@@ -302,14 +302,14 @@ export function useIndicatorHistory(indicatorId, {
   } = useQuery({
     queryKey: ['indicator-history', storeId, indicatorId, days],
     queryFn: () => fetchIndicatorHistory(storeId, indicatorId, days),
-    enabled: !!indicatorId,
+    enabled: ready && !!storeId && !!indicatorId,
     staleTime: 10 * 60 * 1000, // 10 minutes
     cacheTime: 60 * 60 * 1000 // 1 hour
   })
 
   return {
     history: history || [],
-    isLoading,
+    isLoading: !ready || isLoading,
     error
   }
 }

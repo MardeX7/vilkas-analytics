@@ -6,7 +6,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
-import { STORE_ID } from '@/config/storeConfig'
+import { useCurrentShop } from '@/config/storeConfig'
 
 /**
  * Hae aktiiviset tavoitteet ja päivitä niiden edistyminen automaattisesti
@@ -85,20 +85,22 @@ async function calculateProgress(storeId, goalId = null) {
  * @returns {object} - { goals, isLoading, error, createGoal, deactivateGoal, refreshProgress }
  */
 export function useMerchantGoals() {
+  const { storeId, ready } = useCurrentShop()
   const queryClient = useQueryClient()
 
   const query = useQuery({
-    queryKey: ['merchantGoals', STORE_ID],
-    queryFn: () => fetchActiveGoals(STORE_ID),
+    queryKey: ['merchantGoals', storeId],
+    queryFn: () => fetchActiveGoals(storeId),
     staleTime: 60 * 1000, // 1 min - refresh frequently since it recalculates progress
-    cacheTime: 5 * 60 * 1000 // 5 min
+    cacheTime: 5 * 60 * 1000, // 5 min
+    enabled: ready && !!storeId
   })
 
   // Upsert mutation
   const upsertMutation = useMutation({
-    mutationFn: (goalData) => upsertGoal(STORE_ID, goalData),
+    mutationFn: (goalData) => upsertGoal(storeId, goalData),
     onSuccess: () => {
-      queryClient.invalidateQueries(['merchantGoals', STORE_ID])
+      queryClient.invalidateQueries(['merchantGoals', storeId])
     }
   })
 
@@ -106,15 +108,15 @@ export function useMerchantGoals() {
   const deactivateMutation = useMutation({
     mutationFn: (goalId) => deactivateGoal(goalId),
     onSuccess: () => {
-      queryClient.invalidateQueries(['merchantGoals', STORE_ID])
+      queryClient.invalidateQueries(['merchantGoals', storeId])
     }
   })
 
   // Calculate progress mutation
   const progressMutation = useMutation({
-    mutationFn: (goalId) => calculateProgress(STORE_ID, goalId),
+    mutationFn: (goalId) => calculateProgress(storeId, goalId),
     onSuccess: () => {
-      queryClient.invalidateQueries(['merchantGoals', STORE_ID])
+      queryClient.invalidateQueries(['merchantGoals', storeId])
     }
   })
 
@@ -123,7 +125,7 @@ export function useMerchantGoals() {
 
   return {
     goals: query.data || [],
-    isLoading: query.isLoading,
+    isLoading: !ready || query.isLoading,
     error: query.error,
     refetch: query.refetch,
     createGoal: upsertMutation.mutateAsync,

@@ -23,9 +23,10 @@ import { useMerchantGoals } from '@/hooks/useMerchantGoals'
 import { EmmaChatFullscreen } from '@/components/EmmaChatFullscreen'
 import { ActionRecommendationsCard } from '@/components/ActionRecommendationsCard'
 import { supabase } from '@/lib/supabase'
-import { STORE_ID } from '@/config/storeConfig'
+import { useCurrentShop } from '@/config/storeConfig'
 
 export function InsightsPage() {
+  const { storeId, ready } = useCurrentShop()
   const { t, language } = useTranslation()
   const isFi = language === 'fi'
 
@@ -90,7 +91,7 @@ export function InsightsPage() {
       const { data: ytdData, error: ytdError } = await supabase
         .from('v_daily_sales')
         .select('total_revenue')
-        .eq('store_id', STORE_ID)
+        .eq('store_id', storeId)
         .gte('sale_date', startOfYear)
         .lte('sale_date', today)
 
@@ -107,7 +108,7 @@ export function InsightsPage() {
       const { data: lastYearPeriodData, error: lastYearPeriodError } = await supabase
         .from('v_daily_sales')
         .select('total_revenue')
-        .eq('store_id', STORE_ID)
+        .eq('store_id', storeId)
         .gte('sale_date', lastYearStart)
         .lte('sale_date', lastYearSameDayStr)
 
@@ -121,7 +122,7 @@ export function InsightsPage() {
       const { data: lastYearFullData, error: lastYearFullError } = await supabase
         .from('v_daily_sales')
         .select('total_revenue')
-        .eq('store_id', STORE_ID)
+        .eq('store_id', storeId)
         .gte('sale_date', lastYearStart)
         .lte('sale_date', lastYearEnd)
 
@@ -130,8 +131,9 @@ export function InsightsPage() {
         setLastYearTotal(total)
       }
     }
+    if (!ready || !storeId) return
     fetchRevenueData()
-  }, [])
+  }, [storeId, ready])
 
   // Calculate YoY-based forecast (accounts for seasonality)
   const calculateYoYForecast = (currentYTD, lastYearSamePeriod, lastYearTotal, targetValue) => {

@@ -6,7 +6,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
-import { STORE_ID } from '@/config/storeConfig'
+import { useCurrentShop } from '@/config/storeConfig'
 
 /**
  * Hae muistiinpanot aikavälille
@@ -69,6 +69,7 @@ async function deleteNote(noteId) {
  * @returns {object} - { notes, isLoading, error, createNote, deleteNote }
  */
 export function useContextNotes({ startDate, endDate } = {}) {
+  const { storeId, ready } = useCurrentShop()
   const queryClient = useQueryClient()
 
   // Default to last 30 days if not provided
@@ -76,17 +77,18 @@ export function useContextNotes({ startDate, endDate } = {}) {
   const start = startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
 
   const query = useQuery({
-    queryKey: ['contextNotes', STORE_ID, start, end],
-    queryFn: () => fetchContextNotes(STORE_ID, start, end),
+    queryKey: ['contextNotes', storeId, start, end],
+    queryFn: () => fetchContextNotes(storeId, start, end),
     staleTime: 5 * 60 * 1000, // 5 min
-    cacheTime: 30 * 60 * 1000 // 30 min
+    cacheTime: 30 * 60 * 1000, // 30 min
+    enabled: ready && !!storeId
   })
 
   // Create mutation
   const createMutation = useMutation({
-    mutationFn: (noteData) => createNote(STORE_ID, noteData),
+    mutationFn: (noteData) => createNote(storeId, noteData),
     onSuccess: () => {
-      queryClient.invalidateQueries(['contextNotes', STORE_ID])
+      queryClient.invalidateQueries(['contextNotes', storeId])
     }
   })
 
@@ -94,7 +96,7 @@ export function useContextNotes({ startDate, endDate } = {}) {
   const deleteMutation = useMutation({
     mutationFn: (noteId) => deleteNote(noteId),
     onSuccess: () => {
-      queryClient.invalidateQueries(['contextNotes', STORE_ID])
+      queryClient.invalidateQueries(['contextNotes', storeId])
     }
   })
 
@@ -110,7 +112,7 @@ export function useContextNotes({ startDate, endDate } = {}) {
   return {
     notes: query.data || [],
     notesByType,
-    isLoading: query.isLoading,
+    isLoading: !ready || query.isLoading,
     error: query.error,
     refetch: query.refetch,
     createNote: createMutation.mutateAsync,

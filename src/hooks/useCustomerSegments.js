@@ -7,7 +7,7 @@
 
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
-import { STORE_ID } from '@/config/storeConfig'
+import { useCurrentShop } from '@/config/storeConfig'
 
 /**
  * Hae asiakassegmenttien yhteenveto
@@ -91,25 +91,28 @@ export function useCustomerSegments({
   previousEndDate,
   compare = false
 } = {}) {
+  const { storeId, ready } = useCurrentShop()
+
   // Use provided dates or default to last 30 days
   const endDate = propEndDate || new Date().toISOString().split('T')[0]
   const startDate = propStartDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
 
   // Current period query
   const query = useQuery({
-    queryKey: ['customerSegments', STORE_ID, startDate, endDate],
-    queryFn: () => fetchCustomerSegments(STORE_ID, startDate, endDate),
+    queryKey: ['customerSegments', storeId, startDate, endDate],
+    queryFn: () => fetchCustomerSegments(storeId, startDate, endDate),
     staleTime: 5 * 60 * 1000, // 5 min
-    cacheTime: 30 * 60 * 1000 // 30 min
+    cacheTime: 30 * 60 * 1000, // 30 min
+    enabled: ready && !!storeId
   })
 
   // Previous period query (for MoM/YoY comparison)
   const previousQuery = useQuery({
-    queryKey: ['customerSegments', STORE_ID, previousStartDate, previousEndDate],
-    queryFn: () => fetchCustomerSegments(STORE_ID, previousStartDate, previousEndDate),
+    queryKey: ['customerSegments', storeId, previousStartDate, previousEndDate],
+    queryFn: () => fetchCustomerSegments(storeId, previousStartDate, previousEndDate),
     staleTime: 5 * 60 * 1000,
     cacheTime: 30 * 60 * 1000,
-    enabled: compare && !!previousStartDate && !!previousEndDate
+    enabled: ready && !!storeId && compare && !!previousStartDate && !!previousEndDate
   })
 
   // Laske yhteenvetotilastot
@@ -166,7 +169,7 @@ export function useCustomerSegments({
     previousSummary,
     percentages,
     comparison,
-    isLoading: query.isLoading || previousQuery.isLoading,
+    isLoading: !ready || query.isLoading || previousQuery.isLoading,
     error: query.error || previousQuery.error,
     refetch: query.refetch
   }

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
-import { STORE_ID } from '@/config/storeConfig'
+import { useCurrentShop } from '@/config/storeConfig'
 
 /**
  * useGrowthEngine - Hook for Growth Engine Index calculation
@@ -14,6 +14,8 @@ import { STORE_ID } from '@/config/storeConfig'
  * Käyttää YoY-vertailua kausivaihtelun takia.
  */
 export function useGrowthEngine(dateRange = null) {
+  const { storeId, ready } = useCurrentShop()
+
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [dataWarning, setDataWarning] = useState(null) // Warning when using fallback data
@@ -92,6 +94,8 @@ export function useGrowthEngine(dateRange = null) {
   }, [])
 
   const fetchGrowthEngineData = useCallback(async () => {
+    if (!ready || !storeId) return
+
     setLoading(true)
     setError(null)
     setDataWarning(null)
@@ -109,7 +113,7 @@ export function useGrowthEngine(dateRange = null) {
       const { data: latestGscData } = await supabase
         .from('v_gsc_daily_summary')
         .select('date')
-        .eq('store_id', STORE_ID)
+        .eq('store_id', storeId)
         .order('date', { ascending: false })
         .limit(1)
 
@@ -120,7 +124,7 @@ export function useGrowthEngine(dateRange = null) {
         const { data: periodGscDays } = await supabase
           .from('v_gsc_daily_summary')
           .select('date')
-          .eq('store_id', STORE_ID)
+          .eq('store_id', storeId)
           .gte('date', startDate)
           .lte('date', endDate)
 
@@ -154,7 +158,7 @@ export function useGrowthEngine(dateRange = null) {
           const { data: weekDays } = await supabase
             .from('v_gsc_daily_summary')
             .select('date')
-            .eq('store_id', STORE_ID)
+            .eq('store_id', storeId)
             .gte('date', weekStart.toISOString().split('T')[0])
             .lte('date', weekEnd.toISOString().split('T')[0])
 
@@ -200,26 +204,26 @@ export function useGrowthEngine(dateRange = null) {
         supabase
           .from('v_gsc_daily_summary')
           .select('date, total_clicks, total_impressions')
-          .eq('store_id', STORE_ID)
+          .eq('store_id', storeId)
           .gte('date', startDate)
           .lte('date', endDate),
         supabase
           .from('v_gsc_daily_summary')
           .select('date, total_clicks, total_impressions')
-          .eq('store_id', STORE_ID)
+          .eq('store_id', storeId)
           .gte('date', prevStartStr)
           .lte('date', prevEndStr),
         supabase
           .from('gsc_search_analytics')
           .select('date, query, position')
-          .eq('store_id', STORE_ID)
+          .eq('store_id', storeId)
           .not('query', 'is', null)
           .gte('date', startDate)
           .lte('date', endDate),
         supabase
           .from('gsc_search_analytics')
           .select('date, query, position')
-          .eq('store_id', STORE_ID)
+          .eq('store_id', storeId)
           .not('query', 'is', null)
           .gte('date', prevStartStr)
           .lte('date', prevEndStr)
@@ -324,13 +328,13 @@ export function useGrowthEngine(dateRange = null) {
         supabase
           .from('v_ga4_daily_summary')
           .select('total_sessions, total_engaged_sessions')
-          .eq('store_id', STORE_ID)
+          .eq('store_id', storeId)
           .gte('date', startDate)
           .lte('date', endDate),
         supabase
           .from('v_ga4_daily_summary')
           .select('total_sessions, total_engaged_sessions')
-          .eq('store_id', STORE_ID)
+          .eq('store_id', storeId)
           .gte('date', prevStartStr)
           .lte('date', prevEndStr)
       ])
@@ -363,14 +367,14 @@ export function useGrowthEngine(dateRange = null) {
         supabase
           .from('ga4_analytics')
           .select('sessions')
-          .eq('store_id', STORE_ID)
+          .eq('store_id', storeId)
           .eq('session_medium', 'organic')
           .gte('date', startDate)
           .lte('date', endDate),
         supabase
           .from('ga4_analytics')
           .select('sessions')
-          .eq('store_id', STORE_ID)
+          .eq('store_id', storeId)
           .eq('session_medium', 'organic')
           .gte('date', prevStartStr)
           .lte('date', prevEndStr)
@@ -421,7 +425,7 @@ export function useGrowthEngine(dateRange = null) {
             id, grand_total, billing_email, status,
             order_line_items (quantity, total_price, product_number, product_name)
           `)
-          .eq('store_id', STORE_ID)
+          .eq('store_id', storeId)
           .neq('status', 'cancelled')
           .gte('creation_date', startDate)
           .lte('creation_date', endDate + 'T23:59:59'),
@@ -431,7 +435,7 @@ export function useGrowthEngine(dateRange = null) {
             id, grand_total, billing_email, status,
             order_line_items (quantity, total_price, product_number, product_name)
           `)
-          .eq('store_id', STORE_ID)
+          .eq('store_id', storeId)
           .neq('status', 'cancelled')
           .gte('creation_date', prevStartStr)
           .lte('creation_date', prevEndStr + 'T23:59:59'),
@@ -439,14 +443,14 @@ export function useGrowthEngine(dateRange = null) {
         supabase
           .from('orders')
           .select('id, billing_email, creation_date, grand_total')
-          .eq('store_id', STORE_ID)
+          .eq('store_id', storeId)
           .neq('status', 'cancelled')
           .lte('creation_date', endDate + 'T23:59:59')
           .order('creation_date', { ascending: true }),
         supabase
           .from('products')
           .select('product_number, name, cost_price')
-          .eq('store_id', STORE_ID)
+          .eq('store_id', storeId)
       ])
 
       // Build cost price maps - use BOTH product_number and name for matching
@@ -703,7 +707,7 @@ export function useGrowthEngine(dateRange = null) {
       const { data: currentPositionData } = await supabase
         .from('gsc_search_analytics')
         .select('position, clicks')
-        .eq('store_id', STORE_ID)
+        .eq('store_id', storeId)
         .gte('date', startDate)
         .lte('date', endDate)
         .gt('clicks', 0)
@@ -711,7 +715,7 @@ export function useGrowthEngine(dateRange = null) {
       const { data: prevPositionData } = await supabase
         .from('gsc_search_analytics')
         .select('position, clicks')
-        .eq('store_id', STORE_ID)
+        .eq('store_id', storeId)
         .gte('date', prevStartStr)
         .lte('date', prevEndStr)
         .gt('clicks', 0)
@@ -767,7 +771,7 @@ export function useGrowthEngine(dateRange = null) {
       const { data: currentPagesData } = await supabase
         .from('gsc_search_analytics')
         .select('page, position, clicks')
-        .eq('store_id', STORE_ID)
+        .eq('store_id', storeId)
         .gte('date', startDate)
         .lte('date', endDate)
         .gt('clicks', 0)
@@ -776,7 +780,7 @@ export function useGrowthEngine(dateRange = null) {
       const { data: prevPagesData } = await supabase
         .from('gsc_search_analytics')
         .select('page, position, clicks')
-        .eq('store_id', STORE_ID)
+        .eq('store_id', storeId)
         .gte('date', prevStartStr)
         .lte('date', prevEndStr)
         .gt('clicks', 0)
@@ -958,7 +962,7 @@ export function useGrowthEngine(dateRange = null) {
     } finally {
       setLoading(false)
     }
-  }, [dateRange?.startDate, dateRange?.endDate, calculateScore, getIndexLevel])
+  }, [storeId, dateRange?.startDate, dateRange?.endDate, calculateScore, getIndexLevel])
 
   useEffect(() => {
     fetchGrowthEngineData()

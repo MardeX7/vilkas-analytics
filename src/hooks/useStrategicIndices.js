@@ -20,7 +20,7 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
-import { STORE_ID } from '@/config/storeConfig'
+import { useCurrentShop } from '@/config/storeConfig'
 
 /**
  * Index weights for overall score
@@ -164,6 +164,7 @@ function getMonthDates(year, month) {
  * @param {'week' | 'month'} options.granularity - Aikajakson tarkkuus
  */
 export function useStrategicIndices({ granularity = 'week' } = {}) {
+  const { storeId, ready } = useCurrentShop()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [currentPeriodData, setCurrentPeriodData] = useState(null)
@@ -214,6 +215,8 @@ export function useStrategicIndices({ granularity = 'week' } = {}) {
 
   // Fetch all data
   useEffect(() => {
+    if (!ready || !storeId) return
+
     async function fetchData() {
       setLoading(true)
       setError(null)
@@ -226,7 +229,7 @@ export function useStrategicIndices({ granularity = 'week' } = {}) {
             id, grand_total, total_before_tax, creation_date,
             billing_email, customer_id
           `)
-          .eq('store_id', STORE_ID)
+          .eq('store_id', storeId)
           .gte('creation_date', dateRanges.current.start)
           .lte('creation_date', dateRanges.current.end + 'T23:59:59')
 
@@ -239,7 +242,7 @@ export function useStrategicIndices({ granularity = 'week' } = {}) {
             id, grand_total, total_before_tax, creation_date,
             billing_email, customer_id
           `)
-          .eq('store_id', STORE_ID)
+          .eq('store_id', storeId)
           .gte('creation_date', dateRanges.yoy.start)
           .lte('creation_date', dateRanges.yoy.end + 'T23:59:59')
 
@@ -252,7 +255,7 @@ export function useStrategicIndices({ granularity = 'week' } = {}) {
             quantity, unit_price, total_price, product_id,
             products (cost_price)
           `)
-          .eq('store_id', STORE_ID)
+          .eq('store_id', storeId)
           .in('order_id', (currentOrders || []).map(o => o.id))
 
         if (liError) throw liError
@@ -264,7 +267,7 @@ export function useStrategicIndices({ granularity = 'week' } = {}) {
             quantity, unit_price, total_price, product_id,
             products (cost_price)
           `)
-          .eq('store_id', STORE_ID)
+          .eq('store_id', storeId)
           .in('order_id', (yoyOrders || []).map(o => o.id))
 
         if (yoyLiError) throw yoyLiError
@@ -277,14 +280,14 @@ export function useStrategicIndices({ granularity = 'week' } = {}) {
         const { data: currentGsc } = await supabase
           .from('gsc_search_analytics')
           .select('clicks, impressions, position')
-          .eq('store_id', STORE_ID)
+          .eq('store_id', storeId)
           .gte('date', dateRanges.current.start)
           .lte('date', dateRanges.current.end)
 
         const { data: yoyGsc } = await supabase
           .from('gsc_search_analytics')
           .select('clicks, impressions, position')
-          .eq('store_id', STORE_ID)
+          .eq('store_id', storeId)
           .gte('date', dateRanges.yoy.start)
           .lte('date', dateRanges.yoy.end)
 
@@ -297,7 +300,7 @@ export function useStrategicIndices({ granularity = 'week' } = {}) {
         const { data: inventory } = await supabase
           .from('inventory_snapshots')
           .select('*')
-          .eq('store_id', STORE_ID)
+          .eq('store_id', storeId)
           .order('date', { ascending: false })
           .limit(1)
           .single()
@@ -313,7 +316,7 @@ export function useStrategicIndices({ granularity = 'week' } = {}) {
     }
 
     fetchData()
-  }, [dateRanges])
+  }, [storeId, ready, dateRanges])
 
   // Process order data into metrics
   function processOrderData(orders, lineItems) {

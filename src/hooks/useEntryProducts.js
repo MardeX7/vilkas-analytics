@@ -1,17 +1,20 @@
 import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
-import { STORE_ID, SHOP_ID } from '@/config/storeConfig'
+import { useCurrentShop } from '@/config/storeConfig'
 
 /**
  * Hook for analyzing entry products - what products bring in new customers
  * Phase 3: Product Roles & First Purchase Analysis
  */
 export function useEntryProducts(dateRange) {
+  const { storeId, shopId, ready } = useCurrentShop()
   const [data, setData] = useState({ orders: [], orderItems: [] })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
   useEffect(() => {
+    if (!ready || !storeId || !shopId) return
+
     async function fetchData() {
       setLoading(true)
       setError(null)
@@ -21,7 +24,7 @@ export function useEntryProducts(dateRange) {
         let ordersQuery = supabase
           .from('orders')
           .select('id, is_b2b, is_b2b_soft, grand_total, billing_email, creation_date')
-          .eq('store_id', STORE_ID)
+          .eq('store_id', storeId)
           .order('creation_date', { ascending: true })
 
         if (dateRange?.startDate) {
@@ -44,7 +47,7 @@ export function useEntryProducts(dateRange) {
           const { data: items, error: itemsError } = await supabase
             .from('order_items')
             .select('order_id, sku, name, quantity, line_total')
-            .eq('shop_id', SHOP_ID)
+            .eq('shop_id', shopId)
             .in('order_id', orderIds)
 
           if (itemsError) throw itemsError
@@ -61,7 +64,7 @@ export function useEntryProducts(dateRange) {
     }
 
     fetchData()
-  }, [dateRange?.startDate, dateRange?.endDate])
+  }, [storeId, shopId, ready, dateRange?.startDate, dateRange?.endDate])
 
   const analytics = useMemo(() => {
     const { orders, orderItems } = data
