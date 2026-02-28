@@ -7,18 +7,19 @@
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Cell } from 'recharts'
 import { cn } from '@/lib/utils'
 import { useOrderBuckets } from '@/hooks/useOrderBuckets'
+import { useCurrentShop } from '@/config/storeConfig'
 
 /**
  * Custom tooltip
  */
-function CustomTooltip({ active, payload, label }) {
+function CustomTooltip({ active, payload, label, currencySymbol }) {
   if (!active || !payload?.length) return null
 
   const data = payload[0]?.payload
 
   return (
     <div className="bg-background-elevated border border-card-border rounded-lg p-3 shadow-lg">
-      <p className="font-semibold text-foreground mb-2">{label} kr</p>
+      <p className="font-semibold text-foreground mb-2">{label} {currencySymbol}</p>
       <div className="space-y-1 text-sm">
         <div className="flex justify-between gap-4">
           <span className="text-foreground-muted">Tilaukset:</span>
@@ -26,11 +27,11 @@ function CustomTooltip({ active, payload, label }) {
         </div>
         <div className="flex justify-between gap-4">
           <span className="text-foreground-muted">Liikevaihto:</span>
-          <span className="font-medium tabular-nums">{data?.liikevaihto?.toLocaleString('sv-SE')} kr</span>
+          <span className="font-medium tabular-nums">{data?.liikevaihto?.toLocaleString('sv-SE')} {currencySymbol}</span>
         </div>
         <div className="flex justify-between gap-4">
           <span className="text-foreground-muted">Keskiostos:</span>
-          <span className="font-medium tabular-nums">{data?.keskiostos?.toLocaleString('sv-SE')} kr</span>
+          <span className="font-medium tabular-nums">{data?.keskiostos?.toLocaleString('sv-SE')} {currencySymbol}</span>
         </div>
         <div className="border-t border-card-border pt-1 mt-1">
           <div className="flex justify-between gap-4">
@@ -58,6 +59,7 @@ function CustomTooltip({ active, payload, label }) {
  * @param {string} props.className
  */
 export function OrderBucketChart({ startDate, endDate, label, metric = 'tilaukset', className }) {
+  const { currencySymbol } = useCurrentShop()
   const { chartData, summary, isLoading, error } = useOrderBuckets({ startDate, endDate })
 
   if (isLoading) {
@@ -104,7 +106,7 @@ export function OrderBucketChart({ startDate, endDate, label, metric = 'tilaukse
           <div className="text-right">
             <p className="text-sm font-medium text-foreground">{summary.totalOrders} tilausta</p>
             <p className="text-xs text-foreground-muted">
-              {Math.round(summary.totalRevenue).toLocaleString('sv-SE')} kr
+              {Math.round(summary.totalRevenue).toLocaleString('sv-SE')} {currencySymbol}
             </p>
           </div>
         )}
@@ -127,7 +129,7 @@ export function OrderBucketChart({ startDate, endDate, label, metric = 'tilaukse
               axisLine={false}
               tickFormatter={(value) => metric === 'liikevaihto' ? `${(value / 1000).toFixed(0)}k` : value}
               label={{
-                value: metric === 'liikevaihto' ? 'kr' : 'kpl',
+                value: metric === 'liikevaihto' ? currencySymbol : 'kpl',
                 angle: -90,
                 position: 'insideLeft',
                 fill: 'var(--foreground-muted)',
@@ -135,7 +137,7 @@ export function OrderBucketChart({ startDate, endDate, label, metric = 'tilaukse
                 offset: 15
               }}
             />
-            <Tooltip content={<CustomTooltip />} cursor={{ fill: 'transparent' }} />
+            <Tooltip content={<CustomTooltip currencySymbol={currencySymbol} />} cursor={{ fill: 'transparent' }} />
             <Bar
               dataKey={metric}
               radius={[4, 4, 0, 0]}
@@ -157,7 +159,7 @@ export function OrderBucketChart({ startDate, endDate, label, metric = 'tilaukse
               className="w-3 h-3 rounded"
               style={{ backgroundColor: colors[index % colors.length] }}
             />
-            <span className="text-xs text-foreground-muted">{bucket.name} kr</span>
+            <span className="text-xs text-foreground-muted">{bucket.name} {currencySymbol}</span>
           </div>
         ))}
       </div>
@@ -169,6 +171,7 @@ export function OrderBucketChart({ startDate, endDate, label, metric = 'tilaukse
  * OrderBucketSummary - Compact summary for dashboard
  */
 export function OrderBucketSummary({ period = '30d', className }) {
+  const { currencySymbol } = useCurrentShop()
   const { chartData, isLoading } = useOrderBuckets({ period })
 
   if (isLoading || !chartData || chartData.length === 0) {
@@ -181,7 +184,7 @@ export function OrderBucketSummary({ period = '30d', className }) {
   return (
     <div className={cn('text-sm', className)}>
       <span className="text-foreground-muted">Yleisin tilausarvo: </span>
-      <span className="font-medium text-foreground">{topBucket.name} kr</span>
+      <span className="font-medium text-foreground">{topBucket.name} {currencySymbol}</span>
       <span className="text-foreground-muted"> ({topBucket.tilaukset} kpl)</span>
     </div>
   )

@@ -8,6 +8,7 @@ import { useState } from 'react'
 import { Star, Anchor, Package, TrendingDown, RefreshCw, ChevronDown, ChevronUp, Info } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useProductRoles, PRODUCT_ROLES } from '@/hooks/useProductRoles'
+import { useCurrentShop } from '@/config/storeConfig'
 
 const RoleIcons = {
   hero: Star,
@@ -19,7 +20,7 @@ const RoleIcons = {
 /**
  * Single role summary row
  */
-function RoleRow({ role, data, isExpanded, onToggle }) {
+function RoleRow({ role, data, isExpanded, onToggle, currencySymbol }) {
   const [showTooltip, setShowTooltip] = useState(false)
   const config = PRODUCT_ROLES[role] || PRODUCT_ROLES.filler
   const Icon = RoleIcons[role] || Package
@@ -63,7 +64,7 @@ function RoleRow({ role, data, isExpanded, onToggle }) {
         <div className="grid grid-cols-3 gap-4 text-right text-xs">
           <div>
             <p className="text-foreground-muted">Myynti</p>
-            <p className="font-medium text-foreground">{formatCurrency(data.total_revenue)} kr</p>
+            <p className="font-medium text-foreground">{formatCurrency(data.total_revenue)} {currencySymbol}</p>
           </div>
           <div>
             <p className="text-foreground-muted">Kpl</p>
@@ -98,7 +99,7 @@ function RoleRow({ role, data, isExpanded, onToggle }) {
                 </span>
                 <div className="flex items-center gap-3 text-foreground-muted">
                   <span>{product.units_sold} kpl</span>
-                  <span className="font-medium text-foreground">{formatCurrency(product.revenue)} kr</span>
+                  <span className="font-medium text-foreground">{formatCurrency(product.revenue)} {currencySymbol}</span>
                 </div>
               </div>
             ))}
@@ -152,6 +153,7 @@ function RoleDistributionBar({ roles, totals }) {
  * ProductRolesCard
  */
 export function ProductRolesCard({ startDate, endDate, className }) {
+  const { currencySymbol } = useCurrentShop()
   const [expandedRole, setExpandedRole] = useState(null)
 
   const {
@@ -242,7 +244,7 @@ export function ProductRolesCard({ startDate, endDate, className }) {
             <div>
               <p className="text-xs text-foreground-muted">Myynti yht.</p>
               <p className="text-lg font-semibold text-foreground">
-                {totals.revenue.toLocaleString('sv-SE', { maximumFractionDigits: 0 })} kr
+                {totals.revenue.toLocaleString('sv-SE', { maximumFractionDigits: 0 })} {currencySymbol}
               </p>
             </div>
             <div>
@@ -263,6 +265,7 @@ export function ProductRolesCard({ startDate, endDate, className }) {
                 data={roleData}
                 isExpanded={expandedRole === roleData.role}
                 onToggle={() => toggleRole(roleData.role)}
+                currencySymbol={currencySymbol}
               />
             ))}
           </div>

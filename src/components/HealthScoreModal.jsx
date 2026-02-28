@@ -5,6 +5,7 @@
 import { X, Activity, TrendingUp, TrendingDown, AlertTriangle, CheckCircle, Info } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { useTranslation } from '@/lib/i18n'
+import { useCurrentShop } from '@/config/storeConfig'
 
 // Scoring factors based on useIndicators.js calculateHealthScore
 const SCORING_FACTORS = {
@@ -50,7 +51,7 @@ const SCORING_FACTORS = {
       condition: 'high_stock_risk',
       indicator: 'stock_availability_risk',
       points: -10,
-      description: 'Stock risk > 5000 SEK'
+      description: 'Stock risk > 5000 {currency}'
     }
   ]
 }
@@ -62,6 +63,7 @@ export function HealthScoreModal({
   indicators = []
 }) {
   const { t } = useTranslation()
+  const { currencySymbol } = useCurrentShop()
 
   if (!isOpen) return null
 
@@ -149,6 +151,7 @@ export function HealthScoreModal({
                       isActive={isActive}
                       isPositive={true}
                       t={t}
+                      currencySymbol={currencySymbol}
                     />
                   )
                 })}
@@ -171,6 +174,7 @@ export function HealthScoreModal({
                       isActive={isActive}
                       isPositive={false}
                       t={t}
+                      currencySymbol={currencySymbol}
                     />
                   )
                 })}
@@ -217,7 +221,7 @@ export function HealthScoreModal({
   )
 }
 
-function FactorRow({ factor, isActive, isPositive, t }) {
+function FactorRow({ factor, isActive, isPositive, t, currencySymbol }) {
   return (
     <div className={`flex items-center justify-between p-3 rounded-lg ${
       isActive
@@ -232,7 +236,7 @@ function FactorRow({ factor, isActive, isPositive, t }) {
         )}
         <div>
           <p className={`text-sm ${isActive ? 'text-white' : 'text-slate-400'}`}>
-            {factor.description}
+            {factor.description.replace('{currency}', currencySymbol)}
           </p>
           {factor.indicator && (
             <p className="text-xs text-slate-500">

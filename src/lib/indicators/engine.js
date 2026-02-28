@@ -144,7 +144,7 @@ export async function calculateAllIndicators({
 
       await saveIndicator(supabase, storeId, aov)
       results.success.push('aov')
-      console.log(`   ✅ aov: ${aov.value} SEK (${aov.change_percent}%)`)
+      console.log(`   ✅ aov: ${aov.value} ${aov.unit} (${aov.change_percent}%)`)
     } catch (err) {
       results.errors.push({ id: 'aov', error: err.message })
       console.error(`   ❌ aov: ${err.message}`)
@@ -279,7 +279,7 @@ export async function calculateAllIndicators({
 
           await saveIndicator(supabase, storeId, stockRisk)
           results.success.push('stock_availability_risk')
-          console.log(`   ✅ stock_availability_risk: ${stockRisk.value} SEK at risk (${stockRisk.summary.total_products_at_risk} products)`)
+          console.log(`   ✅ stock_availability_risk: ${stockRisk.value} ${stockRisk.unit} at risk (${stockRisk.summary.total_products_at_risk} products)`)
         } catch (err) {
           results.errors.push({ id: 'stock_availability_risk', error: err.message })
           console.error(`   ❌ stock_availability_risk: ${err.message}`)

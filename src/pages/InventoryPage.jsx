@@ -20,13 +20,14 @@ import {
   Info
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useCurrentShop } from '@/config/storeConfig'
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, LineChart, Line, XAxis, YAxis, CartesianGrid } from 'recharts'
 import { useState } from 'react'
 import { exportToCSV, INVENTORY_COLUMNS } from '@/lib/csvExport'
 import { Download } from 'lucide-react'
 
-// Format currency (SEK for Swedish store)
-function formatCurrency(value, currency = 'SEK') {
+// Format currency
+function formatCurrency(value, currency) {
   return new Intl.NumberFormat('sv-SE', {
     style: 'currency',
     currency,
@@ -79,6 +80,8 @@ function InfoTooltip({ text }) {
 
 export function InventoryPage() {
   const { t } = useTranslation()
+  const { currency, currencySymbol } = useCurrentShop()
+  const fmtCurrency = (value) => formatCurrency(value, currency)
   const [stockHistoryRange, setStockHistoryRange] = useState(14)
   const {
     summary,
@@ -164,7 +167,7 @@ export function InventoryPage() {
           <MetricCard
             label={t('inventory.totalValue')}
             value={summary.totalValue}
-            suffix="kr"
+            suffix={currencySymbol}
             subValue={t('inventory.atCostPrice')}
           />
           <MetricCard
@@ -234,7 +237,7 @@ export function InventoryPage() {
                         isNegative && 'text-destructive/80',
                         !isPositive && !isNegative && 'text-foreground-muted'
                       )}>
-                        {isPositive && '+'}{formatCurrency(data.change)}
+                        {isPositive && '+'}{fmtCurrency(data.change)}
                       </div>
                     </>
                   ) : (
@@ -248,7 +251,7 @@ export function InventoryPage() {
           {/* Current value reference */}
           <div className="mt-4 pt-4 border-t border-border flex items-center justify-between">
             <span className="text-sm text-foreground-muted">{t('inventory.currentValue')}</span>
-            <span className="text-lg font-semibold text-primary">{formatCurrency(summary.totalValue)}</span>
+            <span className="text-lg font-semibold text-primary">{fmtCurrency(summary.totalValue)}</span>
           </div>
         </div>
 
@@ -312,7 +315,7 @@ export function InventoryPage() {
                       boxShadow: '0 10px 25px rgba(0,0,0,0.3)'
                     }}
                     labelStyle={{ color: '#fafafa', fontWeight: 500 }}
-                    formatter={(value) => [formatCurrency(value), t('inventory.totalValue')]}
+                    formatter={(value) => [fmtCurrency(value), t('inventory.totalValue')]}
                     labelFormatter={(label) => {
                       const d = new Date(label)
                       return d.toLocaleDateString('fi-FI')
@@ -360,7 +363,7 @@ export function InventoryPage() {
                       ))}
                     </Pie>
                     <Tooltip
-                      formatter={(value) => formatCurrency(value)}
+                      formatter={(value) => fmtCurrency(value)}
                       contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '8px' }}
                     />
                   </PieChart>
@@ -381,7 +384,7 @@ export function InventoryPage() {
                       </span>
                     </div>
                     <span className="text-sm font-semibold text-foreground">
-                      {formatCurrency(abcAnalysis[cls].stockValue)}
+                      {fmtCurrency(abcAnalysis[cls].stockValue)}
                     </span>
                   </div>
                 ))}
@@ -409,7 +412,7 @@ export function InventoryPage() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between mb-1">
                           <span className="text-sm text-foreground truncate">{cat.name}</span>
-                          <span className="text-sm font-medium text-foreground ml-2">{formatCurrency(cat.stockValue)}</span>
+                          <span className="text-sm font-medium text-foreground ml-2">{fmtCurrency(cat.stockValue)}</span>
                         </div>
                         <div className="h-1.5 bg-background-subtle rounded-full overflow-hidden">
                           <div
@@ -563,7 +566,7 @@ export function InventoryPage() {
                         )}>
                           +{p.orderQty} {t('inventory.pcs')}
                         </p>
-                        <p className="text-xs text-foreground-muted">{formatCurrency(p.orderValue)}</p>
+                        <p className="text-xs text-foreground-muted">{fmtCurrency(p.orderValue)}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-3 mt-1 text-xs text-foreground-muted">
@@ -586,7 +589,7 @@ export function InventoryPage() {
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-foreground-muted">{t('inventory.totalOrderValue')}</span>
                   <span className="text-lg font-semibold text-primary">
-                    {formatCurrency(orderRecommendations.reduce((sum, p) => sum + p.orderValue, 0))}
+                    {fmtCurrency(orderRecommendations.reduce((sum, p) => sum + p.orderValue, 0))}
                   </span>
                 </div>
               </div>
@@ -631,7 +634,7 @@ export function InventoryPage() {
                     </div>
                     <div className="flex items-center gap-3 mt-1 text-xs text-foreground-muted">
                       <span>{t('inventory.sales30d')}: {p.salesLast30Days}</span>
-                      <span className="text-destructive">{t('inventory.lostSales')}: ~{formatCurrency(p.estimatedLostSales)}</span>
+                      <span className="text-destructive">{t('inventory.lostSales')}: ~{fmtCurrency(p.estimatedLostSales)}</span>
                     </div>
                   </div>
                 ))}
@@ -648,7 +651,7 @@ export function InventoryPage() {
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-foreground-muted">{t('inventory.estimatedLostTotal')}</span>
                   <span className="text-lg font-semibold text-destructive">
-                    {formatCurrency(stockoutHistory.reduce((sum, p) => sum + p.estimatedLostSales, 0))}
+                    {fmtCurrency(stockoutHistory.reduce((sum, p) => sum + p.estimatedLostSales, 0))}
                   </span>
                 </div>
               </div>
@@ -825,7 +828,7 @@ export function InventoryPage() {
                       {t('inventory.stock')}: {product.stock_level}
                     </span>
                     <span className="text-sm font-semibold text-warning">
-                      {formatCurrency(product.stockValue)}
+                      {fmtCurrency(product.stockValue)}
                     </span>
                   </div>
                   <div className="mt-1 text-xs text-foreground-muted">
@@ -849,7 +852,7 @@ export function InventoryPage() {
               <div className="flex items-center justify-between text-sm">
                 <span className="text-foreground-muted">{t('inventory.totalCapitalTied')}</span>
                 <span className="text-lg font-semibold text-warning">
-                  {formatCurrency(slowMovers.reduce((sum, p) => sum + p.stockValue, 0))}
+                  {fmtCurrency(slowMovers.reduce((sum, p) => sum + p.stockValue, 0))}
                 </span>
               </div>
             </div>

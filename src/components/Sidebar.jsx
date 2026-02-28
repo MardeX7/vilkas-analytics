@@ -3,7 +3,7 @@ import { BarChart3, Search, TrendingUp, Target, Settings, Globe, LogOut, Activit
 import { useState, useRef, useEffect } from 'react'
 import { useTranslation } from '@/lib/i18n'
 import { useAuth } from '@/contexts/AuthContext'
-import { getShopLogo } from '@/config/shopLogos'
+import { getShopFlag } from '@/config/shopLogos'
 
 export function Sidebar() {
   const { t, language, toggleLanguage } = useTranslation()
@@ -37,7 +37,7 @@ export function Sidebar() {
     { to: '/analytics', icon: Activity, label: t('nav.analytics') },
   ]
 
-  const logo = getShopLogo(currentShop?.domain)
+  const flag = getShopFlag(currentShop?.domain)
 
   return (
     <aside className="fixed left-0 top-0 h-screen w-64 bg-background-elevated border-r border-card-border flex flex-col z-20">
@@ -49,13 +49,9 @@ export function Sidebar() {
             shops.length > 1 ? 'hover:bg-background-subtle cursor-pointer' : 'cursor-default'
           }`}
         >
-          {logo ? (
-            <img src={logo} alt="" className="w-9 h-9 rounded-xl object-cover flex-shrink-0" />
-          ) : (
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#00b4e9] to-[#0090c0] flex items-center justify-center shadow-lg shadow-[#00b4e9]/20 flex-shrink-0">
-              <BarChart3 className="w-5 h-5 text-white" />
-            </div>
-          )}
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#00b4e9] to-[#0090c0] flex items-center justify-center shadow-lg shadow-[#00b4e9]/20 flex-shrink-0">
+            {flag ? <span className="text-xl">{flag}</span> : <BarChart3 className="w-5 h-5 text-white" />}
+          </div>
           <div className="flex-1 text-left min-w-0">
             <h1 className="text-sm font-bold text-foreground truncate">
               {currentShop?.shop_name || 'Analytics'}
@@ -73,7 +69,7 @@ export function Sidebar() {
         {shopMenuOpen && shops.length > 1 && (
           <div className="mt-2 bg-background-elevated border border-card-border rounded-xl shadow-lg overflow-hidden">
             {shops.map((shop) => {
-              const shopLogo = getShopLogo(shop.domain)
+              const shopFlag = getShopFlag(shop.domain)
               return (
               <button
                 key={shop.shop_id}
@@ -87,13 +83,9 @@ export function Sidebar() {
                     : 'text-foreground-muted hover:bg-background-subtle hover:text-foreground'
                 }`}
               >
-                {shopLogo ? (
-                  <img src={shopLogo} alt="" className="w-6 h-6 rounded-lg object-cover flex-shrink-0" />
-                ) : (
-                  <div className="w-6 h-6 rounded-lg bg-background-subtle flex items-center justify-center flex-shrink-0">
-                    <BarChart3 className="w-3.5 h-3.5" />
-                  </div>
-                )}
+                <div className="w-6 h-6 rounded-lg bg-background-subtle flex items-center justify-center flex-shrink-0">
+                  {shopFlag ? <span className="text-sm">{shopFlag}</span> : <BarChart3 className="w-3.5 h-3.5" />}
+                </div>
                 <div className="min-w-0">
                   <p className="font-medium truncate">{shop.shop_name}</p>
                   <p className="text-xs text-foreground-subtle truncate">{shop.domain || shop.currency}</p>

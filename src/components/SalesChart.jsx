@@ -14,6 +14,7 @@ import {
   Cell
 } from 'recharts'
 import { useTranslation } from '@/lib/i18n'
+import { useCurrentShop } from '@/config/storeConfig'
 
 // Billackering brand colors
 const COLORS = {
@@ -30,6 +31,7 @@ const COLORS = {
 
 export function DailySalesChart({ data, previousData = null, compare = false }) {
   const { t, locale } = useTranslation()
+  const { currencySymbol } = useCurrentShop()
 
   // Suodata pois nykyinen päivä jos se on tänään (keskeneräinen data näyttäisi nollaa)
   const today = new Date().toISOString().split('T')[0]
@@ -98,8 +100,8 @@ export function DailySalesChart({ data, previousData = null, compare = false }) 
                 contentStyle={{ backgroundColor: COLORS.tooltip, border: `1px solid ${COLORS.grid}`, borderRadius: '8px' }}
                 labelStyle={{ color: COLORS.text }}
                 formatter={(value, name) => {
-                  if (name === 'revenue') return [`${value?.toLocaleString()} SEK`, t('charts.sales')]
-                  if (name === 'previousRevenue') return [`${value?.toLocaleString()} SEK`, t('charts.previous')]
+                  if (name === 'revenue') return [`${value?.toLocaleString()} ${currencySymbol}`, t('charts.sales')]
+                  if (name === 'previousRevenue') return [`${value?.toLocaleString()} ${currencySymbol}`, t('charts.previous')]
                   if (name === 'orders') return [`${value}`, t('charts.ordersLine')]
                   if (name === 'previousOrders') return [`${value}`, t('charts.previousOrdersLine')]
                   return [value, name]
@@ -165,6 +167,7 @@ export function DailySalesChart({ data, previousData = null, compare = false }) 
 
 export function DailyMarginChart({ data, previousData = null, compare = false }) {
   const { t, locale } = useTranslation()
+  const { currencySymbol } = useCurrentShop()
 
   // Suodata pois nykyinen päivä jos se on tänään (keskeneräinen data näyttäisi nollaa)
   const today = new Date().toISOString().split('T')[0]
@@ -234,8 +237,8 @@ export function DailyMarginChart({ data, previousData = null, compare = false })
                 contentStyle={{ backgroundColor: COLORS.tooltip, border: `1px solid ${COLORS.grid}`, borderRadius: '8px' }}
                 labelStyle={{ color: COLORS.text }}
                 formatter={(value, name) => {
-                  if (name === 'grossProfit') return [`${value?.toLocaleString()} SEK`, t('charts.marginAmount')]
-                  if (name === 'previousGrossProfit') return [`${value?.toLocaleString()} SEK`, t('charts.previous')]
+                  if (name === 'grossProfit') return [`${value?.toLocaleString()} ${currencySymbol}`, t('charts.marginAmount')]
+                  if (name === 'previousGrossProfit') return [`${value?.toLocaleString()} ${currencySymbol}`, t('charts.previous')]
                   if (name === 'marginPercent') return [`${value?.toFixed(1)}%`, t('charts.marginPercent')]
                   if (name === 'previousMarginPercent') return [`${value?.toFixed(1)}%`, t('charts.previousMarginPercent')]
                   return [value, name]
@@ -301,6 +304,7 @@ export function DailyMarginChart({ data, previousData = null, compare = false })
 
 export function WeekdayChart({ data }) {
   const { t } = useTranslation()
+  const { currencySymbol } = useCurrentShop()
   const weekdayKeys = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
 
   // Aggregate by day_of_week (handle multiple currencies)
@@ -340,7 +344,7 @@ export function WeekdayChart({ data }) {
                 labelStyle={{ color: COLORS.text }}
                 itemStyle={{ color: COLORS.text }}
                 cursor={{ fill: 'rgba(255,255,255,0.05)' }}
-                formatter={(value) => [`${value.toLocaleString()} SEK`, t('charts.sales')]}
+                formatter={(value) => [`${value.toLocaleString()} ${currencySymbol}`, t('charts.sales')]}
               />
               <Bar dataKey="revenue" fill={COLORS.primary} radius={[4, 4, 0, 0]} />
             </BarChart>
@@ -353,6 +357,7 @@ export function WeekdayChart({ data }) {
 
 export function HourlyChart({ data }) {
   const { t } = useTranslation()
+  const { currencySymbol } = useCurrentShop()
 
   // Aggregate by hour_of_day (handle multiple currencies)
   const aggregated = {}
@@ -391,7 +396,7 @@ export function HourlyChart({ data }) {
                 labelStyle={{ color: COLORS.text }}
                 itemStyle={{ color: COLORS.text }}
                 cursor={{ fill: 'rgba(255,255,255,0.05)' }}
-                formatter={(value) => [`${value.toLocaleString()} SEK`, t('charts.sales')]}
+                formatter={(value) => [`${value.toLocaleString()} ${currencySymbol}`, t('charts.sales')]}
               />
               <Bar dataKey="revenue" fill={COLORS.success} radius={[4, 4, 0, 0]} />
             </BarChart>

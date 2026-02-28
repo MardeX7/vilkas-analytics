@@ -26,7 +26,7 @@ import { supabase } from '@/lib/supabase'
 import { useCurrentShop } from '@/config/storeConfig'
 
 export function InsightsPage() {
-  const { storeId, ready } = useCurrentShop()
+  const { storeId, ready, currencySymbol } = useCurrentShop()
   const { t, language } = useTranslation()
   const isFi = language === 'fi'
 
@@ -304,19 +304,19 @@ export function InsightsPage() {
                       : (isFi ? 'Vuosiennuste (lineaarinen)' : 'Årsprognos (linjär)')}
                   </p>
                   <p className="text-3xl font-bold text-foreground">
-                    {forecastData.forecast.toLocaleString('sv-SE')} SEK
+                    {forecastData.forecast.toLocaleString('sv-SE')} {currencySymbol}
                   </p>
                   {forecastData.method === 'yoy' ? (
                     <p className="text-xs text-muted-foreground mt-1">
                       {isFi
-                        ? `Viime vuosi ${forecastData.lastYearTotal?.toLocaleString('sv-SE')} kr × ${forecastData.yoyGrowthRate >= 0 ? '+' : ''}${forecastData.yoyGrowthRate}% kasvu`
-                        : `Förra året ${forecastData.lastYearTotal?.toLocaleString('sv-SE')} kr × ${forecastData.yoyGrowthRate >= 0 ? '+' : ''}${forecastData.yoyGrowthRate}% tillväxt`}
+                        ? `Viime vuosi ${forecastData.lastYearTotal?.toLocaleString('sv-SE')} ${currencySymbol} × ${forecastData.yoyGrowthRate >= 0 ? '+' : ''}${forecastData.yoyGrowthRate}% kasvu`
+                        : `Förra året ${forecastData.lastYearTotal?.toLocaleString('sv-SE')} ${currencySymbol} × ${forecastData.yoyGrowthRate >= 0 ? '+' : ''}${forecastData.yoyGrowthRate}% tillväxt`}
                     </p>
                   ) : (
                     <p className="text-xs text-muted-foreground mt-1">
                       {isFi
-                        ? `${forecastData.dailyAvg?.toLocaleString('sv-SE') || '—'} kr/päivä × 365 päivää`
-                        : `${forecastData.dailyAvg?.toLocaleString('sv-SE') || '—'} kr/dag × 365 dagar`}
+                        ? `${forecastData.dailyAvg?.toLocaleString('sv-SE') || '—'} ${currencySymbol}/päivä × 365 päivää`
+                        : `${forecastData.dailyAvg?.toLocaleString('sv-SE') || '—'} ${currencySymbol}/dag × 365 dagar`}
                     </p>
                   )}
                 </div>
@@ -326,14 +326,14 @@ export function InsightsPage() {
                   <div className="flex items-center justify-between text-sm mb-1">
                     <span className="text-muted-foreground">{isFi ? 'YTD toteutuma' : 'YTD utfall'}</span>
                     <span className="text-foreground font-medium">
-                      {Math.round(actualYTD).toLocaleString('sv-SE')} SEK
+                      {Math.round(actualYTD).toLocaleString('sv-SE')} {currencySymbol}
                     </span>
                   </div>
                   {forecastData.method === 'yoy' && forecastData.lastYearSamePeriod > 0 ? (
                     <p className="text-xs text-muted-foreground">
                       {isFi
-                        ? `vs. viime vuosi sama aika: ${forecastData.lastYearSamePeriod?.toLocaleString('sv-SE')} kr (${forecastData.yoyGrowthRate >= 0 ? '+' : ''}${forecastData.yoyGrowthRate}%)`
-                        : `vs. förra året samma tid: ${forecastData.lastYearSamePeriod?.toLocaleString('sv-SE')} kr (${forecastData.yoyGrowthRate >= 0 ? '+' : ''}${forecastData.yoyGrowthRate}%)`}
+                        ? `vs. viime vuosi sama aika: ${forecastData.lastYearSamePeriod?.toLocaleString('sv-SE')} ${currencySymbol} (${forecastData.yoyGrowthRate >= 0 ? '+' : ''}${forecastData.yoyGrowthRate}%)`
+                        : `vs. förra året samma tid: ${forecastData.lastYearSamePeriod?.toLocaleString('sv-SE')} ${currencySymbol} (${forecastData.yoyGrowthRate >= 0 ? '+' : ''}${forecastData.yoyGrowthRate}%)`}
                     </p>
                   ) : (
                     <p className="text-xs text-muted-foreground">
@@ -347,7 +347,7 @@ export function InsightsPage() {
                   <div className="flex items-center justify-between text-sm mb-2">
                     <span className="text-muted-foreground">{isFi ? 'Tavoite' : 'Mål'}</span>
                     <span className="text-foreground font-medium">
-                      {Math.round(revenueGoal.target_value || 0).toLocaleString('sv-SE')} SEK
+                      {Math.round(revenueGoal.target_value || 0).toLocaleString('sv-SE')} {currencySymbol}
                     </span>
                   </div>
                   <div className="h-2 bg-background-subtle rounded-full overflow-hidden">

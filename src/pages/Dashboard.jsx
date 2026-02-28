@@ -17,6 +17,7 @@ import { DateRangePicker, getDateRange, formatDateISO, getPreviousPeriod, getYea
 import { RefreshCw, BarChart3, TrendingUp, Package, XCircle, Truck, Tag, Gift, Coins } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { useCurrentShop } from '@/config/storeConfig'
 
 // Helper to create default date range with YoY comparison enabled
 function createDefaultDateRange() {
@@ -36,6 +37,7 @@ function createDefaultDateRange() {
 
 export function Dashboard() {
   const { t, language } = useTranslation()
+  const { currencySymbol } = useCurrentShop()
   const [dateRange, setDateRange] = useState(() => createDefaultDateRange())
   const [comparisonMode, setComparisonMode] = useState('yoy') // 'mom' or 'yoy', default YoY
 
@@ -226,7 +228,7 @@ export function Dashboard() {
           <MetricCard
             label={t('dashboard.metrics.sales')}
             value={summary?.totalRevenue || 0}
-            suffix=" kr"
+            suffix={` ${currencySymbol}`}
             delta={comparison?.revenue}
             previousValue={dateRange.compare ? previousSummary?.totalRevenue : undefined}
             deltaLabel={dateRange.compare ? comparisonMode.toUpperCase() : undefined}
@@ -235,7 +237,7 @@ export function Dashboard() {
             label={t('dashboard.metrics.grossMargin')}
             value={(summary?.marginPercent || 0).toFixed(1)}
             suffix="%"
-            subValue={summary?.grossProfit ? `${Math.round(summary.grossProfit).toLocaleString(language === 'fi' ? 'fi-FI' : 'sv-SE')} kr` : undefined}
+            subValue={summary?.grossProfit ? `${Math.round(summary.grossProfit).toLocaleString(language === 'fi' ? 'fi-FI' : 'sv-SE')} ${currencySymbol}` : undefined}
             delta={comparison?.margin}
             previousValue={dateRange.compare ? previousSummary?.marginPercent?.toFixed(1) : undefined}
             deltaLabel={dateRange.compare ? comparisonMode.toUpperCase() : undefined}
@@ -250,7 +252,7 @@ export function Dashboard() {
           <MetricCard
             label={t('dashboard.metrics.avgOrderValue')}
             value={Math.round(summary?.avgOrderValue || 0)}
-            suffix=" kr"
+            suffix={` ${currencySymbol}`}
             delta={comparison?.aov}
             previousValue={dateRange.compare ? Math.round(previousSummary?.avgOrderValue || 0) : undefined}
             deltaLabel={dateRange.compare ? comparisonMode.toUpperCase() : undefined}
@@ -323,7 +325,7 @@ export function Dashboard() {
               <TrendingUp className="w-4 h-4 text-foreground-subtle" />
               <span className="text-foreground-subtle">{t('dashboard.metrics.avgPerDay')}:</span>
               <span className="text-foreground font-medium tabular-nums">
-                {Math.round((summary?.totalRevenue || 0) / Math.max(dailySales.length, 1)).toLocaleString(language === 'fi' ? 'fi-FI' : 'sv-SE')} kr
+                {Math.round((summary?.totalRevenue || 0) / Math.max(dailySales.length, 1)).toLocaleString(language === 'fi' ? 'fi-FI' : 'sv-SE')} {currencySymbol}
               </span>
             </div>
             {/* Show shipping only if data exists (totalShipping > 0) */}
@@ -387,7 +389,7 @@ export function Dashboard() {
                 <Coins className="w-4 h-4 text-foreground-subtle" />
                 <span className="text-foreground-subtle">{t('dashboard.metrics.marginPerOrder')}:</span>
                 <span className="text-foreground font-medium tabular-nums">
-                  {Math.round(summary?.marginPerOrder || 0).toLocaleString(language === 'fi' ? 'fi-FI' : 'sv-SE')} kr
+                  {Math.round(summary?.marginPerOrder || 0).toLocaleString(language === 'fi' ? 'fi-FI' : 'sv-SE')} {currencySymbol}
                 </span>
                 {dateRange.compare && previousSummary?.marginPerOrder > 0 && (
                   <span className={cn(

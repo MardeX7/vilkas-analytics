@@ -2,9 +2,11 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { useTranslation } from '@/lib/i18n'
 import { ShoppingCart, Eye } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useCurrentShop } from '@/config/storeConfig'
 
 export function TopProductsGA4({ products, previousProducts = [], compare = false, comparisonMode = 'yoy' }) {
   const { t, locale } = useTranslation()
+  const { currencySymbol } = useCurrentShop()
   const maxRevenue = Math.max(...products.map(p => p.item_revenue || 0))
 
   // Build a map of previous products for quick lookup by item_name
@@ -112,7 +114,7 @@ export function TopProductsGA4({ products, previousProducts = [], compare = fals
                   <div className="text-right min-w-[80px]">
                     <p className="text-[10px] text-foreground-subtle">{t('charts.revenue')}</p>
                     <p className="text-sm font-medium text-foreground tabular-nums">
-                      {product.item_revenue > 0 ? `kr${product.item_revenue?.toLocaleString(locale, { maximumFractionDigits: 0 })}` : '—'}
+                      {product.item_revenue > 0 ? `${product.item_revenue?.toLocaleString(locale, { maximumFractionDigits: 0 })} ${currencySymbol}` : '—'}
                       {revenueChange !== null && product.item_revenue > 0 && <ChangeIndicator change={revenueChange} />}
                     </p>
                   </div>

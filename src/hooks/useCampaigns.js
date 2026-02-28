@@ -165,6 +165,6 @@ export const CAMPAIGN_TYPES = {
  */
 export const DISCOUNT_TYPES = {
   percentage: { label: 'Prosentti', suffix: '%' },
-  fixed: { label: 'Kiinteä', suffix: ' kr' },
+  fixed: { label: 'Kiinteä', suffix: '' },
   none: { label: 'Ei alennusta', suffix: '' }
 }

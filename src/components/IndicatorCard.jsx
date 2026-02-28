@@ -21,6 +21,7 @@ import {
   BarChart3
 } from 'lucide-react'
 import { useTranslation } from '@/lib/i18n'
+import { useCurrentShop } from '@/config/storeConfig'
 
 // Indicator metadata (icons and formatting only - titles come from i18n)
 const INDICATOR_CONFIG = {
@@ -32,8 +33,7 @@ const INDICATOR_CONFIG = {
   aov: {
     icon: DollarSign,
     color: 'green',
-    format: 'currency',
-    unit: 'SEK'
+    format: 'currency'
   },
   gross_margin: {
     icon: Percent,
@@ -58,8 +58,7 @@ const INDICATOR_CONFIG = {
   stock_availability_risk: {
     icon: Package,
     color: 'red',
-    format: 'currency',
-    unit: 'SEK'
+    format: 'currency'
   }
 }
 
@@ -146,6 +145,7 @@ export function IndicatorCard({
   compact = false
 }) {
   const { t, locale } = useTranslation()
+  const { currencySymbol } = useCurrentShop()
   const navigate = useNavigate()
 
   if (!indicator) return null
@@ -172,11 +172,11 @@ export function IndicatorCard({
   const title = t(`indicators.types.${indicator.indicator_id}.title`) || indicator.indicator_id
   const description = t(`indicators.types.${indicator.indicator_id}.description`)
 
-  // Get display value
+  // Get display value - use dynamic currencySymbol for currency format
   const displayValue = formatValue(
     indicator.numeric_value ?? indicator.value?.value,
     config.format,
-    config.unit,
+    config.format === 'currency' ? currencySymbol : config.unit,
     locale
   )
 

@@ -23,10 +23,12 @@ export function useCurrentShop() {
     return { storeId: null, shopId: null, currency: 'EUR', shopName: '', ready: false }
   }
 
+  const currency = currentShop.currency || 'EUR'
   return {
     storeId: currentShop.store_id,   // stores.id (UUID as TEXT) — orders, products, gsc_*, ga4_tokens
     shopId: currentShop.shop_id,     // shops.id (UUID) — ga4_ecommerce, weekly_analyses, chat_sessions
-    currency: currentShop.currency || 'EUR',
+    currency,
+    currencySymbol: currency === 'EUR' ? '€' : 'kr',
     shopName: currentShop.shop_name || '',
     domain: currentShop.domain || '',
     ready: true

@@ -35,6 +35,7 @@ import { useIndicators } from '@/hooks/useIndicators'
 import { IndicatorTrendChart } from '@/components/IndicatorTrendChart'
 import { AlertItem } from '@/components/AlertItem'
 import { useTranslation } from '@/lib/i18n'
+import { useCurrentShop } from '@/config/storeConfig'
 
 // Indicator icons
 const INDICATOR_ICONS = {
@@ -63,6 +64,7 @@ export function IndicatorDetailPage() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const { t, formatNumber, formatPercent, formatCurrency, formatDate } = useTranslation()
+  const { currency } = useCurrentShop()
 
   // Get period from URL or default to 30d
   const period = searchParams.get('period') || '30d'
@@ -103,7 +105,7 @@ export function IndicatorDetailPage() {
     switch (indicatorId) {
       case 'aov':
       case 'stock_availability_risk':
-        return formatCurrency(value, 'SEK')
+        return formatCurrency(value, currency)
       case 'gross_margin':
       case 'brand_vs_nonbrand':
       case 'organic_conversion_rate':

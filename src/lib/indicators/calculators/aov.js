@@ -24,7 +24,7 @@ import {
  * @param {'7d' | '30d' | '90d'} params.periodLabel - Period length
  * @returns {Object} AOV indicator
  */
-export function calculateAOV({ orders, periodEnd, periodLabel = '30d' }) {
+export function calculateAOV({ orders, periodEnd, periodLabel = '30d', currency = 'SEK' }) {
   const endDate = periodEnd instanceof Date ? periodEnd : new Date(periodEnd)
 
   // Determine period length in days
@@ -63,7 +63,7 @@ export function calculateAOV({ orders, periodEnd, periodLabel = '30d' }) {
   const maxOrder = orderValues.length > 0 ? Math.max(...orderValues) : 0
 
   // Order value distribution
-  const distribution = calculateDistribution(orderValues)
+  const distribution = calculateDistribution(orderValues, currency)
 
   // Build indicator
   const thresholds = DEFAULT_THRESHOLDS.aov
@@ -78,7 +78,7 @@ export function calculateAOV({ orders, periodEnd, periodLabel = '30d' }) {
     category: 'sales',
 
     value: Math.round(currentAOV * 100) / 100,
-    unit: 'SEK',
+    unit: currency,
 
     direction: changePercent !== null ? determineDirection(changePercent) : 'stable',
     change_percent: changePercent !== null ? Math.round(changePercent * 100) / 100 : null,
@@ -100,7 +100,7 @@ export function calculateAOV({ orders, periodEnd, periodLabel = '30d' }) {
         ? (changePercent > 0 ? 'spike' : 'drop')
         : null,
       no_comparison_data: !hasComparisonData,
-      notes: generateAOVNotes(currentAOV, previousAOV, changePercent, hasComparisonData)
+      notes: generateAOVNotes(currentAOV, previousAOV, changePercent, hasComparisonData, currency)
     },
 
     // Additional metrics (spec-compliant)
@@ -159,13 +159,13 @@ function calculateMedian(values) {
 /**
  * Calculate order value distribution by buckets
  */
-function calculateDistribution(values) {
+function calculateDistribution(values, currency = 'SEK') {
   const buckets = [
-    { label: '0-500 SEK', min: 0, max: 500 },
-    { label: '500-1000 SEK', min: 500, max: 1000 },
-    { label: '1000-2000 SEK', min: 1000, max: 2000 },
-    { label: '2000-5000 SEK', min: 2000, max: 5000 },
-    { label: '5000+ SEK', min: 5000, max: Infinity }
+    { label: `0-500 ${currency}`, min: 0, max: 500 },
+    { label: `500-1000 ${currency}`, min: 500, max: 1000 },
+    { label: `1000-2000 ${currency}`, min: 1000, max: 2000 },
+    { label: `2000-5000 ${currency}`, min: 2000, max: 5000 },
+    { label: `5000+ ${currency}`, min: 5000, max: Infinity }
   ]
 
   const total = values.length
@@ -183,10 +183,10 @@ function calculateDistribution(values) {
 /**
  * Generate human-readable notes
  */
-function generateAOVNotes(currentAOV, previousAOV, changePercent, hasComparisonData) {
+function generateAOVNotes(currentAOV, previousAOV, changePercent, hasComparisonData, currency = 'SEK') {
   const formattedCurrent = new Intl.NumberFormat('sv-SE', {
     style: 'currency',
-    currency: 'SEK',
+    currency: currency,
     minimumFractionDigits: 0
   }).format(currentAOV)
 

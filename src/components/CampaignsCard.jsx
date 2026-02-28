@@ -7,11 +7,12 @@
 import { Tag, Calendar, RefreshCw } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useCampaigns, CAMPAIGN_TYPES } from '@/hooks/useCampaigns'
+import { useCurrentShop } from '@/config/storeConfig'
 
 /**
  * Single campaign item
  */
-function CampaignItem({ campaign }) {
+function CampaignItem({ campaign, currencySymbol }) {
   const config = CAMPAIGN_TYPES[campaign.campaign_type] || CAMPAIGN_TYPES.discount
 
   const formatDate = (date) => {
@@ -43,7 +44,7 @@ function CampaignItem({ campaign }) {
         </div>
         {campaign.discount_value > 0 && (
           <span className="text-xs px-2 py-0.5 bg-primary/10 text-primary rounded-full">
-            -{campaign.discount_type === 'percentage' ? `${campaign.discount_value}%` : `${campaign.discount_value} kr`}
+            -{campaign.discount_type === 'percentage' ? `${campaign.discount_value}%` : `${campaign.discount_value} ${currencySymbol}`}
           </span>
         )}
       </div>
@@ -55,11 +56,11 @@ function CampaignItem({ campaign }) {
         </div>
         <div>
           <p className="text-foreground-muted mb-0.5">Myynti</p>
-          <p className="font-medium text-foreground">{formatCurrency(revenue)} kr</p>
+          <p className="font-medium text-foreground">{formatCurrency(revenue)} {currencySymbol}</p>
         </div>
         <div>
           <p className="text-foreground-muted mb-0.5">KM/tilaus</p>
-          <p className="font-medium text-foreground">{formatCurrency(avgOrderValue)} kr</p>
+          <p className="font-medium text-foreground">{formatCurrency(avgOrderValue)} {currencySymbol}</p>
         </div>
         <div>
           <p className="text-foreground-muted mb-0.5">ROI</p>
@@ -77,7 +78,7 @@ function CampaignItem({ campaign }) {
             {campaign.start_date !== campaign.end_date && ` - ${formatDate(campaign.end_date)}`}
           </span>
         </div>
-        <span>Alennus: {formatCurrency(discountGiven)} kr</span>
+        <span>Alennus: {formatCurrency(discountGiven)} {currencySymbol}</span>
       </div>
     </div>
   )
@@ -86,7 +87,7 @@ function CampaignItem({ campaign }) {
 /**
  * Summary stats header
  */
-function CampaignSummary({ campaigns }) {
+function CampaignSummary({ campaigns, currencySymbol }) {
   const totalOrders = campaigns.reduce((sum, c) => sum + (c.orders_count || 0), 0)
   const totalRevenue = campaigns.reduce((sum, c) => sum + parseFloat(c.revenue || 0), 0)
   const totalDiscount = campaigns.reduce((sum, c) => sum + parseFloat(c.discount_given || 0), 0)
@@ -104,11 +105,11 @@ function CampaignSummary({ campaigns }) {
       </div>
       <div>
         <p className="text-xs text-foreground-muted">Liikevaihto</p>
-        <p className="text-lg font-semibold text-foreground">{formatCurrency(totalRevenue)} kr</p>
+        <p className="text-lg font-semibold text-foreground">{formatCurrency(totalRevenue)} {currencySymbol}</p>
       </div>
       <div>
         <p className="text-xs text-foreground-muted">Alennukset</p>
-        <p className="text-lg font-semibold text-destructive">-{formatCurrency(totalDiscount)} kr</p>
+        <p className="text-lg font-semibold text-destructive">-{formatCurrency(totalDiscount)} {currencySymbol}</p>
       </div>
       <div>
         <p className="text-xs text-foreground-muted">ROI</p>
@@ -124,6 +125,7 @@ function CampaignSummary({ campaigns }) {
  * CampaignsCard
  */
 export function CampaignsCard({ startDate, endDate, className }) {
+  const { currencySymbol } = useCurrentShop()
   const {
     campaigns,
     isLoading,
@@ -181,11 +183,11 @@ export function CampaignsCard({ startDate, endDate, className }) {
         </div>
       ) : (
         <>
-          <CampaignSummary campaigns={campaigns} />
+          <CampaignSummary campaigns={campaigns} currencySymbol={currencySymbol} />
 
           <div className="space-y-2">
             {campaigns.slice(0, 5).map((campaign) => (
-              <CampaignItem key={campaign.id} campaign={campaign} />
+              <CampaignItem key={campaign.id} campaign={campaign} currencySymbol={currencySymbol} />
             ))}
           </div>
 

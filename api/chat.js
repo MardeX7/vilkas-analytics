@@ -28,11 +28,32 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 )
 
-// Store IDs - different tables use different IDs!
-// STORE_ID: orders, products, gsc_*, ga4_tokens, views (v_*)
-// SHOP_ID: shops.id FK tables (chat_sessions, growth_engine_snapshots, merchant_goals, etc.)
-const STORE_ID = 'a28836f6-9487-4b67-9194-e907eaf94b69'
-const SHOP_ID = '3b93e9b1-d64c-4686-a14a-bec535495f71'
+// Store IDs are now resolved dynamically from the request's store_id
+// storeId: orders, products, gsc_*, ga4_tokens, views (v_*) — from stores table
+// shopId: shops.id FK tables (chat_sessions, growth_engine_snapshots, merchant_goals, etc.)
+
+/**
+ * Resolve storeId and shopId from a shop_id (shops.id UUID)
+ * The request sends shop_id (from shops table). We need both:
+ * - shopId: shops.id (for shop FK tables)
+ * - storeId: stores.id (for ePages data tables) — stored as shops.store_id
+ */
+async function resolveStoreIds(shopId) {
+  const { data: shop } = await supabase
+    .from('shops')
+    .select('id, store_id, currency, name')
+    .eq('id', shopId)
+    .single()
+
+  if (!shop) return null
+
+  return {
+    shopId: shop.id,
+    storeId: shop.store_id,  // stores.id UUID as TEXT
+    currency: shop.currency || 'EUR',
+    shopName: shop.name || ''
+  }
+}
 
 // RAG Configuration
 const USE_RAG = true // Set to false to use legacy context fetching
@@ -133,7 +154,7 @@ async function embedQuery(text) {
 /**
  * Fetch relevant context using RAG (vector search)
  */
-async function fetchRAGContext(userMessage, language = 'fi') {
+async function fetchRAGContext(userMessage, language = 'fi', shopId = null) {
   const isFi = language === 'fi'
 
   // Expand query with synonyms for better matching
@@ -155,7 +176,7 @@ async function fetchRAGContext(userMessage, language = 'fi') {
 
   // Search for relevant documents
   const { data: docs, error } = await supabase.rpc('search_emma_documents', {
-    p_store_id: SHOP_ID,
+    p_store_id: shopId,
     p_query_embedding: queryEmbedding,
     p_limit: RAG_LIMIT,
     p_min_similarity: RAG_MIN_SIMILARITY
@@ -208,7 +229,7 @@ async function fetchRAGContext(userMessage, language = 'fi') {
         })
       } else if (c.orders !== undefined) {
         // B2B/B2C segment
-        context += `- ${name}: ${c.orders} ${isFi ? 'tilausta' : 'ordrar'} (${c.percentage}%), AOV ${c.aov} kr, LTV ${c.ltv} kr\n`
+        context += `- ${name}: ${c.orders} ${isFi ? 'tilausta' : 'ordrar'} (${c.percentage}%), AOV ${c.aov}, LTV ${c.ltv}\n`
       }
     })
     context += '\n'
@@ -248,10 +269,10 @@ async function fetchRAGContext(userMessage, language = 'fi') {
 /**
  * Fetch context data for Emma (LEGACY - used when RAG is disabled or fails)
  * NOTE: Different tables use different store IDs!
- * - SHOP_ID: growth_engine_snapshots, merchant_goals, context_notes (shops FK)
- * - STORE_ID: v_daily_sales, v_top_products, get_customer_segment_summary (orders/products based)
+ * - shopId: growth_engine_snapshots, merchant_goals, context_notes (shops FK)
+ * - storeId: v_daily_sales, v_top_products, get_customer_segment_summary (orders/products based)
  */
-async function fetchContextData(dateRange) {
+async function fetchContextData(dateRange, storeId, shopId) {
   const endDate = dateRange?.endDate || new Date().toISOString().split('T')[0]
   const startDate = dateRange?.startDate || new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split('T')[0]
 
@@ -270,70 +291,70 @@ async function fetchContextData(dateRange) {
     gscTopQueries,
     productRoles
   ] = await Promise.all([
-    // Latest Growth Engine snapshot - uses STORE_ID (data saved with STORE_ID)
+    // Latest Growth Engine snapshot - uses storeId (data saved with storeId)
     supabase
       .from('growth_engine_snapshots')
       .select('*')
-      .eq('store_id', STORE_ID)
+      .eq('store_id', storeId)
       .order('period_end', { ascending: false })
       .limit(1)
       .single(),
 
-    // Active goals - uses SHOP_ID
+    // Active goals - uses shopId
     supabase
       .from('merchant_goals')
       .select('*')
-      .eq('store_id', SHOP_ID)
+      .eq('store_id', shopId)
       .eq('is_active', true),
 
-    // Recent context notes - uses SHOP_ID
+    // Recent context notes - uses shopId
     supabase
       .from('context_notes')
       .select('*')
-      .eq('store_id', SHOP_ID)
+      .eq('store_id', shopId)
       .order('start_date', { ascending: false })
       .limit(5),
 
-    // Sales summary - uses STORE_ID (view based on orders)
+    // Sales summary - uses storeId (view based on orders)
     supabase
       .from('v_daily_sales')
       .select('total_revenue, order_count')
-      .eq('store_id', STORE_ID)
+      .eq('store_id', storeId)
       .gte('sale_date', startDate)
       .lte('sale_date', endDate),
 
-    // Top products - uses STORE_ID (view based on orders)
+    // Top products - uses storeId (view based on orders)
     supabase
       .from('v_top_products')
       .select('*')
-      .eq('store_id', STORE_ID)
+      .eq('store_id', storeId)
       .gte('sale_date', startDate)
       .lte('sale_date', endDate)
       .limit(10),
 
-    // Customer segments - uses STORE_ID (RPC based on orders)
+    // Customer segments - uses storeId (RPC based on orders)
     supabase
       .rpc('get_customer_segment_summary', {
-        p_store_id: STORE_ID,
+        p_store_id: storeId,
         p_start_date: startDate,
         p_end_date: endDate
       }),
 
-    // Latest weekly analysis - uses SHOP_ID (contains AI analysis with Growth Engine data)
+    // Latest weekly analysis - uses shopId (contains AI analysis with Growth Engine data)
     supabase
       .from('weekly_analyses')
       .select('*')
-      .eq('store_id', SHOP_ID)
+      .eq('store_id', shopId)
       .order('year', { ascending: false })
       .order('week_number', { ascending: false })
       .limit(1)
       .single(),
 
-    // Latest indicators - uses STORE_ID
+    // Latest indicators - uses storeId
     supabase
       .from('indicators')
       .select('*')
-      .eq('store_id', STORE_ID)
+      .eq('store_id', storeId)
       .order('updated_at', { ascending: false })
       .limit(10),
 
@@ -341,17 +362,17 @@ async function fetchContextData(dateRange) {
     supabase
       .from('products')
       .select('name, product_number, stock_level, price, for_sale')
-      .eq('store_id', STORE_ID)
+      .eq('store_id', storeId)
       .eq('for_sale', true)
       .lte('stock_level', 5)
       .order('stock_level', { ascending: true })
       .limit(20),
 
-    // GSC Summary - uses STORE_ID (search analytics)
+    // GSC Summary - uses storeId (search analytics)
     supabase
       .from('v_gsc_daily_summary')
       .select('*')
-      .eq('store_id', STORE_ID)
+      .eq('store_id', storeId)
       .gte('date', startDate)
       .lte('date', endDate),
 
@@ -359,7 +380,7 @@ async function fetchContextData(dateRange) {
     supabase
       .from('gsc_search_analytics')
       .select('query, clicks, impressions, ctr, position')
-      .eq('store_id', STORE_ID)
+      .eq('store_id', storeId)
       .gte('date', startDate)
       .lte('date', endDate)
       .order('clicks', { ascending: false })
@@ -367,7 +388,7 @@ async function fetchContextData(dateRange) {
 
     // PRODUCT ROLES (Veturit, Ankkurit, Täyttäjät, Häntä) - 90 day window
     supabase.rpc('get_product_roles_summary', {
-      p_store_id: STORE_ID,
+      p_store_id: storeId,
       p_start_date: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
       p_end_date: endDate
     })
@@ -379,7 +400,7 @@ async function fetchContextData(dateRange) {
     const { data: cats } = await supabase
       .from('categories')
       .select('id, level3, display_name')
-      .eq('store_id', STORE_ID)
+      .eq('store_id', storeId)
 
     if (cats && cats.length > 0) {
       // Get category -> product mapping
@@ -430,7 +451,7 @@ async function fetchContextData(dateRange) {
     const { data: allOrders } = await supabase
       .from('orders')
       .select('id, billing_email, is_b2b, is_b2b_soft, creation_date, grand_total, total_before_tax')
-      .eq('store_id', STORE_ID)
+      .eq('store_id', storeId)
       .neq('status', 'cancelled')
       .order('creation_date', { ascending: true })
       .limit(5000)
@@ -503,7 +524,7 @@ async function fetchContextData(dateRange) {
       const { data: firstOrderItems } = await supabase
         .from('order_items')
         .select('order_id, sku, name, quantity, line_total')
-        .eq('shop_id', SHOP_ID)
+        .eq('shop_id', shopId)
         .in('order_id', Array.from(firstOrderIds).slice(0, 500))
 
       // Aggregate by product
@@ -532,7 +553,7 @@ async function fetchContextData(dateRange) {
     const { data: products } = await supabase
       .from('products')
       .select('id, name, product_number, stock_level, cost_price, price_amount, for_sale')
-      .eq('store_id', STORE_ID)
+      .eq('store_id', storeId)
       .eq('for_sale', true)
 
     // Fetch sales velocity (last 30 days)
@@ -542,7 +563,7 @@ async function fetchContextData(dateRange) {
     const { data: salesData } = await supabase
       .from('order_line_items')
       .select(`product_number, quantity, orders!inner(creation_date, status, store_id)`)
-      .eq('orders.store_id', STORE_ID)
+      .eq('orders.store_id', storeId)
       .gte('orders.creation_date', thirtyDaysAgo.toISOString().split('T')[0])
       .neq('orders.status', 'cancelled')
 
@@ -705,7 +726,7 @@ ${goalConnection}
 VASTAUSRAKENNE:
 1. Fakta/luku (mitä data näyttää)
 2. Johtopäätös (mitä se tarkoittaa)
-3. Vaikutus tavoitteeseen (konkreettinen €/kr tai %)
+3. Vaikutus tavoitteeseen (konkreettinen summa tai %)
 4. Toimenpide-ehdotus (jos relevantti)
 
 RAJOITUKSET:
@@ -728,7 +749,7 @@ Toimenpide: Siirrä 300 kr Instagram → Google Shopping (ROI 4.2x)."
 /**
  * Build context message for Emma (Finnish or Swedish)
  */
-function buildContextMessage(contextData, language = 'fi') {
+function buildContextMessage(contextData, language = 'fi', currencySymbol = 'kr') {
   const {
     growthEngine, goals, contextNotes, salesSummary, topProducts, customerSegments,
     weeklyAnalysis, indicators, lowStockProducts, gscSummary, gscTopQueries, productRoles,
@@ -742,14 +763,14 @@ function buildContextMessage(contextData, language = 'fi') {
   // Sales summary
   context += isFi ? `MYYNTI (viimeiset 30 päivää):\n` : `FÖRSÄLJNING (senaste 30 dagar):\n`
   context += isFi
-    ? `- Liikevaihto: ${Math.round(salesSummary.revenue).toLocaleString()} kr\n`
-    : `- Omsättning: ${Math.round(salesSummary.revenue).toLocaleString()} kr\n`
+    ? `- Liikevaihto: ${Math.round(salesSummary.revenue).toLocaleString()} ${currencySymbol}\n`
+    : `- Omsättning: ${Math.round(salesSummary.revenue).toLocaleString()} ${currencySymbol}\n`
   context += isFi
     ? `- Tilaukset: ${salesSummary.orders}\n`
     : `- Ordrar: ${salesSummary.orders}\n`
   context += isFi
-    ? `- Keskitilaus: ${Math.round(salesSummary.aov)} kr\n\n`
-    : `- Snittorder: ${Math.round(salesSummary.aov)} kr\n\n`
+    ? `- Keskitilaus: ${Math.round(salesSummary.aov)} ${currencySymbol}\n\n`
+    : `- Snittorder: ${Math.round(salesSummary.aov)} ${currencySymbol}\n\n`
 
   // Growth Engine
   if (growthEngine) {
@@ -796,7 +817,7 @@ function buildContextMessage(contextData, language = 'fi') {
     context += isFi ? `ASIAKASSEGMENTIT:\n` : `KUNDSEGMENT:\n`
     customerSegments.forEach(s => {
       const orderWord = isFi ? 'tilausta' : 'ordrar'
-      context += `- ${s.segment}: ${s.order_count} ${orderWord}, ${Math.round(s.total_revenue).toLocaleString()} kr\n`
+      context += `- ${s.segment}: ${s.order_count} ${orderWord}, ${Math.round(s.total_revenue).toLocaleString()} ${currencySymbol}\n`
     })
     context += '\n'
   }
@@ -870,7 +891,7 @@ function buildContextMessage(contextData, language = 'fi') {
     if (outOfStock.length > 0) {
       context += isFi ? `⚠️ LOPPUNEET TUOTTEET (${outOfStock.length} kpl):\n` : `⚠️ SLUTSÅLDA PRODUKTER (${outOfStock.length} st):\n`
       outOfStock.forEach(p => {
-        context += `- ${p.name} (${p.product_number}): ${p.stock_level} kpl, ${p.price} kr\n`
+        context += `- ${p.name} (${p.product_number}): ${p.stock_level} kpl, ${p.price} ${currencySymbol}\n`
       })
       context += '\n'
     }
@@ -932,7 +953,7 @@ function buildContextMessage(contextData, language = 'fi') {
       const margin = parseFloat(role.margin_percent || 0)
 
       context += `- ${label} (${desc}):\n`
-      context += `  ${products} tuotetta, ${Math.round(revenue).toLocaleString()} kr, ${units} kpl, kate ${margin.toFixed(0)}%\n`
+      context += `  ${products} tuotetta, ${Math.round(revenue).toLocaleString()} ${currencySymbol}, ${units} kpl, kate ${margin.toFixed(0)}%\n`
     })
     context += '\n'
   }
@@ -941,7 +962,7 @@ function buildContextMessage(contextData, language = 'fi') {
   if (categoryData && categoryData.length > 0) {
     context += isFi ? `KATEGORIAT (myynti):\n` : `KATEGORIER (försäljning):\n`
     categoryData.forEach(cat => {
-      context += `- ${cat.name}: ${Math.round(cat.revenue).toLocaleString()} kr, ${cat.quantity} kpl\n`
+      context += `- ${cat.name}: ${Math.round(cat.revenue).toLocaleString()} ${currencySymbol}, ${cat.quantity} kpl\n`
     })
     context += '\n'
   }
@@ -953,7 +974,7 @@ function buildContextMessage(contextData, language = 'fi') {
       ? `Nämä tuotteet tuovat uusia asiakkaita (ensimmäinen ostos):\n`
       : `Dessa produkter lockar nya kunder (första köp):\n`
     entryProducts.slice(0, 5).forEach(p => {
-      context += `- ${p.name}: ${p.firstOrders} ensiostossa, ${Math.round(p.revenue).toLocaleString()} kr\n`
+      context += `- ${p.name}: ${p.firstOrders} ensiostossa, ${Math.round(p.revenue).toLocaleString()} ${currencySymbol}\n`
     })
     context += '\n'
   }
@@ -974,18 +995,18 @@ function buildContextMessage(contextData, language = 'fi') {
     const { b2b, b2c } = customerAnalytics
     context += 'B2B:\n'
     context += isFi
-      ? `- ${b2b.orders} tilausta (${b2b.percentage}%), ${Math.round(b2b.revenue).toLocaleString()} kr\n`
-      : `- ${b2b.orders} ordrar (${b2b.percentage}%), ${Math.round(b2b.revenue).toLocaleString()} kr\n`
-    context += `- AOV: ${b2b.aov} kr, LTV: ${b2b.ltv} kr\n`
+      ? `- ${b2b.orders} tilausta (${b2b.percentage}%), ${Math.round(b2b.revenue).toLocaleString()} ${currencySymbol}\n`
+      : `- ${b2b.orders} ordrar (${b2b.percentage}%), ${Math.round(b2b.revenue).toLocaleString()} ${currencySymbol}\n`
+    context += `- AOV: ${b2b.aov} ${currencySymbol}, LTV: ${b2b.ltv} ${currencySymbol}\n`
     context += isFi
       ? `- ${b2b.customers} asiakasta\n\n`
       : `- ${b2b.customers} kunder\n\n`
 
     context += 'B2C:\n'
     context += isFi
-      ? `- ${b2c.orders} tilausta (${b2c.percentage}%), ${Math.round(b2c.revenue).toLocaleString()} kr\n`
-      : `- ${b2c.orders} ordrar (${b2c.percentage}%), ${Math.round(b2c.revenue).toLocaleString()} kr\n`
-    context += `- AOV: ${b2c.aov} kr, LTV: ${b2c.ltv} kr\n`
+      ? `- ${b2c.orders} tilausta (${b2c.percentage}%), ${Math.round(b2c.revenue).toLocaleString()} ${currencySymbol}\n`
+      : `- ${b2c.orders} ordrar (${b2c.percentage}%), ${Math.round(b2c.revenue).toLocaleString()} ${currencySymbol}\n`
+    context += `- AOV: ${b2c.aov} ${currencySymbol}, LTV: ${b2c.ltv} ${currencySymbol}\n`
     context += isFi
       ? `- ${b2c.customers} asiakasta\n\n`
       : `- ${b2c.customers} kunder\n\n`
@@ -998,8 +1019,8 @@ function buildContextMessage(contextData, language = 'fi') {
       ? `- Keskimääräinen kiertonopeus: ${inventoryMetrics.avgTurnover}x vuodessa\n`
       : `- Genomsnittlig omsättningshastighet: ${inventoryMetrics.avgTurnover}x per år\n`
     context += isFi
-      ? `- Varaston arvo: ${inventoryMetrics.totalStockValue.toLocaleString()} kr\n`
-      : `- Lagervärde: ${inventoryMetrics.totalStockValue.toLocaleString()} kr\n`
+      ? `- Varaston arvo: ${inventoryMetrics.totalStockValue.toLocaleString()} ${currencySymbol}\n`
+      : `- Lagervärde: ${inventoryMetrics.totalStockValue.toLocaleString()} ${currencySymbol}\n`
     context += isFi
       ? `- Tuotteita varastossa: ${inventoryMetrics.productsWithStock}\n\n`
       : `- Produkter i lager: ${inventoryMetrics.productsWithStock}\n\n`
@@ -1015,7 +1036,7 @@ function buildContextMessage(contextData, language = 'fi') {
     if (inventoryMetrics.slowMovers && inventoryMetrics.slowMovers.length > 0) {
       context += isFi ? `HITAASTI LIIKKUVAT (matala kiertonopeus):\n` : `LÅNGSAMT RÖRLIGA (låg omsättning):\n`
       inventoryMetrics.slowMovers.forEach(p => {
-        context += `- ${p.name}: ${p.turnover}x/vuosi, arvo ${p.stockValue} kr\n`
+        context += `- ${p.name}: ${p.turnover}x/vuosi, arvo ${p.stockValue} ${currencySymbol}\n`
       })
       context += '\n'
     }
@@ -1047,29 +1068,40 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { session_id, message, date_range, language = 'fi' } = req.body
+    const { store_id, session_id, message, date_range, language = 'fi' } = req.body
 
     if (!message) {
       return res.status(400).json({ error: 'message is required' })
     }
 
+    if (!store_id) {
+      return res.status(400).json({ error: 'store_id is required' })
+    }
+
+    // Resolve STORE_ID and SHOP_ID from the request's store_id (which is shops.id)
+    const ids = await resolveStoreIds(store_id)
+    if (!ids) {
+      return res.status(404).json({ error: 'Shop not found' })
+    }
+
+    const { shopId, storeId, currency, shopName } = ids
+    const currencySymbol = currency === 'EUR' ? '€' : 'kr'
+
     // Try RAG first, fall back to legacy context fetching
     let contextMessage = null
-    let usedRAG = false
 
     if (USE_RAG) {
-      contextMessage = await fetchRAGContext(message, language)
+      contextMessage = await fetchRAGContext(message, language, shopId)
       if (contextMessage) {
-        usedRAG = true
-        console.log('Using RAG context')
+        console.log(`Using RAG context for ${shopName}`)
       }
     }
 
     // Fall back to legacy if RAG failed or disabled
     if (!contextMessage) {
-      console.log('Using legacy context')
-      const contextData = await fetchContextData(date_range)
-      contextMessage = buildContextMessage(contextData, language)
+      console.log(`Using legacy context for ${shopName}`)
+      const contextData = await fetchContextData(date_range, storeId, shopId)
+      contextMessage = buildContextMessage(contextData, language, currencySymbol)
     }
 
     // Get chat history if session exists

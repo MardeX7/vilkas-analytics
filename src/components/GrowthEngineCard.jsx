@@ -23,6 +23,7 @@ import {
 } from 'lucide-react'
 import { useGrowthEngine } from '@/hooks/useGrowthEngine'
 import { useTranslation } from '@/lib/i18n'
+import { useCurrentShop } from '@/config/storeConfig'
 
 // KPI area icons
 const KPI_ICONS = {
@@ -45,6 +46,7 @@ const KPI_COLORS = {
  */
 export function GrowthEngineCard({ dateRange }) {
   const { t, formatNumber, formatCurrency } = useTranslation()
+  const { currencySymbol } = useCurrentShop()
   const [expandedKpi, setExpandedKpi] = useState(null)
 
   const {
@@ -147,6 +149,7 @@ export function GrowthEngineCard({ dateRange }) {
               onToggle={() => setExpandedKpi(expandedKpi === key ? null : key)}
               t={t}
               formatNumber={formatNumber}
+              currencySymbol={currencySymbol}
             />
           ))}
         </div>
@@ -179,7 +182,7 @@ export function GrowthEngineCard({ dateRange }) {
 /**
  * KPI Area Card (collapsible)
  */
-function KPIAreaCard({ areaKey, data, isExpanded, onToggle, t, formatNumber }) {
+function KPIAreaCard({ areaKey, data, isExpanded, onToggle, t, formatNumber, currencySymbol }) {
   const Icon = KPI_ICONS[areaKey] || Package
   const color = KPI_COLORS[areaKey] || 'slate'
 
@@ -238,6 +241,7 @@ function KPIAreaCard({ areaKey, data, isExpanded, onToggle, t, formatNumber }) {
                 metric={metric}
                 t={t}
                 formatNumber={formatNumber}
+                currencySymbol={currencySymbol}
               />
             ))}
           </div>
@@ -250,7 +254,7 @@ function KPIAreaCard({ areaKey, data, isExpanded, onToggle, t, formatNumber }) {
 /**
  * Metric Row (inside expanded KPI area)
  */
-function MetricRow({ metricKey, areaKey, metric, t, formatNumber }) {
+function MetricRow({ metricKey, areaKey, metric, t, formatNumber, currencySymbol }) {
   const { current, previous, yoyChange, score } = metric
 
   // Format value based on metric type
@@ -269,7 +273,7 @@ function MetricRow({ metricKey, areaKey, metric, t, formatNumber }) {
 
     // Currency metrics
     if (['aov', 'marginPerOrder'].includes(key)) {
-      return `${formatNumber(value)} kr`
+      return `${formatNumber(value)} ${currencySymbol}`
     }
 
     // Multiplier

@@ -4,6 +4,7 @@
 
 import { TrendingUp, TrendingDown, Minus, Package } from 'lucide-react'
 import { useTranslation } from '@/lib/i18n'
+import { useCurrentShop } from '@/config/storeConfig'
 
 // Billackering brand-inspired color palette - primary first, then variations
 const COLORS = [
@@ -21,12 +22,13 @@ const COLORS = [
 
 export function CategoryChart({ categories, maxItems = 10, title }) {
   const { t, locale } = useTranslation()
+  const { currency } = useCurrentShop()
   const displayTitle = title || t('charts.topCategories')
 
   const formatCurrency = (value) => {
     return new Intl.NumberFormat(locale, {
       style: 'currency',
-      currency: 'SEK',
+      currency: currency,
       minimumFractionDigits: 0,
       maximumFractionDigits: 0
     }).format(value)

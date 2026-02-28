@@ -29,7 +29,8 @@ export function calculateAOV(
   periodEnd,
   comparisonStart,
   comparisonEnd,
-  periodLabel = '30d'
+  periodLabel = '30d',
+  currency = 'SEK'
 ) {
   // Filter orders by period
   const currentOrders = orders.filter(o => {
@@ -69,7 +70,7 @@ export function calculateAOV(
   const maxOrder = sortedValues.length > 0 ? sortedValues[sortedValues.length - 1] : 0
 
   // Calculate distribution buckets
-  const distribution = calculateDistribution(currentValues)
+  const distribution = calculateDistribution(currentValues, currency)
 
   // Determine alert
   const thresholds = DEFAULT_THRESHOLDS.aov
@@ -81,7 +82,7 @@ export function calculateAOV(
     category: 'sales',
 
     value: Math.round(currentAOV),
-    unit: 'SEK',
+    unit: currency,
 
     direction: determineDirection(aovChange),
     change_percent: Math.round(aovChange * 10) / 10,
@@ -121,13 +122,13 @@ export function calculateAOV(
  * @param {number[]} values
  * @returns {Object[]}
  */
-function calculateDistribution(values) {
+function calculateDistribution(values, currency = 'SEK') {
   const buckets = [
-    { min: 0, max: 500, label: '0-500 SEK' },
-    { min: 500, max: 1000, label: '500-1000 SEK' },
-    { min: 1000, max: 2000, label: '1000-2000 SEK' },
-    { min: 2000, max: 5000, label: '2000-5000 SEK' },
-    { min: 5000, max: Infinity, label: '5000+ SEK' }
+    { min: 0, max: 500, label: `0-500 ${currency}` },
+    { min: 500, max: 1000, label: `500-1000 ${currency}` },
+    { min: 1000, max: 2000, label: `1000-2000 ${currency}` },
+    { min: 2000, max: 5000, label: `2000-5000 ${currency}` },
+    { min: 5000, max: Infinity, label: `5000+ ${currency}` }
   ]
 
   const total = values.length || 1

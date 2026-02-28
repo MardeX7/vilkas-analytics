@@ -12,7 +12,7 @@ import { useCurrentShop } from '@/config/storeConfig'
  * - Average order value by shipping/payment combination
  */
 export function useShippingPaymentAnalysis(dateRange = null) {
-  const { storeId, ready } = useCurrentShop()
+  const { storeId, ready, currency, currencySymbol } = useCurrentShop()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [data, setData] = useState({
@@ -63,14 +63,14 @@ export function useShippingPaymentAnalysis(dateRange = null) {
 
       // Define order size buckets
       const getOrderSizeBucket = (amount) => {
-        if (amount < 500) return '< 500 SEK'
-        if (amount < 1000) return '500-999 SEK'
-        if (amount < 2000) return '1000-1999 SEK'
-        if (amount < 5000) return '2000-4999 SEK'
-        return '5000+ SEK'
+        if (amount < 500) return `< 500 ${currency}`
+        if (amount < 1000) return `500-999 ${currency}`
+        if (amount < 2000) return `1000-1999 ${currency}`
+        if (amount < 5000) return `2000-4999 ${currency}`
+        return `5000+ ${currency}`
       }
 
-      const bucketOrder = ['< 500 SEK', '500-999 SEK', '1000-1999 SEK', '2000-4999 SEK', '5000+ SEK']
+      const bucketOrder = [`< 500 ${currency}`, `500-999 ${currency}`, `1000-1999 ${currency}`, `2000-4999 ${currency}`, `5000+ ${currency}`]
 
       // 1. Shipping by order size
       const shippingMap = new Map()
@@ -216,7 +216,7 @@ export function useShippingPaymentAnalysis(dateRange = null) {
         insights.push({
           type: 'shipping_aov',
           title: 'Korkein keskitilaus toimitustavan mukaan',
-          message: `${highestAovShipping.method} korkein keskitilaus: ${Math.round(highestAovShipping.avgValue)} €`,
+          message: `${highestAovShipping.method} korkein keskitilaus: ${Math.round(highestAovShipping.avgValue)} ${currencySymbol}`,
           value: highestAovShipping.avgValue
         })
       }
@@ -247,7 +247,7 @@ export function useShippingPaymentAnalysis(dateRange = null) {
         const percentage = (topLargeOrderShipping[1] / largeOrderCount) * 100
         insights.push({
           type: 'large_order_shipping',
-          title: 'Suuret tilaukset (2000+ €)',
+          title: `Suuret tilaukset (2000+ ${currencySymbol})`,
           message: `${percentage.toFixed(0)}% valitsee ${topLargeOrderShipping[0]}`,
           value: percentage
         })

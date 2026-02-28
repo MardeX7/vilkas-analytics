@@ -140,7 +140,7 @@ async function fetchKPIHistory(storeId, granularity, limit = 12) {
  * @param {string} granularity
  * @param {number} periodOffset - 0 = uusin, 1 = edellinen, jne.
  */
-async function fetchProfitSummary(storeId, granularity, periodOffset = 0) {
+async function fetchProfitSummary(storeId, granularity, periodOffset = 0, currency = 'SEK') {
   // For weekly granularity, get from latest snapshot's raw_metrics
   if (granularity === 'week') {
     // Get latest 2 years of weekly snapshots to find YoY comparison
@@ -194,7 +194,7 @@ async function fetchProfitSummary(storeId, granularity, periodOffset = 0) {
       cost: (currentCore.total_revenue || 0) - (currentCore.gross_profit || 0),
       grossProfit: currentCore.gross_profit || 0,
       marginPercent: currentCore.margin_percent || 0,
-      currency: 'SEK',
+      currency: currency,
       period: '7 pv',
       // YoY comparison data
       yoy: lastYearCore ? {
@@ -235,7 +235,7 @@ async function fetchProfitSummary(storeId, granularity, periodOffset = 0) {
       cost: totalCost,
       grossProfit: totalGrossProfit,
       marginPercent,
-      currency: 'SEK',
+      currency: currency,
       period: '30 pv',
       yoy: null
     }
@@ -356,7 +356,7 @@ export function useKPIDashboard({
   granularity = 'week',
   periodOffset = 0
 } = {}) {
-  const { storeId, ready } = useCurrentShop()
+  const { storeId, ready, currency } = useCurrentShop()
   const queryClient = useQueryClient()
 
   // Available periods query (for navigation)
@@ -426,7 +426,7 @@ export function useKPIDashboard({
     data: profitSummary
   } = useQuery({
     queryKey: ['kpi-profit-summary', storeId, granularity, periodOffset],
-    queryFn: () => fetchProfitSummary(storeId, granularity, periodOffset),
+    queryFn: () => fetchProfitSummary(storeId, granularity, periodOffset, currency),
     staleTime: 10 * 60 * 1000,
     cacheTime: 60 * 60 * 1000,
     enabled: !!dashboard

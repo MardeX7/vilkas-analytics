@@ -20,6 +20,7 @@ import { WeeklyAnalysisCard } from '@/components/WeeklyAnalysisCard'
 import { useGrowthEngine } from '@/hooks/useGrowthEngine'
 import { useGrowthEngineHistory } from '@/hooks/useGrowthEngineHistory'
 import { useTranslation } from '@/lib/i18n'
+import { useCurrentShop } from '@/config/storeConfig'
 
 // Index icons
 const INDEX_ICONS = {
@@ -620,7 +621,7 @@ const METRIC_TOOLTIPS = {
   conversionRate: 'Tilausten määrä / istuntojen määrä. Kuinka hyvin liikenne muuttuu myynniksi.',
   aov: 'Keskimääräinen tilausarvo (Average Order Value). Mitä enemmän per tilaus, sitä parempi.',
   orderCount: 'Tilausten kokonaismäärä jaksolla. Perusmetriikka myynnin volyymille.',
-  revenue: 'Kokonaisliikevaihto (kr). Kaikki tilaukset yhteensä.',
+  revenue: 'Kokonaisliikevaihto. Kaikki tilaukset yhteensä.',
   uniqueCustomers: 'Uniikkien asiakkaiden määrä (sähköpostin perusteella).',
   // Product Leverage (GSC-based - all pages)
   avgPosition: 'Sivuston keskimääräinen sijainti Google-hauissa (painotettu klikeillä). Pienempi = parempi, käänteinen pisteytys.',
@@ -632,6 +633,7 @@ const METRIC_TOOLTIPS = {
  * Growth KPI Detail - Expanded view with metrics
  */
 function GrowthKPIDetail({ areaKey, data, onClose, effectiveDateRange, t }) {
+  const { currencySymbol } = useCurrentShop()
   if (!data || !data.metrics) return null
 
   const Icon = GROWTH_KPI_ICONS[areaKey] || Package
@@ -648,7 +650,7 @@ function GrowthKPIDetail({ areaKey, data, onClose, effectiveDateRange, t }) {
       return Number(value).toFixed(1)
     }
     if (['aov', 'revenue'].includes(metricKey)) {
-      return `${Math.round(value).toLocaleString('sv-SE')} kr`
+      return `${Math.round(value).toLocaleString('sv-SE')} ${currencySymbol}`
     }
     if (['orderCount', 'uniqueCustomers', 'top10Pages'].includes(metricKey)) {
       return value.toLocaleString('sv-SE')

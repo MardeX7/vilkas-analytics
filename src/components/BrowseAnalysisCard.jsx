@@ -8,6 +8,7 @@ import { Eye, ShoppingCart, Package, Target, TrendingUp, BarChart3, AlertTriangl
 import { useTranslation } from '@/lib/i18n'
 import { useBrowseAnalysis } from '@/hooks/useBrowseAnalysis'
 import { cn } from '@/lib/utils'
+import { useCurrentShop } from '@/config/storeConfig'
 
 function SummaryCard({ icon, label, value, subValue }) {
   return (
@@ -65,6 +66,7 @@ function ErrorState({ message }) {
  */
 export function BrowseAnalysisCard({ startDate, endDate, className }) {
   const { t, language } = useTranslation()
+  const { currencySymbol } = useCurrentShop()
 
   const dateRange = { startDate, endDate }
   const {
@@ -140,12 +142,12 @@ export function BrowseAnalysisCard({ startDate, endDate, className }) {
         <SummaryCard
           icon={<TrendingUp className="w-5 h-5" />}
           label={t('insights.browse.sales')}
-          value={`${formatCurrency(funnelSummary.totalRevenue)} kr`}
+          value={`${formatCurrency(funnelSummary.totalRevenue)} ${currencySymbol}`}
         />
         <SummaryCard
           icon={<BarChart3 className="w-5 h-5" />}
           label={t('insights.browse.avgRevenuePerPurchase')}
-          value={`${formatCurrency(funnelSummary.avgRevenuePerPurchase)} kr`}
+          value={`${formatCurrency(funnelSummary.avgRevenuePerPurchase)} ${currencySymbol}`}
         />
       </div>
 
@@ -272,7 +274,7 @@ export function BrowseAnalysisCard({ startDate, endDate, className }) {
                         {formatPercent(p.overallConversion)}%
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-right tabular-nums text-foreground">{formatCurrency(p.revenue)} kr</td>
+                    <td className="px-4 py-3 text-right tabular-nums text-foreground">{formatCurrency(p.revenue)} {currencySymbol}</td>
                   </tr>
                 ))}
               </tbody>
@@ -316,7 +318,7 @@ export function BrowseAnalysisCard({ startDate, endDate, className }) {
                     <td className="px-4 py-3 text-right">
                       <ConversionBadge value={c.overallConversion} />
                     </td>
-                    <td className="px-4 py-3 text-right tabular-nums text-foreground">{formatCurrency(c.revenue)} kr</td>
+                    <td className="px-4 py-3 text-right tabular-nums text-foreground">{formatCurrency(c.revenue)} {currencySymbol}</td>
                   </tr>
                 ))}
               </tbody>

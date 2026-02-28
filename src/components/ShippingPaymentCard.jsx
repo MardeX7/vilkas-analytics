@@ -8,6 +8,7 @@ import { Truck, CreditCard, Target, Lightbulb, AlertTriangle } from 'lucide-reac
 import { useTranslation } from '@/lib/i18n'
 import { useShippingPaymentAnalysis } from '@/hooks/useShippingPaymentAnalysis'
 import { cn } from '@/lib/utils'
+import { useCurrentShop } from '@/config/storeConfig'
 
 function LoadingState({ message }) {
   return (
@@ -39,6 +40,7 @@ function ErrorState({ message }) {
  */
 export function ShippingPaymentCard({ startDate, endDate, className }) {
   const { t, language } = useTranslation()
+  const { currencySymbol } = useCurrentShop()
 
   const dateRange = { startDate, endDate }
   const { shippingSummary, paymentSummary, crossAnalysis, insights, loading, error } = useShippingPaymentAnalysis(dateRange)
@@ -117,9 +119,9 @@ export function ShippingPaymentCard({ startDate, endDate, className }) {
                       {formatPercent(s.percentage)}%
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-right tabular-nums text-foreground">{formatCurrency(s.avgValue)} kr</td>
+                  <td className="px-4 py-3 text-right tabular-nums text-foreground">{formatCurrency(s.avgValue)} {currencySymbol}</td>
                   <td className="px-4 py-3 text-right tabular-nums text-foreground-muted text-sm">
-                    {formatCurrency(s.minValue)} - {formatCurrency(s.maxValue)} kr
+                    {formatCurrency(s.minValue)} - {formatCurrency(s.maxValue)} {currencySymbol}
                   </td>
                 </tr>
               ))}
@@ -157,9 +159,9 @@ export function ShippingPaymentCard({ startDate, endDate, className }) {
                       {formatPercent(p.percentage)}%
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-right tabular-nums text-foreground">{formatCurrency(p.avgValue)} kr</td>
+                  <td className="px-4 py-3 text-right tabular-nums text-foreground">{formatCurrency(p.avgValue)} {currencySymbol}</td>
                   <td className="px-4 py-3 text-right tabular-nums text-foreground-muted text-sm">
-                    {formatCurrency(p.minValue)} - {formatCurrency(p.maxValue)} kr
+                    {formatCurrency(p.minValue)} - {formatCurrency(p.maxValue)} {currencySymbol}
                   </td>
                 </tr>
               ))}
@@ -199,7 +201,7 @@ export function ShippingPaymentCard({ startDate, endDate, className }) {
                         {formatPercent(c.percentage)}%
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-right tabular-nums text-foreground">{formatCurrency(c.avgValue)} kr</td>
+                    <td className="px-4 py-3 text-right tabular-nums text-foreground">{formatCurrency(c.avgValue)} {currencySymbol}</td>
                   </tr>
                 ))}
               </tbody>

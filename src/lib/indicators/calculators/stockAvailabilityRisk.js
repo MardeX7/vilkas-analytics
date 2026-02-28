@@ -31,7 +31,8 @@ export function calculateStockAvailabilityRisk({
   gscData,
   orders = [],
   periodEnd,
-  periodLabel = '30d'
+  periodLabel = '30d',
+  currency = 'SEK'
 }) {
   const endDate = periodEnd instanceof Date ? periodEnd : new Date(periodEnd)
 
@@ -136,7 +137,7 @@ export function calculateStockAvailabilityRisk({
     category: 'combined',
 
     value: Math.round(totalRevenueAtRisk),
-    unit: 'SEK',
+    unit: currency,
 
     direction: 'down', // Lower risk is better
     change_percent: null, // No comparison for MVP
@@ -155,7 +156,7 @@ export function calculateStockAvailabilityRisk({
       seasonal_adjusted: false,
       anomaly_detected: hasCriticalRisk,
       anomaly_type: hasCriticalRisk ? 'stock_crisis' : null,
-      notes: generateStockNotes(outOfStock, lowStock, totalRevenueAtRisk)
+      notes: generateStockNotes(outOfStock, lowStock, totalRevenueAtRisk, currency)
     },
 
     at_risk_products: atRiskProducts.slice(0, 20),
@@ -259,10 +260,10 @@ function buildProductUrl(product) {
 /**
  * Generate human-readable notes
  */
-function generateStockNotes(outOfStock, lowStock, revenueAtRisk) {
+function generateStockNotes(outOfStock, lowStock, revenueAtRisk, currency = 'SEK') {
   const formattedRevenue = new Intl.NumberFormat('sv-SE', {
     style: 'currency',
-    currency: 'SEK',
+    currency: currency,
     minimumFractionDigits: 0
   }).format(revenueAtRisk)
 

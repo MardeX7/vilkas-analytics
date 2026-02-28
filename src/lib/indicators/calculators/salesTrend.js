@@ -24,7 +24,7 @@ import {
  * @param {'7d' | '30d' | '90d'} params.periodLabel - Period length
  * @returns {Object} Sales trend indicator
  */
-export function calculateSalesTrend({ orders, periodEnd, periodLabel = '30d' }) {
+export function calculateSalesTrend({ orders, periodEnd, periodLabel = '30d', currency = 'SEK' }) {
   const endDate = periodEnd instanceof Date ? periodEnd : new Date(periodEnd)
 
   // Determine period length in days
@@ -113,7 +113,7 @@ export function calculateSalesTrend({ orders, periodEnd, periodLabel = '30d' }) 
       anomaly_detected: anomalyDetected,
       anomaly_type: anomalyType,
       no_comparison_data: !hasComparisonData,
-      notes: generateTrendNotes(trendValue, revenueChangePercent, currentRevenue, hasComparisonData)
+      notes: generateTrendNotes(trendValue, revenueChangePercent, currentRevenue, hasComparisonData, currency)
     },
 
     // Additional metrics (spec-compliant)
@@ -202,10 +202,10 @@ function calculateStandardDeviation(values) {
 /**
  * Generate human-readable notes
  */
-function generateTrendNotes(trend, changePercent, revenue, hasComparisonData) {
+function generateTrendNotes(trend, changePercent, revenue, hasComparisonData, currency = 'SEK') {
   const formattedRevenue = new Intl.NumberFormat('sv-SE', {
     style: 'currency',
-    currency: 'SEK',
+    currency: currency,
     minimumFractionDigits: 0
   }).format(revenue)
 

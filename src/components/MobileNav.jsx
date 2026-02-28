@@ -20,7 +20,7 @@ import {
 } from 'lucide-react'
 import { useTranslation } from '@/lib/i18n'
 import { useAuth } from '@/contexts/AuthContext'
-import { getShopLogo } from '@/config/shopLogos'
+import { getShopFlag } from '@/config/shopLogos'
 
 export function MobileNav() {
   const [isOpen, setIsOpen] = useState(false)
@@ -43,7 +43,7 @@ export function MobileNav() {
     setShopMenuOpen(false)
   }
 
-  const logo = getShopLogo(currentShop?.domain)
+  const flag = getShopFlag(currentShop?.domain)
 
   return (
     <>
@@ -51,13 +51,9 @@ export function MobileNav() {
       <header className="lg:hidden fixed top-0 left-0 right-0 z-30 bg-background-elevated/95 border-b border-card-border px-4 py-3 backdrop-blur-md">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            {logo ? (
-              <img src={logo} alt="" className="w-8 h-8 rounded-xl object-cover" />
-            ) : (
-              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-[#00b4e9] to-[#0090c0] flex items-center justify-center shadow-lg shadow-[#00b4e9]/20">
-                <BarChart3 className="w-4 h-4 text-white" />
-              </div>
-            )}
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-[#00b4e9] to-[#0090c0] flex items-center justify-center shadow-lg shadow-[#00b4e9]/20">
+              {flag ? <span className="text-lg">{flag}</span> : <BarChart3 className="w-4 h-4 text-white" />}
+            </div>
             <div className="flex flex-col">
               <span className="text-[10px] font-semibold text-[#00b4e9] tracking-wider uppercase">{currentShop?.shop_name || 'Analytics'}</span>
               <span className="text-sm font-bold text-foreground -mt-0.5">Analytics Agent</span>
@@ -94,13 +90,9 @@ export function MobileNav() {
               onClick={() => setShopMenuOpen(!shopMenuOpen)}
               className="w-full flex items-center gap-3 p-2 rounded-xl hover:bg-background-subtle transition-all"
             >
-              {logo ? (
-                <img src={logo} alt="" className="w-8 h-8 rounded-xl object-cover flex-shrink-0" />
-              ) : (
-                <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-[#00b4e9] to-[#0090c0] flex items-center justify-center flex-shrink-0">
-                  <BarChart3 className="w-4 h-4 text-white" />
-                </div>
-              )}
+              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-[#00b4e9] to-[#0090c0] flex items-center justify-center flex-shrink-0">
+                {flag ? <span className="text-lg">{flag}</span> : <BarChart3 className="w-4 h-4 text-white" />}
+              </div>
               <div className="flex-1 text-left min-w-0">
                 <p className="text-sm font-bold text-foreground truncate">{currentShop?.shop_name || 'Analytics'}</p>
                 <p className="text-xs text-foreground-subtle truncate">{currentShop?.domain}</p>
@@ -111,7 +103,7 @@ export function MobileNav() {
             {shopMenuOpen && (
               <div className="mt-2 bg-background-elevated border border-card-border rounded-xl shadow-lg overflow-hidden">
                 {shops.map((shop) => {
-                  const shopLogo = getShopLogo(shop.domain)
+                  const shopFlag = getShopFlag(shop.domain)
                   return (
                     <button
                       key={shop.shop_id}
@@ -125,13 +117,9 @@ export function MobileNav() {
                           : 'text-foreground-muted hover:bg-background-subtle hover:text-foreground'
                       }`}
                     >
-                      {shopLogo ? (
-                        <img src={shopLogo} alt="" className="w-6 h-6 rounded-lg object-cover flex-shrink-0" />
-                      ) : (
-                        <div className="w-6 h-6 rounded-lg bg-background-subtle flex items-center justify-center flex-shrink-0">
-                          <BarChart3 className="w-3.5 h-3.5" />
-                        </div>
-                      )}
+                      <div className="w-6 h-6 rounded-lg bg-background-subtle flex items-center justify-center flex-shrink-0">
+                        {shopFlag ? <span className="text-sm">{shopFlag}</span> : <BarChart3 className="w-3.5 h-3.5" />}
+                      </div>
                       <div className="min-w-0">
                         <p className="font-medium truncate">{shop.shop_name}</p>
                         <p className="text-xs text-foreground-subtle truncate">{shop.domain}</p>

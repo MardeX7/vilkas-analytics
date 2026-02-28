@@ -8,6 +8,7 @@ import { AlertTriangle, Sparkles } from 'lucide-react'
 import { useTranslation } from '@/lib/i18n'
 import { useCategoryMargin } from '@/hooks/useCategoryMargin'
 import { cn } from '@/lib/utils'
+import { useCurrentShop } from '@/config/storeConfig'
 
 function MarginBadge({ value }) {
   const color = value >= 50 ? 'bg-green-500/20 text-green-400' :
@@ -52,6 +53,7 @@ function ErrorState({ message }) {
  */
 export function CategoryMarginCard({ startDate, endDate, className }) {
   const { t, language } = useTranslation()
+  const { currencySymbol } = useCurrentShop()
 
   const dateRange = { startDate, endDate }
   const { categoryMargins, totalMargin, topCategories, bottomCategories, loading, error } = useCategoryMargin(dateRange)
@@ -113,14 +115,14 @@ export function CategoryMarginCard({ startDate, endDate, className }) {
                     <span className="text-foreground font-medium">{cat.category}</span>
                   </td>
                   <td className="px-4 py-3 text-right tabular-nums text-foreground">
-                    {formatCurrency(cat.revenue)} kr
+                    {formatCurrency(cat.revenue)} {currencySymbol}
                   </td>
                   <td className="px-4 py-3 text-right tabular-nums text-foreground-muted">
-                    {formatCurrency(cat.cost)} kr
+                    {formatCurrency(cat.cost)} {currencySymbol}
                   </td>
                   <td className="px-4 py-3 text-right tabular-nums">
                     <span className={cat.profit >= 0 ? 'text-green-400' : 'text-red-400'}>
-                      {formatCurrency(cat.profit)} kr
+                      {formatCurrency(cat.profit)} {currencySymbol}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-right">
@@ -163,14 +165,14 @@ export function CategoryMarginCard({ startDate, endDate, className }) {
                     <span className="text-foreground font-medium">{cat.category}</span>
                   </td>
                   <td className="px-4 py-3 text-right tabular-nums text-foreground">
-                    {formatCurrency(cat.revenue)} kr
+                    {formatCurrency(cat.revenue)} {currencySymbol}
                   </td>
                   <td className="px-4 py-3 text-right tabular-nums text-foreground-muted">
-                    {formatCurrency(cat.cost)} kr
+                    {formatCurrency(cat.cost)} {currencySymbol}
                   </td>
                   <td className="px-4 py-3 text-right tabular-nums">
                     <span className={cat.profit >= 0 ? 'text-green-400' : 'text-red-400'}>
-                      {formatCurrency(cat.profit)} kr
+                      {formatCurrency(cat.profit)} {currencySymbol}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-right">

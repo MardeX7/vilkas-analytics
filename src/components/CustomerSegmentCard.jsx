@@ -7,6 +7,7 @@
 import { Building2, User, TrendingUp, TrendingDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useCustomerSegments } from '@/hooks/useCustomerSegments'
+import { useCurrentShop } from '@/config/storeConfig'
 
 /**
  * Muutosindikaattori (MoM/YoY)
@@ -32,7 +33,7 @@ function ChangeIndicator({ value, small = false }) {
 /**
  * Yksittäinen segmenttirivi
  */
-function SegmentRow({ icon: Icon, label, orders, revenue, margin, marginPercent, percentage, color, revenueChange, marginChange }) {
+function SegmentRow({ icon: Icon, label, orders, revenue, margin, marginPercent, percentage, color, revenueChange, marginChange, currencySymbol }) {
   return (
     <div className="flex items-center justify-between py-2.5 border-b border-card-border last:border-0">
       <div className="flex items-center gap-2.5">
@@ -46,7 +47,7 @@ function SegmentRow({ icon: Icon, label, orders, revenue, margin, marginPercent,
       </div>
       <div className="text-right min-w-[100px]">
         <p className="font-semibold text-foreground tabular-nums">
-          {Math.round(revenue).toLocaleString('sv-SE')} kr
+          {Math.round(revenue).toLocaleString('sv-SE')} {currencySymbol}
         </p>
         <div className="flex items-center justify-end gap-1">
           <span className="text-xs text-foreground-muted">{percentage}%</span>
@@ -55,7 +56,7 @@ function SegmentRow({ icon: Icon, label, orders, revenue, margin, marginPercent,
       </div>
       <div className="text-right min-w-[100px]">
         <p className="font-semibold text-green-400 tabular-nums">
-          {Math.round(margin).toLocaleString('sv-SE')} kr
+          {Math.round(margin).toLocaleString('sv-SE')} {currencySymbol}
         </p>
         <div className="flex items-center justify-end gap-1">
           <span className="text-xs text-foreground-muted">{marginPercent}%</span>
@@ -79,6 +80,7 @@ function SegmentRow({ icon: Icon, label, orders, revenue, margin, marginPercent,
  * @param {string} props.className
  */
 export function CustomerSegmentCard({ startDate, endDate, previousStartDate, previousEndDate, compare = false, label, className }) {
+  const { currencySymbol } = useCurrentShop()
   const { summary, percentages, comparison, isLoading, error } = useCustomerSegments({
     startDate,
     endDate,
@@ -145,6 +147,7 @@ export function CustomerSegmentCard({ startDate, endDate, previousStartDate, pre
           color="bg-primary/10 text-primary"
           revenueChange={comparison?.b2c.revenueChange}
           marginChange={comparison?.b2c.marginChange}
+          currencySymbol={currencySymbol}
         />
         <SegmentRow
           icon={Building2}
@@ -157,6 +160,7 @@ export function CustomerSegmentCard({ startDate, endDate, previousStartDate, pre
           color="bg-accent/10 text-accent"
           revenueChange={comparison?.b2b.revenueChange}
           marginChange={comparison?.b2b.marginChange}
+          currencySymbol={currencySymbol}
         />
       </div>
 
@@ -166,7 +170,7 @@ export function CustomerSegmentCard({ startDate, endDate, previousStartDate, pre
           <span className="text-sm text-foreground-muted">Yhteensä</span>
           <div className="text-right min-w-[100px]">
             <span className="font-semibold text-foreground tabular-nums">
-              {Math.round(summary.total.revenue).toLocaleString('sv-SE')} kr
+              {Math.round(summary.total.revenue).toLocaleString('sv-SE')} {currencySymbol}
             </span>
             <div className="flex items-center justify-end gap-1">
               <span className="text-xs text-foreground-muted">({summary.total.orders})</span>
@@ -175,7 +179,7 @@ export function CustomerSegmentCard({ startDate, endDate, previousStartDate, pre
           </div>
           <div className="text-right min-w-[100px]">
             <span className="font-semibold text-green-400 tabular-nums">
-              {Math.round(summary.total.margin || 0).toLocaleString('sv-SE')} kr
+              {Math.round(summary.total.margin || 0).toLocaleString('sv-SE')} {currencySymbol}
             </span>
             <div className="flex items-center justify-end gap-1">
               <span className="text-xs text-foreground-muted">({summary.total.marginPercent || 0}%)</span>
