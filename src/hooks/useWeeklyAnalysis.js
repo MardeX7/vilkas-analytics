@@ -55,7 +55,7 @@ function getPreviousMonthDate() {
  * @param {string} granularity - 'week' or 'month'
  */
 export function useWeeklyAnalysis(dateRange = null, language = 'fi', granularity = 'week') {
-  const { shopId, ready } = useCurrentShop()
+  const { shopId, storeId, ready } = useCurrentShop()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [isGenerating, setIsGenerating] = useState(false)
@@ -154,7 +154,9 @@ export function useWeeklyAnalysis(dateRange = null, language = 'fi', granularity
           year: year,
           date_range: dateRange,
           language: language,
-          granularity: granularity
+          granularity: granularity,
+          store_id: storeId,
+          shop_id: shopId
         })
       })
 

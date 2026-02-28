@@ -23,9 +23,7 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 )
 
-// Store IDs
-const STORE_ID = 'a28836f6-9487-4b67-9194-e907eaf94b69'
-const SHOP_ID = '3b93e9b1-d64c-4686-a14a-bec535495f71'
+// Store IDs are now passed from request (multi-tenant)
 
 /**
  * Get ISO week number
@@ -42,7 +40,7 @@ function getISOWeek(date) {
 /**
  * Fetch context data for recommendations
  */
-async function fetchContextData() {
+async function fetchContextData(STORE_ID) {
   const now = new Date()
   const thirtyDaysAgo = new Date(now - 30 * 24 * 60 * 60 * 1000)
   const startDate = thirtyDaysAgo.toISOString().split('T')[0]
@@ -52,6 +50,7 @@ async function fetchContextData() {
   const { data: orders } = await supabase
     .from('orders')
     .select('id, grand_total, creation_date')
+    .eq('store_id', STORE_ID)
     .gte('creation_date', startDate)
     .lte('creation_date', endDate + 'T23:59:59')
     .order('creation_date', { ascending: false })
@@ -61,8 +60,9 @@ async function fetchContextData() {
   const { data: lowStock } = await supabase
     .from('products')
     .select('name, stock_level, product_number')
+    .eq('store_id', STORE_ID)
     .lte('stock_level', 5)
-    .gt('stock_level', -1) // Only products with stock tracking
+    .gt('stock_level', -1)
     .limit(20)
 
   // Fetch top GSC keywords
@@ -114,7 +114,7 @@ async function fetchContextData() {
 /**
  * Generate recommendations using AI
  */
-async function generateRecommendations(context, language = 'fi') {
+async function generateRecommendations(context, language = 'fi', currencySymbol = '€') {
   const isFi = language === 'fi'
 
   const systemPrompt = isFi
@@ -150,12 +150,13 @@ Varje rekommendation är ett JSON-objekt med fält:
 
 Svara ENDAST med JSON-array, ingen annan text.`
 
+  const cs = currencySymbol
   const userPrompt = isFi
     ? `Kaupan data viimeiseltä 30 päivältä:
 
-- Liikevaihto: ${context.revenue.toFixed(2)}€
+- Liikevaihto: ${context.revenue.toFixed(2)} ${cs}
 - Tilauksia: ${context.orderCount}
-- Keskiostos: ${context.avgOrderValue.toFixed(2)}€
+- Keskiostos: ${context.avgOrderValue.toFixed(2)} ${cs}
 - Konversio: ${context.conversionRate.toFixed(2)}%
 - Sessioita: ${context.sessions}
 - Loppu varastosta: ${context.outOfStockProducts} tuotetta
@@ -168,9 +169,9 @@ SEO:
 Generoi 3-5 priorisointua toimenpidesuositusta JSON-arrayna.`
     : `Butikens data senaste 30 dagar:
 
-- Omsättning: ${context.revenue.toFixed(2)}€
+- Omsättning: ${context.revenue.toFixed(2)} ${cs}
 - Beställningar: ${context.orderCount}
-- Genomsnittlig order: ${context.avgOrderValue.toFixed(2)}€
+- Genomsnittlig order: ${context.avgOrderValue.toFixed(2)} ${cs}
 - Konvertering: ${context.conversionRate.toFixed(2)}%
 - Sessioner: ${context.sessions}
 - Slut i lager: ${context.outOfStockProducts} produkter
@@ -211,7 +212,7 @@ Generera 3-5 prioriterade åtgärdsrekommendationer som JSON-array.`
 /**
  * Save recommendations to database
  */
-async function saveRecommendations(recommendations, week, year) {
+async function saveRecommendations(recommendations, week, year, SHOP_ID) {
   const { data, error } = await supabase
     .from('action_recommendations')
     .upsert({
@@ -252,23 +253,46 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { language = 'fi' } = req.body
+    const { language = 'fi', store_id, shop_id } = req.body
+
+    // Resolve store IDs from request
+    let STORE_ID, SHOP_ID
+    if (store_id && shop_id) {
+      STORE_ID = store_id
+      SHOP_ID = shop_id
+    } else if (shop_id) {
+      SHOP_ID = shop_id
+      const { data: shop } = await supabase.from('shops').select('store_id').eq('id', shop_id).maybeSingle()
+      STORE_ID = shop?.store_id || shop_id
+    } else if (store_id) {
+      STORE_ID = store_id
+      const { data: shop } = await supabase.from('shops').select('id').eq('store_id', store_id).maybeSingle()
+      SHOP_ID = shop?.id || store_id
+    } else {
+      const { data: shop } = await supabase.from('shops').select('id, store_id').limit(1).single()
+      STORE_ID = shop?.store_id
+      SHOP_ID = shop?.id
+    }
 
     // Get current week
     const { week, year } = getISOWeek(new Date())
 
-    console.log(`Generating recommendations for week ${week}/${year}`)
+    console.log(`Generating recommendations for week ${week}/${year} (store: ${STORE_ID})`)
 
     // Fetch context data
-    const context = await fetchContextData()
+    const context = await fetchContextData(STORE_ID)
     console.log('Context:', context)
 
+    // Look up currency
+    const { data: shopInfo } = await supabase.from('shops').select('currency').eq('store_id', STORE_ID).maybeSingle()
+    const currencySymbol = shopInfo?.currency === 'SEK' ? 'kr' : '€'
+
     // Generate recommendations
-    const recommendations = await generateRecommendations(context, language)
+    const recommendations = await generateRecommendations(context, language, currencySymbol)
     console.log('Generated:', recommendations.length, 'recommendations')
 
     // Save to database
-    const saved = await saveRecommendations(recommendations, week, year)
+    const saved = await saveRecommendations(recommendations, week, year, SHOP_ID)
 
     return res.status(200).json({
       success: true,

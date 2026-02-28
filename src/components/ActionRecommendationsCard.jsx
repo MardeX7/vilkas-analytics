@@ -58,7 +58,7 @@ const EFFORT_COLORS = {
  * Main ActionRecommendationsCard Component
  */
 export function ActionRecommendationsCard({ onAskEmma }) {
-  const { shopId } = useCurrentShop()
+  const { shopId, storeId } = useCurrentShop()
   const { t, language } = useTranslation()
   const isFi = language === 'fi'
 
@@ -105,7 +105,7 @@ export function ActionRecommendationsCard({ onAskEmma }) {
       const response = await fetch('/api/generate-recommendations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ store_id: shopId, language })
+        body: JSON.stringify({ store_id: storeId, shop_id: shopId, language })
       })
 
       if (!response.ok) {

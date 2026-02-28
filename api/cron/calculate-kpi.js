@@ -12,10 +12,14 @@ import { createClient } from '@supabase/supabase-js'
 const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
-const VAT_RATE = 1.25 // 25% ALV (Sweden)
+// VAT rates per country
+const VAT_RATES = {
+  SE: 1.25,  // Sweden 25%
+  FI: 1.24,  // Finland 24%
+}
 
 export const config = {
-  maxDuration: 60, // 1 minute should be enough
+  maxDuration: 120,
 }
 
 // Get ISO week number
@@ -79,298 +83,297 @@ function scale(value, min, max) {
   return Math.round(((value - min) / (max - min)) * 100)
 }
 
+/**
+ * Calculate KPI for a single store
+ */
+async function calculateKPIForStore(supabase, storeId, granularity, force, country) {
+  const VAT_RATE = VAT_RATES[country] || 1.24
+
+  // Determine period to calculate
+  let periodStart, periodEnd, periodLabel
+  if (granularity === 'month') {
+    const { start, end, year, month } = getPreviousMonth()
+    periodStart = start
+    periodEnd = end
+    periodLabel = `${year}-${String(month).padStart(2, '0')}`
+  } else {
+    const { start, end, year, week } = getPreviousWeek()
+    periodStart = start
+    periodEnd = end
+    periodLabel = `${year}-W${String(week).padStart(2, '0')}`
+  }
+
+  console.log(`Calculating ${granularity} KPI for ${storeId}: ${periodStart} to ${periodEnd} (${periodLabel})`)
+
+  // Check if snapshot already exists
+  const { data: existing } = await supabase
+    .from('kpi_index_snapshots')
+    .select('id')
+    .eq('store_id', storeId)
+    .eq('period_start', periodStart)
+    .eq('period_end', periodEnd)
+    .eq('granularity', granularity)
+    .maybeSingle()
+
+  if (existing && !force) {
+    return { status: 'skipped', reason: 'already exists', period: periodLabel }
+  }
+
+  // Fetch orders for this period
+  const { data: orders, error: ordersError } = await supabase
+    .from('orders')
+    .select('id, creation_date, grand_total, customer_id')
+    .eq('store_id', storeId)
+    .gte('creation_date', periodStart)
+    .lte('creation_date', periodEnd + 'T23:59:59')
+
+  if (ordersError) throw ordersError
+
+  // Fetch line items for these orders
+  const orderIds = orders?.map(o => o.id) || []
+  let lineItems = []
+  if (orderIds.length > 0) {
+    const { data: items } = await supabase
+      .from('order_line_items')
+      .select('order_id, product_id, quantity, total_price')
+      .in('order_id', orderIds)
+    lineItems = items || []
+  }
+
+  // Fetch products with cost_price
+  const { data: products } = await supabase
+    .from('products')
+    .select('id, cost_price, stock_level')
+    .eq('store_id', storeId)
+
+  const productMap = {}
+  products?.forEach(p => { productMap[p.id] = p })
+
+  // Group line items by order
+  const lineItemsByOrder = {}
+  lineItems.forEach(li => {
+    if (!lineItemsByOrder[li.order_id]) lineItemsByOrder[li.order_id] = []
+    lineItemsByOrder[li.order_id].push(li)
+  })
+
+  // Calculate metrics
+  const orderCount = orders?.length || 0
+  const totalRevenue = orders?.reduce((sum, o) => sum + (parseFloat(o.grand_total) || 0), 0) || 0
+  const nettoRevenue = totalRevenue / VAT_RATE
+  const aov = orderCount > 0 ? nettoRevenue / orderCount : 0
+  const uniqueCustomers = new Set(orders?.map(o => o.customer_id).filter(Boolean)).size
+
+  // Calculate gross profit
+  let totalCost = 0
+  let totalSalesNetto = 0
+  let hasLineItems = false
+
+  orders?.forEach(order => {
+    const items = lineItemsByOrder[order.id] || []
+    if (items.length > 0) {
+      hasLineItems = true
+      items.forEach(item => {
+        const salesNetto = (parseFloat(item.total_price) || 0) / VAT_RATE
+        totalSalesNetto += salesNetto
+        const product = productMap[item.product_id]
+        if (product?.cost_price) {
+          totalCost += product.cost_price * item.quantity
+        } else {
+          totalCost += salesNetto * 0.4
+        }
+      })
+    } else {
+      const orderNetto = (parseFloat(order.grand_total) || 0) / VAT_RATE
+      totalSalesNetto += orderNetto
+      totalCost += orderNetto * 0.4
+    }
+  })
+
+  const grossProfit = totalSalesNetto - totalCost
+  const marginPercent = totalSalesNetto > 0 ? (grossProfit / totalSalesNetto) * 100 : 0
+
+  // Fetch historical data for scaling (last 12 weeks/months)
+  const { data: historyData } = await supabase
+    .from('kpi_index_snapshots')
+    .select('core_index, product_profitability_index, raw_metrics')
+    .eq('store_id', storeId)
+    .eq('granularity', granularity)
+    .order('period_end', { ascending: false })
+    .limit(12)
+
+  let minRevenue = nettoRevenue, maxRevenue = nettoRevenue
+  let minOrders = orderCount, maxOrders = orderCount
+  let minGrossProfit = grossProfit, maxGrossProfit = grossProfit
+
+  historyData?.forEach(h => {
+    const metrics = h.raw_metrics?.core || {}
+    if (metrics.total_revenue) {
+      minRevenue = Math.min(minRevenue, metrics.total_revenue)
+      maxRevenue = Math.max(maxRevenue, metrics.total_revenue)
+    }
+    if (metrics.order_count) {
+      minOrders = Math.min(minOrders, metrics.order_count)
+      maxOrders = Math.max(maxOrders, metrics.order_count)
+    }
+    if (metrics.gross_profit) {
+      minGrossProfit = Math.min(minGrossProfit, metrics.gross_profit)
+      maxGrossProfit = Math.max(maxGrossProfit, metrics.gross_profit)
+    }
+  })
+
+  const revenueIndex = orderCount >= 3 ? scale(nettoRevenue, minRevenue, maxRevenue) : 0
+  const ordersIndex = orderCount >= 3 ? scale(orderCount, minOrders, maxOrders) : 0
+  const grossProfitIndex = orderCount >= 3 ? scale(grossProfit, minGrossProfit, maxGrossProfit) : 0
+
+  const coreIndex = orderCount >= 3
+    ? Math.round(revenueIndex * 0.40 + ordersIndex * 0.30 + grossProfitIndex * 0.30)
+    : 0
+
+  const ppiIndex = orderCount >= 3
+    ? Math.max(0, Math.min(100, Math.round((marginPercent - 30) * (100 / 30))))
+    : 0
+
+  const spiIndex = 50
+
+  const outOfStockCount = products?.filter(p => p.stock_level === 0).length || 0
+  const totalProducts = products?.length || 1
+  const stockAvailability = ((totalProducts - outOfStockCount) / totalProducts) * 100
+  const oiIndex = Math.round(stockAvailability * 0.7 + 15)
+
+  const overallIndex = orderCount >= 3
+    ? Math.round(coreIndex * 0.50 + ppiIndex * 0.25 + spiIndex * 0.10 + oiIndex * 0.15)
+    : 0
+
+  const { data: prevSnapshot } = await supabase
+    .from('kpi_index_snapshots')
+    .select('*')
+    .eq('store_id', storeId)
+    .eq('granularity', granularity)
+    .lt('period_end', periodStart)
+    .order('period_end', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  const deltas = {
+    core: prevSnapshot ? coreIndex - prevSnapshot.core_index : null,
+    ppi: prevSnapshot ? ppiIndex - prevSnapshot.product_profitability_index : null,
+    spi: prevSnapshot ? spiIndex - prevSnapshot.seo_performance_index : null,
+    oi: prevSnapshot ? oiIndex - prevSnapshot.operational_index : null,
+    overall: prevSnapshot ? overallIndex - prevSnapshot.overall_index : null
+  }
+
+  const snapshot = {
+    store_id: storeId,
+    period_start: periodStart,
+    period_end: periodEnd,
+    granularity,
+    core_index: coreIndex,
+    product_profitability_index: ppiIndex,
+    seo_performance_index: spiIndex,
+    operational_index: oiIndex,
+    overall_index: overallIndex,
+    core_index_delta: deltas.core,
+    ppi_delta: deltas.ppi,
+    spi_delta: deltas.spi,
+    oi_delta: deltas.oi,
+    overall_delta: deltas.overall,
+    raw_metrics: {
+      core: {
+        order_count: orderCount,
+        total_revenue: nettoRevenue,
+        aov,
+        gross_profit: grossProfit,
+        margin_percent: marginPercent,
+        margin_estimated: !hasLineItems,
+        unique_customers: uniqueCustomers
+      }
+    },
+    core_components: {
+      revenue: { value: nettoRevenue, index: revenueIndex, weight: 0.40 },
+      orders: { value: orderCount, index: ordersIndex, weight: 0.30 },
+      gross_profit: { value: grossProfit, index: grossProfitIndex, weight: 0.30 }
+    },
+    ppi_components: {
+      margin: { value: marginPercent, index: ppiIndex, weight: 1.0 }
+    },
+    spi_components: {},
+    oi_components: {
+      stock_availability: { value: stockAvailability, index: oiIndex, weight: 1.0 }
+    },
+    alerts: []
+  }
+
+  const { error: upsertError } = await supabase
+    .from('kpi_index_snapshots')
+    .upsert(snapshot, {
+      onConflict: 'store_id,period_end,granularity'
+    })
+
+  if (upsertError) throw upsertError
+
+  console.log(`KPI ${periodLabel}: Overall ${overallIndex}, Core ${coreIndex}, PPI ${ppiIndex}, SPI ${spiIndex}, OI ${oiIndex}`)
+
+  return {
+    status: 'success',
+    period: periodLabel,
+    granularity,
+    indexes: { overall: overallIndex, core: coreIndex, ppi: ppiIndex, spi: spiIndex, oi: oiIndex },
+    deltas,
+    metrics: { orders: orderCount, revenue: Math.round(nettoRevenue), aov: Math.round(aov), margin: Math.round(marginPercent * 10) / 10 }
+  }
+}
+
 export default async function handler(req, res) {
-  console.log('📊 Starting KPI snapshot calculation:', new Date().toISOString())
+  console.log('Starting KPI snapshot calculation:', new Date().toISOString())
 
   if (!supabaseUrl || !supabaseServiceKey) {
-    console.error('❌ Missing Supabase credentials')
     return res.status(500).json({ error: 'Missing Supabase credentials' })
   }
 
   const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-  // Get parameters
-  const { granularity = 'week', force = false } = req.body || {}
+  const { granularity = 'week', force = false, store_id } = req.body || {}
 
   try {
-    // Get store
-    const { data: store, error: storeError } = await supabase
-      .from('stores')
-      .select('id')
-      .single()
+    // If store_id provided, calculate for that store only
+    if (store_id) {
+      const { data: shop } = await supabase
+        .from('shops')
+        .select('currency')
+        .eq('store_id', store_id)
+        .maybeSingle()
 
-    if (storeError || !store) {
-      throw new Error('No store found')
+      const country = shop?.currency === 'SEK' ? 'SE' : 'FI'
+      const result = await calculateKPIForStore(supabase, store_id, granularity, force, country)
+      return res.status(200).json(result)
     }
 
-    const storeId = store.id
+    // Multi-tenant: calculate for all shops
+    const { data: shops, error: shopsError } = await supabase
+      .from('shops')
+      .select('id, name, store_id, currency')
 
-    // Determine period to calculate
-    let periodStart, periodEnd, periodLabel
-    if (granularity === 'month') {
-      const { start, end, year, month } = getPreviousMonth()
-      periodStart = start
-      periodEnd = end
-      periodLabel = `${year}-${String(month).padStart(2, '0')}`
-    } else {
-      const { start, end, year, week } = getPreviousWeek()
-      periodStart = start
-      periodEnd = end
-      periodLabel = `${year}-W${String(week).padStart(2, '0')}`
+    if (shopsError || !shops?.length) {
+      return res.status(500).json({ error: 'No shops found' })
     }
 
-    console.log(`📅 Calculating ${granularity} KPI for period: ${periodStart} to ${periodEnd} (${periodLabel})`)
-
-    // Check if snapshot already exists
-    const { data: existing } = await supabase
-      .from('kpi_index_snapshots')
-      .select('id')
-      .eq('store_id', storeId)
-      .eq('period_start', periodStart)
-      .eq('period_end', periodEnd)
-      .eq('granularity', granularity)
-      .single()
-
-    if (existing && !force) {
-      console.log(`⏭️ Snapshot already exists for ${periodLabel}`)
-      return res.status(200).json({
-        status: 'skipped',
-        reason: 'Snapshot already exists',
-        period: periodLabel
-      })
-    }
-
-    // Fetch orders for this period
-    const { data: orders, error: ordersError } = await supabase
-      .from('orders')
-      .select('id, creation_date, grand_total, customer_id')
-      .gte('creation_date', periodStart)
-      .lte('creation_date', periodEnd + 'T23:59:59')
-
-    if (ordersError) throw ordersError
-
-    console.log(`📋 Found ${orders?.length || 0} orders in period`)
-
-    // Fetch line items for these orders
-    const orderIds = orders?.map(o => o.id) || []
-    let lineItems = []
-    if (orderIds.length > 0) {
-      const { data: items } = await supabase
-        .from('order_line_items')
-        .select('order_id, product_id, quantity, total_price')
-        .in('order_id', orderIds)
-      lineItems = items || []
-    }
-
-    // Fetch products with cost_price
-    const { data: products } = await supabase
-      .from('products')
-      .select('id, cost_price, stock_level')
-
-    const productMap = {}
-    products?.forEach(p => { productMap[p.id] = p })
-
-    // Group line items by order
-    const lineItemsByOrder = {}
-    lineItems.forEach(li => {
-      if (!lineItemsByOrder[li.order_id]) lineItemsByOrder[li.order_id] = []
-      lineItemsByOrder[li.order_id].push(li)
-    })
-
-    // Calculate metrics
-    const orderCount = orders?.length || 0
-    const totalRevenue = orders?.reduce((sum, o) => sum + (parseFloat(o.grand_total) || 0), 0) || 0
-    const nettoRevenue = totalRevenue / VAT_RATE
-    const aov = orderCount > 0 ? nettoRevenue / orderCount : 0
-    const uniqueCustomers = new Set(orders?.map(o => o.customer_id).filter(Boolean)).size
-
-    // Calculate gross profit
-    let totalCost = 0
-    let totalSalesNetto = 0
-    let hasLineItems = false
-
-    orders?.forEach(order => {
-      const items = lineItemsByOrder[order.id] || []
-      if (items.length > 0) {
-        hasLineItems = true
-        items.forEach(item => {
-          const salesNetto = (parseFloat(item.total_price) || 0) / VAT_RATE
-          totalSalesNetto += salesNetto
-          const product = productMap[item.product_id]
-          if (product?.cost_price) {
-            totalCost += product.cost_price * item.quantity
-          } else {
-            totalCost += salesNetto * 0.4 // Default 40% cost
-          }
-        })
-      } else {
-        const orderNetto = (parseFloat(order.grand_total) || 0) / VAT_RATE
-        totalSalesNetto += orderNetto
-        totalCost += orderNetto * 0.4
+    const results = []
+    for (const shop of shops) {
+      if (!shop.store_id) continue
+      try {
+        const country = shop.currency === 'SEK' ? 'SE' : 'FI'
+        const result = await calculateKPIForStore(supabase, shop.store_id, granularity, force, country)
+        results.push({ shop: shop.name, ...result })
+      } catch (err) {
+        console.error(`${shop.name} KPI error:`, err.message)
+        results.push({ shop: shop.name, status: 'error', error: err.message })
       }
-    })
-
-    const grossProfit = totalSalesNetto - totalCost
-    const marginPercent = totalSalesNetto > 0 ? (grossProfit / totalSalesNetto) * 100 : 0
-
-    // Fetch historical data for scaling (last 12 weeks/months)
-    const { data: historyData } = await supabase
-      .from('kpi_index_snapshots')
-      .select('core_index, product_profitability_index, raw_metrics')
-      .eq('store_id', storeId)
-      .eq('granularity', granularity)
-      .order('period_end', { ascending: false })
-      .limit(12)
-
-    // Calculate scaling ranges from history
-    let minRevenue = nettoRevenue, maxRevenue = nettoRevenue
-    let minOrders = orderCount, maxOrders = orderCount
-    let minGrossProfit = grossProfit, maxGrossProfit = grossProfit
-
-    historyData?.forEach(h => {
-      const metrics = h.raw_metrics?.core || {}
-      if (metrics.total_revenue) {
-        minRevenue = Math.min(minRevenue, metrics.total_revenue)
-        maxRevenue = Math.max(maxRevenue, metrics.total_revenue)
-      }
-      if (metrics.order_count) {
-        minOrders = Math.min(minOrders, metrics.order_count)
-        maxOrders = Math.max(maxOrders, metrics.order_count)
-      }
-      if (metrics.gross_profit) {
-        minGrossProfit = Math.min(minGrossProfit, metrics.gross_profit)
-        maxGrossProfit = Math.max(maxGrossProfit, metrics.gross_profit)
-      }
-    })
-
-    // Calculate indexes
-    const revenueIndex = orderCount >= 3 ? scale(nettoRevenue, minRevenue, maxRevenue) : 0
-    const ordersIndex = orderCount >= 3 ? scale(orderCount, minOrders, maxOrders) : 0
-    const grossProfitIndex = orderCount >= 3 ? scale(grossProfit, minGrossProfit, maxGrossProfit) : 0
-
-    // CORE INDEX (40% revenue, 30% orders, 30% gross profit)
-    const coreIndex = orderCount >= 3
-      ? Math.round(revenueIndex * 0.40 + ordersIndex * 0.30 + grossProfitIndex * 0.30)
-      : 0
-
-    // PPI - Product Profitability Index (30% margin = 0, 60% margin = 100)
-    const ppiIndex = orderCount >= 3
-      ? Math.max(0, Math.min(100, Math.round((marginPercent - 30) * (100 / 30))))
-      : 0
-
-    // SPI - SEO Performance Index (simplified, use 50 as default)
-    const spiIndex = 50
-
-    // OI - Operational Index (simplified)
-    const outOfStockCount = products?.filter(p => p.stock_level === 0).length || 0
-    const totalProducts = products?.length || 1
-    const stockAvailability = ((totalProducts - outOfStockCount) / totalProducts) * 100
-    const oiIndex = Math.round(stockAvailability * 0.7 + 15)
-
-    // OVERALL INDEX
-    const overallIndex = orderCount >= 3
-      ? Math.round(coreIndex * 0.50 + ppiIndex * 0.25 + spiIndex * 0.10 + oiIndex * 0.15)
-      : 0
-
-    // Get previous period for delta calculation
-    const { data: prevSnapshot } = await supabase
-      .from('kpi_index_snapshots')
-      .select('*')
-      .eq('store_id', storeId)
-      .eq('granularity', granularity)
-      .lt('period_end', periodStart)
-      .order('period_end', { ascending: false })
-      .limit(1)
-      .single()
-
-    const deltas = {
-      core: prevSnapshot ? coreIndex - prevSnapshot.core_index : null,
-      ppi: prevSnapshot ? ppiIndex - prevSnapshot.product_profitability_index : null,
-      spi: prevSnapshot ? spiIndex - prevSnapshot.seo_performance_index : null,
-      oi: prevSnapshot ? oiIndex - prevSnapshot.operational_index : null,
-      overall: prevSnapshot ? overallIndex - prevSnapshot.overall_index : null
     }
 
-    // Create snapshot
-    const snapshot = {
-      store_id: storeId,
-      period_start: periodStart,
-      period_end: periodEnd,
-      granularity,
-      core_index: coreIndex,
-      product_profitability_index: ppiIndex,
-      seo_performance_index: spiIndex,
-      operational_index: oiIndex,
-      overall_index: overallIndex,
-      core_index_delta: deltas.core,
-      ppi_delta: deltas.ppi,
-      spi_delta: deltas.spi,
-      oi_delta: deltas.oi,
-      overall_delta: deltas.overall,
-      raw_metrics: {
-        core: {
-          order_count: orderCount,
-          total_revenue: nettoRevenue,
-          aov,
-          gross_profit: grossProfit,
-          margin_percent: marginPercent,
-          margin_estimated: !hasLineItems,
-          unique_customers: uniqueCustomers
-        }
-      },
-      core_components: {
-        revenue: { value: nettoRevenue, index: revenueIndex, weight: 0.40 },
-        orders: { value: orderCount, index: ordersIndex, weight: 0.30 },
-        gross_profit: { value: grossProfit, index: grossProfitIndex, weight: 0.30 }
-      },
-      ppi_components: {
-        margin: { value: marginPercent, index: ppiIndex, weight: 1.0 }
-      },
-      spi_components: {},
-      oi_components: {
-        stock_availability: { value: stockAvailability, index: oiIndex, weight: 1.0 }
-      },
-      alerts: []
-    }
-
-    // Upsert snapshot
-    const { error: upsertError } = await supabase
-      .from('kpi_index_snapshots')
-      .upsert(snapshot, {
-        onConflict: 'store_id,period_end,granularity'
-      })
-
-    if (upsertError) {
-      throw upsertError
-    }
-
-    console.log(`✅ KPI snapshot created for ${periodLabel}`)
-    console.log(`   Overall: ${overallIndex}, Core: ${coreIndex}, PPI: ${ppiIndex}, SPI: ${spiIndex}, OI: ${oiIndex}`)
-
-    return res.status(200).json({
-      status: 'success',
-      period: periodLabel,
-      granularity,
-      indexes: {
-        overall: overallIndex,
-        core: coreIndex,
-        ppi: ppiIndex,
-        spi: spiIndex,
-        oi: oiIndex
-      },
-      deltas,
-      metrics: {
-        orders: orderCount,
-        revenue: Math.round(nettoRevenue),
-        aov: Math.round(aov),
-        margin: Math.round(marginPercent * 10) / 10
-      }
-    })
+    return res.status(200).json({ success: true, results })
 
   } catch (error) {
-    console.error('❌ KPI calculation failed:', error)
-    return res.status(500).json({
-      error: error.message
-    })
+    console.error('KPI calculation failed:', error)
+    return res.status(500).json({ error: error.message })
   }
 }

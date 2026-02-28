@@ -275,7 +275,7 @@ async function fetchProfitSummary(storeId, granularity, periodOffset = 0, curren
     cost: (currentCore.total_revenue || 0) - (currentCore.gross_profit || 0),
     grossProfit: currentCore.gross_profit || 0,
     marginPercent: currentCore.margin_percent || 0,
-    currency: 'SEK',
+    currency: currency,
     period: '30 pv',
     // YoY comparison data
     yoy: lastYearCore ? {
@@ -500,14 +500,21 @@ export function useKPIDashboard({
     queryClient.invalidateQueries(['kpi-capital-traps', storeId])
   }, [queryClient, storeId])
 
-  // Trigger manual calculation (calls Edge Function)
+  // Trigger manual calculation (calls API endpoint)
   const triggerCalculation = useCallback(async () => {
     try {
-      const { data, error } = await supabase.functions.invoke('daily-kpi-snapshot', {
-        body: { store_id: storeId, granularity }
+      const response = await fetch('/api/cron/calculate-kpi', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ store_id: storeId, granularity, force: true })
       })
 
-      if (error) throw error
+      if (!response.ok) {
+        const err = await response.json()
+        throw new Error(err.error || 'KPI calculation failed')
+      }
+
+      const data = await response.json()
 
       // Refresh after calculation
       setTimeout(() => refresh(), 1000)

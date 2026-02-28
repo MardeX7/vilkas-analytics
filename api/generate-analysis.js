@@ -20,11 +20,9 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 )
 
-// Store IDs - different tables use different IDs!
+// Store IDs are now passed from request (multi-tenant)
 // STORE_ID: orders, products, gsc_*, ga4_tokens, views (v_*)
 // SHOP_ID: shops.id FK tables (weekly_analyses, growth_engine_snapshots, merchant_goals, etc.)
-const STORE_ID = 'a28836f6-9487-4b67-9194-e907eaf94b69'
-const SHOP_ID = '3b93e9b1-d64c-4686-a14a-bec535495f71'
 
 /**
  * Get ISO week number
@@ -44,7 +42,7 @@ function getISOWeek(date) {
  * - STORE_ID: v_daily_sales, products, v_gsc_daily_summary, orders, etc.
  * - SHOP_ID: merchant_goals, context_notes, order_items (shops FK)
  */
-async function fetchContextData(dateRange) {
+async function fetchContextData(dateRange, STORE_ID, SHOP_ID) {
   const endDate = dateRange?.endDate || new Date().toISOString().split('T')[0]
   const startDate = dateRange?.startDate || new Date(new Date().setDate(new Date().getDate() - 7)).toISOString().split('T')[0]
 
@@ -461,7 +459,7 @@ Inkludera OCKSÅ action_recommendations (3-5 st) i JSON:
  * @param {string} language - 'fi' or 'sv'
  * @param {boolean} isMonthly - true for monthly, false for weekly
  */
-function buildUserPrompt(contextData, periodNumber, year, language = 'fi', isMonthly = false) {
+function buildUserPrompt(contextData, periodNumber, year, language = 'fi', isMonthly = false, currencySymbol = '€') {
   const {
     salesSummary, growthSnapshots, goals, contextNotes, gscSummary, gscTopQueries,
     lowStockProducts, topProducts, customerSegments, productRoles,
@@ -493,27 +491,27 @@ function buildUserPrompt(contextData, periodNumber, year, language = 'fi', isMon
   prompt += isFi ? `## MYYNTIDATA\n` : `## FÖRSÄLJNINGSDATA\n`
   prompt += isFi ? `### Nykyinen jakso:\n` : `### Nuvarande period:\n`
   prompt += isFi
-    ? `- Liikevaihto: ${Math.round(salesSummary.revenue).toLocaleString()} kr\n`
-    : `- Omsättning: ${Math.round(salesSummary.revenue).toLocaleString()} kr\n`
+    ? `- Liikevaihto: ${Math.round(salesSummary.revenue).toLocaleString()} ${currencySymbol}\n`
+    : `- Omsättning: ${Math.round(salesSummary.revenue).toLocaleString()} ${currencySymbol}\n`
   prompt += isFi
     ? `- Tilaukset: ${salesSummary.orders}\n`
     : `- Ordrar: ${salesSummary.orders}\n`
   prompt += isFi
-    ? `- Keskiostos (AOV): ${Math.round(salesSummary.aov)} kr\n`
-    : `- Snittorder (AOV): ${Math.round(salesSummary.aov)} kr\n`
+    ? `- Keskiostos (AOV): ${Math.round(salesSummary.aov)} ${currencySymbol}\n`
+    : `- Snittorder (AOV): ${Math.round(salesSummary.aov)} ${currencySymbol}\n`
 
   // YoY comparison
   if (salesSummary.revenueYoY > 0) {
     prompt += isFi ? `\n### Viime vuosi sama jakso:\n` : `\n### Förra året samma period:\n`
     prompt += isFi
-      ? `- Liikevaihto: ${Math.round(salesSummary.revenueYoY).toLocaleString()} kr\n`
-      : `- Omsättning: ${Math.round(salesSummary.revenueYoY).toLocaleString()} kr\n`
+      ? `- Liikevaihto: ${Math.round(salesSummary.revenueYoY).toLocaleString()} ${currencySymbol}\n`
+      : `- Omsättning: ${Math.round(salesSummary.revenueYoY).toLocaleString()} ${currencySymbol}\n`
     prompt += isFi
       ? `- Tilaukset: ${salesSummary.ordersYoY}\n`
       : `- Ordrar: ${salesSummary.ordersYoY}\n`
     prompt += isFi
-      ? `- Keskiostos (AOV): ${Math.round(salesSummary.aovYoY)} kr\n`
-      : `- Snittorder (AOV): ${Math.round(salesSummary.aovYoY)} kr\n`
+      ? `- Keskiostos (AOV): ${Math.round(salesSummary.aovYoY)} ${currencySymbol}\n`
+      : `- Snittorder (AOV): ${Math.round(salesSummary.aovYoY)} ${currencySymbol}\n`
 
     prompt += isFi ? `\n### YoY muutos:\n` : `\n### YoY förändring:\n`
     const revenueChange = parseFloat(salesSummary.revenueChangeYoY)
@@ -585,7 +583,7 @@ function buildUserPrompt(contextData, periodNumber, year, language = 'fi', isMon
   if (topProducts.length > 0) {
     prompt += isFi ? `## TOP TUOTTEET\n` : `## TOPP PRODUKTER\n`
     topProducts.slice(0, 5).forEach(p => {
-      prompt += `- ${p.product_name}: ${p.total_quantity} kpl, ${Math.round(parseFloat(p.total_revenue || 0)).toLocaleString()} kr\n`
+      prompt += `- ${p.product_name}: ${p.total_quantity} kpl, ${Math.round(parseFloat(p.total_revenue || 0)).toLocaleString()} ${currencySymbol}\n`
     })
     prompt += '\n'
   }
@@ -603,15 +601,15 @@ function buildUserPrompt(contextData, periodNumber, year, language = 'fi', isMon
     const { b2b, b2c } = customerAnalytics
     prompt += `B2B:\n`
     prompt += isFi
-      ? `- ${b2b.orders} tilausta (${b2b.percentage}%), ${Math.round(b2b.revenue).toLocaleString()} kr\n`
-      : `- ${b2b.orders} ordrar (${b2b.percentage}%), ${Math.round(b2b.revenue).toLocaleString()} kr\n`
-    prompt += `- AOV: ${b2b.aov} kr, LTV: ${b2b.ltv} kr\n\n`
+      ? `- ${b2b.orders} tilausta (${b2b.percentage}%), ${Math.round(b2b.revenue).toLocaleString()} ${currencySymbol}\n`
+      : `- ${b2b.orders} ordrar (${b2b.percentage}%), ${Math.round(b2b.revenue).toLocaleString()} ${currencySymbol}\n`
+    prompt += `- AOV: ${b2b.aov} ${currencySymbol}, LTV: ${b2b.ltv} ${currencySymbol}\n\n`
 
     prompt += `B2C:\n`
     prompt += isFi
-      ? `- ${b2c.orders} tilausta (${b2c.percentage}%), ${Math.round(b2c.revenue).toLocaleString()} kr\n`
-      : `- ${b2c.orders} ordrar (${b2c.percentage}%), ${Math.round(b2c.revenue).toLocaleString()} kr\n`
-    prompt += `- AOV: ${b2c.aov} kr, LTV: ${b2c.ltv} kr\n\n`
+      ? `- ${b2c.orders} tilausta (${b2c.percentage}%), ${Math.round(b2c.revenue).toLocaleString()} ${currencySymbol}\n`
+      : `- ${b2c.orders} ordrar (${b2c.percentage}%), ${Math.round(b2c.revenue).toLocaleString()} ${currencySymbol}\n`
+    prompt += `- AOV: ${b2c.aov} ${currencySymbol}, LTV: ${b2c.ltv} ${currencySymbol}\n\n`
   }
 
   // 8. PRODUCT ROLES
@@ -640,8 +638,8 @@ function buildUserPrompt(contextData, periodNumber, year, language = 'fi', isMon
       ? `- Keskikiertonopeus: ${inventoryMetrics.avgTurnover}x/vuosi\n`
       : `- Genomsnittlig omsättning: ${inventoryMetrics.avgTurnover}x/år\n`
     prompt += isFi
-      ? `- Varaston arvo: ${inventoryMetrics.totalStockValue.toLocaleString()} kr\n`
-      : `- Lagervärde: ${inventoryMetrics.totalStockValue.toLocaleString()} kr\n`
+      ? `- Varaston arvo: ${inventoryMetrics.totalStockValue.toLocaleString()} ${currencySymbol}\n`
+      : `- Lagervärde: ${inventoryMetrics.totalStockValue.toLocaleString()} ${currencySymbol}\n`
     prompt += isFi
       ? `- Tuotteita varastossa: ${inventoryMetrics.productsWithStock}\n\n`
       : `- Produkter i lager: ${inventoryMetrics.productsWithStock}\n\n`
@@ -657,7 +655,7 @@ function buildUserPrompt(contextData, periodNumber, year, language = 'fi', isMon
     if (inventoryMetrics.slowMovers?.length > 0) {
       prompt += isFi ? `Hitaasti liikkuvat (varastoriski):\n` : `Långsamt rörliga (lagerrisk):\n`
       inventoryMetrics.slowMovers.forEach(p => {
-        prompt += `- ${p.name}: ${p.turnover}x, arvo ${p.stockValue} kr\n`
+        prompt += `- ${p.name}: ${p.turnover}x, arvo ${p.stockValue} ${currencySymbol}\n`
       })
       prompt += '\n'
     }
@@ -716,7 +714,27 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { week_number, month_number, year, date_range, language = 'fi', granularity = 'week' } = req.body
+    const { week_number, month_number, year, date_range, language = 'fi', granularity = 'week', store_id, shop_id } = req.body
+
+    // Resolve store IDs - from request or fall back to looking up from shops table
+    let STORE_ID, SHOP_ID
+    if (store_id && shop_id) {
+      STORE_ID = store_id
+      SHOP_ID = shop_id
+    } else if (store_id) {
+      STORE_ID = store_id
+      const { data: shop } = await supabase.from('shops').select('id').eq('store_id', store_id).maybeSingle()
+      SHOP_ID = shop?.id || store_id
+    } else if (shop_id) {
+      SHOP_ID = shop_id
+      const { data: shop } = await supabase.from('shops').select('store_id').eq('id', shop_id).maybeSingle()
+      STORE_ID = shop?.store_id || shop_id
+    } else {
+      // Fallback: get first shop
+      const { data: shop } = await supabase.from('shops').select('id, store_id').limit(1).single()
+      STORE_ID = shop?.store_id
+      SHOP_ID = shop?.id
+    }
 
     const isMonthly = granularity === 'month'
 
@@ -756,12 +774,16 @@ export default async function handler(req, res) {
     }
 
     // Fetch all context data with correct date range
-    const contextData = await fetchContextData(effectiveDateRange)
+    const contextData = await fetchContextData(effectiveDateRange, STORE_ID, SHOP_ID)
+
+    // Look up currency for this store
+    const { data: shopInfo } = await supabase.from('shops').select('currency').eq('store_id', STORE_ID).maybeSingle()
+    const currencySymbol = shopInfo?.currency === 'SEK' ? 'kr' : '€'
 
     // Build prompts with correct language and granularity
     const systemPrompt = buildSystemPrompt(language, isMonthly)
     const periodNumber = isMonthly ? targetMonth : targetWeek
-    const userPrompt = buildUserPrompt(contextData, periodNumber, targetYear, language, isMonthly)
+    const userPrompt = buildUserPrompt(contextData, periodNumber, targetYear, language, isMonthly, currencySymbol)
 
     // Call Deepseek API (OpenAI-compatible)
     const response = await deepseek.chat.completions.create({
