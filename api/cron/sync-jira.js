@@ -224,8 +224,16 @@ async function syncJiraForShop(supabase, shop) {
 
   console.log(`\n📋 Syncing Jira for ${name} (project: ${jira_project_key}, host: ${jira_host})`)
 
-  // Fetch issues updated in last 7 days
-  const jql = `project = "${jira_project_key}" AND updated >= -7d ORDER BY updated DESC`
+  // Check if this is initial sync (no tickets yet) → fetch all, otherwise last 7 days
+  const { count: existingCount } = await supabase
+    .from('support_tickets')
+    .select('*', { count: 'exact', head: true })
+    .eq('shop_id', shopId)
+
+  const timeRange = existingCount === 0 ? '-365d' : '-7d'
+  console.log(`  ${existingCount === 0 ? 'Initial sync: fetching all tickets (last 365 days)' : 'Incremental sync: last 7 days'}`)
+
+  const jql = `project = "${jira_project_key}" AND updated >= ${timeRange} ORDER BY updated DESC`
   const fields = [
     'summary', 'status', 'priority', 'issuetype', 'labels',
     'created', 'updated', 'resolutiondate', 'reporter', 'assignee'
