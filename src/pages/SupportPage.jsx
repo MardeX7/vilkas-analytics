@@ -58,59 +58,67 @@ function PriorityBadge({ priority }) {
   )
 }
 
-function TicketVolumeChart({ dailyStats }) {
-  if (!dailyStats?.length) return null
+function fillDays(dailyStats, days = 30) {
+  // Ensure we have an entry for every day in the range
+  const map = {}
+  for (const d of dailyStats || []) {
+    if (d.date) map[d.date] = d
+  }
+  const result = []
+  for (let i = days; i >= 0; i--) {
+    const date = new Date(Date.now() - i * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+    result.push(map[date] || { date, tickets_created: 0, tickets_resolved: 0, tickets_open: 0 })
+  }
+  return result
+}
+
+function TicketVolumeChart({ dailyStats: rawStats }) {
+  const dailyStats = fillDays(rawStats, 30)
 
   const maxVal = Math.max(
     ...dailyStats.map(d => Math.max(d.tickets_created || 0, d.tickets_resolved || 0)),
     1
   )
-  const barWidth = 100 / dailyStats.length
+
+  // Build SVG line paths for created and resolved
+  const createdPoints = dailyStats.map((day, i) => {
+    const x = (i / (dailyStats.length - 1)) * 100
+    const y = 100 - ((day.tickets_created || 0) / maxVal) * 100
+    return { x, y }
+  })
+  const resolvedPoints = dailyStats.map((day, i) => {
+    const x = (i / (dailyStats.length - 1)) * 100
+    const y = 100 - ((day.tickets_resolved || 0) / maxVal) * 100
+    return { x, y }
+  })
+
+  const createdLine = createdPoints.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ')
+  const resolvedLine = resolvedPoints.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ')
+  const createdArea = `${createdLine} L 100 100 L 0 100 Z`
+  const resolvedArea = `${resolvedLine} L 100 100 L 0 100 Z`
 
   return (
     <div className="bg-background-elevated rounded-xl border border-card-border p-5">
       <h3 className="text-sm font-semibold text-foreground mb-4">Tikettimäärä (30pv)</h3>
       <div className="relative h-32">
         <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="w-full h-full">
-          {dailyStats.map((day, i) => {
-            const created = day.tickets_created || 0
-            const resolved = day.tickets_resolved || 0
-            const createdH = (created / maxVal) * 100
-            const resolvedH = (resolved / maxVal) * 100
-            const x = i * barWidth
-            const w = barWidth * 0.7
-
-            return (
-              <g key={day.date || i}>
-                {created > 0 && (
-                  <rect
-                    x={x}
-                    y={100 - createdH}
-                    width={w / 2}
-                    height={createdH}
-                    fill="rgba(59, 130, 246, 0.7)"
-                    rx="0.3"
-                  >
-                    <title>{`${day.date}: ${created} uutta`}</title>
-                  </rect>
-                )}
-                {resolved > 0 && (
-                  <rect
-                    x={x + w / 2}
-                    y={100 - resolvedH}
-                    width={w / 2}
-                    height={resolvedH}
-                    fill="rgba(16, 185, 129, 0.7)"
-                    rx="0.3"
-                  >
-                    <title>{`${day.date}: ${resolved} ratkaistua`}</title>
-                  </rect>
-                )}
-              </g>
-            )
-          })}
+          <defs>
+            <linearGradient id="createdGradient" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="rgb(59, 130, 246)" stopOpacity="0.25" />
+              <stop offset="100%" stopColor="rgb(59, 130, 246)" stopOpacity="0.02" />
+            </linearGradient>
+            <linearGradient id="resolvedGradient" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="rgb(16, 185, 129)" stopOpacity="0.25" />
+              <stop offset="100%" stopColor="rgb(16, 185, 129)" stopOpacity="0.02" />
+            </linearGradient>
+          </defs>
+          <path d={createdArea} fill="url(#createdGradient)" />
+          <path d={createdLine} fill="none" stroke="rgb(59, 130, 246)" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
+          <path d={resolvedArea} fill="url(#resolvedGradient)" />
+          <path d={resolvedLine} fill="none" stroke="rgb(16, 185, 129)" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
         </svg>
         <div className="absolute top-0 right-0 text-[10px] text-foreground-muted">{maxVal}</div>
+        <div className="absolute bottom-0 right-0 text-[10px] text-foreground-muted">0</div>
       </div>
       <div className="flex items-center justify-between mt-3 text-xs text-foreground-muted">
         <span>{dailyStats[0]?.date?.slice(5)}</span>
@@ -130,8 +138,8 @@ function TicketVolumeChart({ dailyStats }) {
   )
 }
 
-function BacklogTrendChart({ dailyStats }) {
-  if (!dailyStats?.length) return null
+function BacklogTrendChart({ dailyStats: rawStats }) {
+  const dailyStats = fillDays(rawStats, 30)
 
   const withData = dailyStats.filter(d => d.tickets_open > 0)
   if (!withData.length) return null
