@@ -36,7 +36,7 @@ async function fetchDailyStats(shopId, days = 30) {
   return data || []
 }
 
-async function fetchSummary(shopId) {
+async function fetchSummary(shopId, storeId) {
   // Open tickets count
   const { count: openCount } = await supabase
     .from('support_tickets')
@@ -44,20 +44,39 @@ async function fetchSummary(shopId) {
     .eq('shop_id', shopId)
     .neq('status_category', 'done')
 
-  // 7-day stats
-  const sevenDaysAgo = new Date()
-  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
+  // Date ranges for this week and prev week
+  const now = new Date()
+  const sevenDaysAgo = new Date(now)
+  sevenDaysAgo.setDate(now.getDate() - 7)
+  const fourteenDaysAgo = new Date(now)
+  fourteenDaysAgo.setDate(now.getDate() - 14)
   const sevenDaysAgoStr = sevenDaysAgo.toISOString().split('T')[0]
+  const fourteenDaysAgoStr = fourteenDaysAgo.toISOString().split('T')[0]
 
-  const { data: weekStats } = await supabase
+  // This week + prev week support stats (14 days)
+  const { data: twoWeekStats } = await supabase
     .from('support_daily_stats')
     .select('*')
     .eq('shop_id', shopId)
-    .gte('date', sevenDaysAgoStr)
+    .gte('date', fourteenDaysAgoStr)
 
-  const weekCreated = (weekStats || []).reduce((s, d) => s + (d.tickets_created || 0), 0)
-  const weekResolved = (weekStats || []).reduce((s, d) => s + (d.tickets_resolved || 0), 0)
-  const weekBreaches = (weekStats || []).reduce((s, d) => s + (d.sla_breaches || 0), 0)
+  const thisWeekStats = (twoWeekStats || []).filter(d => d.date >= sevenDaysAgoStr)
+  const prevWeekStats = (twoWeekStats || []).filter(d => d.date >= fourteenDaysAgoStr && d.date < sevenDaysAgoStr)
+
+  const weekCreated = thisWeekStats.reduce((s, d) => s + (d.tickets_created || 0), 0)
+  const weekResolved = thisWeekStats.reduce((s, d) => s + (d.tickets_resolved || 0), 0)
+  const weekBreaches = thisWeekStats.reduce((s, d) => s + (d.sla_breaches || 0), 0)
+
+  const prevWeekCreated = prevWeekStats.reduce((s, d) => s + (d.tickets_created || 0), 0)
+  const prevWeekResolved = prevWeekStats.reduce((s, d) => s + (d.tickets_resolved || 0), 0)
+
+  // Resolution rate: resolved / (resolved + still open)
+  const resolutionRate = (weekResolved + openCount) > 0
+    ? Math.round((weekResolved / (weekResolved + openCount)) * 100)
+    : null
+  const prevResolutionRate = (prevWeekResolved + openCount) > 0
+    ? Math.round((prevWeekResolved / (prevWeekResolved + openCount)) * 100)
+    : null
 
   // Average first response time (7d)
   const { data: recentTickets } = await supabase
@@ -90,8 +109,8 @@ async function fetchSummary(shopId) {
   }
 
   // Yesterday's resolved
-  const yesterday = new Date()
-  yesterday.setDate(yesterday.getDate() - 1)
+  const yesterday = new Date(now)
+  yesterday.setDate(now.getDate() - 1)
   const yesterdayStr = yesterday.toISOString().split('T')[0]
 
   const { data: yesterdayStats } = await supabase
@@ -101,6 +120,31 @@ async function fetchSummary(shopId) {
     .eq('date', yesterdayStr)
     .maybeSingle()
 
+  // Tickets per 100 orders (7d) - join with v_daily_sales via store_id
+  let ticketsPer100Orders = null
+  let prevTicketsPer100Orders = null
+  if (storeId) {
+    const { data: salesData } = await supabase
+      .from('v_daily_sales')
+      .select('order_count, sale_date')
+      .eq('store_id', storeId)
+      .gte('sale_date', fourteenDaysAgoStr)
+
+    const thisWeekOrders = (salesData || [])
+      .filter(d => d.sale_date >= sevenDaysAgoStr)
+      .reduce((s, d) => s + (d.order_count || 0), 0)
+    const prevWeekOrders = (salesData || [])
+      .filter(d => d.sale_date >= fourteenDaysAgoStr && d.sale_date < sevenDaysAgoStr)
+      .reduce((s, d) => s + (d.order_count || 0), 0)
+
+    if (thisWeekOrders > 0) {
+      ticketsPer100Orders = Math.round((weekCreated / thisWeekOrders) * 100 * 10) / 10
+    }
+    if (prevWeekOrders > 0) {
+      prevTicketsPer100Orders = Math.round((prevWeekCreated / prevWeekOrders) * 100 * 10) / 10
+    }
+  }
+
   return {
     openCount: openCount || 0,
     weekCreated,
@@ -108,16 +152,23 @@ async function fetchSummary(shopId) {
     weekBreaches,
     avgFirstResponseMs,
     slaCompliance,
+    resolutionRate,
     resolvedYesterday: yesterdayStats?.tickets_resolved || 0,
+    ticketsPer100Orders,
+    // WoW comparisons
+    prevWeekCreated,
+    prevWeekResolved,
+    prevResolutionRate,
+    prevTicketsPer100Orders,
   }
 }
 
 export function useSupport() {
-  const { shopId, ready } = useCurrentShop()
+  const { shopId, storeId, ready } = useCurrentShop()
 
   const summaryQuery = useQuery({
     queryKey: ['support-summary', shopId],
-    queryFn: () => fetchSummary(shopId),
+    queryFn: () => fetchSummary(shopId, storeId),
     staleTime: 5 * 60 * 1000,
     enabled: ready && !!shopId,
   })

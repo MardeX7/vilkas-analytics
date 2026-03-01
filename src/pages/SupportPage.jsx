@@ -138,6 +138,43 @@ function TicketVolumeChart({ dailyStats: rawStats }) {
   )
 }
 
+function WowMetric({ label, value, prev, invertColor, valueClass, isPercent }) {
+  // Calculate WoW change
+  let arrow = null
+  const numValue = typeof value === 'number' ? value : parseFloat(value)
+  const numPrev = typeof prev === 'number' ? prev : parseFloat(prev)
+
+  if (prev != null && !isNaN(numPrev) && numPrev !== 0 && !isNaN(numValue)) {
+    const change = isPercent
+      ? numValue - numPrev                  // absolute pp difference
+      : ((numValue - numPrev) / numPrev) * 100 // percentage change
+    const isUp = change > 0
+    // invertColor: up = bad (red), down = good (green). Default: up = green, down = red.
+    const colorClass = isUp
+      ? (invertColor ? 'text-destructive' : 'text-success')
+      : (invertColor ? 'text-success' : 'text-destructive')
+
+    if (Math.abs(change) >= 0.5) {
+      arrow = (
+        <span className={`inline-flex items-center gap-0.5 text-[10px] font-medium ${colorClass}`}>
+          {isUp ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
+          {Math.abs(Math.round(change))}{isPercent ? 'pp' : '%'}
+        </span>
+      )
+    }
+  }
+
+  return (
+    <div className="text-center">
+      <div className={`text-2xl font-bold ${valueClass || 'text-foreground'}`}>
+        {value}
+      </div>
+      <div className="text-xs text-foreground-muted mt-1">{label}</div>
+      {arrow && <div className="mt-0.5">{arrow}</div>}
+    </div>
+  )
+}
+
 function BacklogTrendChart({ dailyStats: rawStats }) {
   const dailyStats = fillDays(rawStats, 30)
 
@@ -274,24 +311,39 @@ export function SupportPage() {
           />
         </MetricCardGroup>
 
-        {/* 7-day summary */}
+        {/* 7-day summary with WoW */}
         <div className="bg-background-elevated rounded-xl border border-card-border p-5">
           <h3 className="text-sm font-semibold text-foreground mb-3">Viimeisen 7 päivän yhteenveto</h3>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            <div className="text-center">
-              <div className="text-2xl font-bold text-foreground">{summary?.weekCreated ?? 0}</div>
-              <div className="text-xs text-foreground-muted mt-1">Uutta tikettiä</div>
-            </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-success">{summary?.weekResolved ?? 0}</div>
-              <div className="text-xs text-foreground-muted mt-1">Ratkaistua</div>
-            </div>
-            <div className="text-center">
-              <div className={`text-2xl font-bold ${summary?.weekBreaches > 0 ? 'text-destructive' : 'text-foreground'}`}>
-                {summary?.weekBreaches ?? 0}
-              </div>
-              <div className="text-xs text-foreground-muted mt-1">SLA-ylityksiä</div>
-            </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+            <WowMetric
+              label="Uutta tikettiä"
+              value={summary?.weekCreated ?? 0}
+              prev={summary?.prevWeekCreated}
+              invertColor
+            />
+            <WowMetric
+              label="Ratkaistua"
+              value={summary?.weekResolved ?? 0}
+              prev={summary?.prevWeekResolved}
+              valueClass="text-success"
+            />
+            <WowMetric
+              label="SLA-ylityksiä"
+              value={summary?.weekBreaches ?? 0}
+              valueClass={summary?.weekBreaches > 0 ? 'text-destructive' : undefined}
+            />
+            <WowMetric
+              label="Ratkaisuprosentti"
+              value={summary?.resolutionRate != null ? `${summary.resolutionRate}%` : '—'}
+              prev={summary?.prevResolutionRate != null ? summary.prevResolutionRate : undefined}
+              isPercent
+            />
+            <WowMetric
+              label="Tikettejä / 100 til."
+              value={summary?.ticketsPer100Orders != null ? summary.ticketsPer100Orders : '—'}
+              prev={summary?.prevTicketsPer100Orders}
+              invertColor
+            />
             <div className="text-center">
               <div className="text-2xl font-bold text-foreground">
                 {summary?.avgFirstResponseMs ? formatDuration(summary.avgFirstResponseMs) : '—'}
