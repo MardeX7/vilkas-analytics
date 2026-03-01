@@ -44,7 +44,14 @@ async function fetchJiraIssues(jiraHost, jiraEmail, jiraApiToken, jql, fields) {
     }
 
     const url = `https://${jiraHost}/rest/api/3/search/jql?${params}`
-    const response = await fetch(url, { headers })
+    console.log(`  Fetching: ${url.split('?')[0]}?jql=...`)
+
+    let response
+    try {
+      response = await fetch(url, { headers })
+    } catch (fetchErr) {
+      throw new Error(`Fetch to ${jiraHost} failed: ${fetchErr.cause?.code || fetchErr.message}`)
+    }
 
     if (!response.ok) {
       const errorText = await response.text()
@@ -211,7 +218,7 @@ async function updateDailyStats(supabase, shopId, yesterday) {
 async function syncJiraForShop(supabase, shop) {
   const { id: shopId, name, jira_host, jira_email, jira_api_token, jira_project_key } = shop
 
-  console.log(`\n📋 Syncing Jira for ${name} (project: ${jira_project_key})`)
+  console.log(`\n📋 Syncing Jira for ${name} (project: ${jira_project_key}, host: ${jira_host})`)
 
   // Fetch issues updated in last 7 days
   const jql = `project = "${jira_project_key}" AND updated >= -7d ORDER BY updated DESC`
