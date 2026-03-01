@@ -17,6 +17,13 @@ Verkkokauppiaan sisainen analytiikkasovellus, joka yhdistaa ePages/Vilkas-myynti
 
 **Production:** [vilkas-analytics.vercel.app](https://vilkas-analytics.vercel.app)
 
+## Kaupat (multi-tenant)
+
+| Kauppa          | Valuutta | Kieli | Asiakaspalvelu   |
+|-----------------|----------|-------|------------------|
+| Automaalit.net  | EUR      | fi    | Jira (kaytossa)  |
+| Billackering.eu | SEK      | sv    | Jira (syksy 2026)|
+
 ## Tech Stack
 
 | Kerros | Teknologia |
