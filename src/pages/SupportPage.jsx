@@ -107,38 +107,68 @@ function TicketVolumeChart({ dailyStats }) {
   )
 }
 
-function ResponseTimeChart({ dailyStats }) {
+function BacklogTrendChart({ dailyStats }) {
   if (!dailyStats?.length) return null
 
-  const withData = dailyStats.filter(d => d.avg_first_response_ms)
+  const withData = dailyStats.filter(d => d.tickets_open > 0)
   if (!withData.length) return null
 
-  const maxMs = Math.max(...withData.map(d => d.avg_first_response_ms), 1)
+  const maxOpen = Math.max(...dailyStats.map(d => d.tickets_open || 0), 1)
+  const minOpen = Math.min(...dailyStats.filter(d => d.tickets_open > 0).map(d => d.tickets_open))
+  // Scale from slightly below min to max for better visualization
+  const scaleMin = Math.max(0, minOpen - 2)
+  const scaleRange = maxOpen - scaleMin || 1
+
+  // Build SVG line path
+  const points = dailyStats.map((day, i) => {
+    const x = (i / (dailyStats.length - 1)) * 100
+    const y = 100 - (((day.tickets_open || 0) - scaleMin) / scaleRange) * 100
+    return { x, y, date: day.date, open: day.tickets_open || 0 }
+  })
+
+  const linePath = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ')
+  const areaPath = `${linePath} L 100 100 L 0 100 Z`
+
+  // Trend: compare last 7 days avg to previous 7 days avg
+  const last7 = dailyStats.slice(-7)
+  const prev7 = dailyStats.slice(-14, -7)
+  const avgLast = last7.reduce((s, d) => s + (d.tickets_open || 0), 0) / (last7.length || 1)
+  const avgPrev = prev7.length ? prev7.reduce((s, d) => s + (d.tickets_open || 0), 0) / prev7.length : avgLast
+  const trendDown = avgLast < avgPrev
 
   return (
     <div className="bg-background-elevated rounded-xl border border-card-border p-5">
-      <h3 className="text-sm font-semibold text-foreground mb-4">Vasteaika (30pv)</h3>
-      <div className="flex items-end gap-0.5 h-32">
-        {dailyStats.map((day, i) => {
-          const ms = day.avg_first_response_ms || 0
-          const h = ms > 0 ? Math.max((ms / maxMs) * 100, 4) : 0
-
-          return (
-            <div key={day.date || i} className="flex-1">
-              <div
-                className="w-full bg-amber-500/60 rounded-t-sm transition-all"
-                style={{ height: `${h}%` }}
-                title={`${day.date}: ${formatDuration(ms)}`}
-              />
-            </div>
-          )
-        })}
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-sm font-semibold text-foreground">Avoimet tiketit (30pv)</h3>
+        {prev7.length > 0 && (
+          <div className={`flex items-center gap-1 text-xs font-medium ${trendDown ? 'text-success' : 'text-amber-500'}`}>
+            {trendDown ? <ArrowDownRight className="w-3.5 h-3.5" /> : <ArrowUpRight className="w-3.5 h-3.5" />}
+            <span>{trendDown ? 'Laskeva' : 'Nouseva'}</span>
+          </div>
+        )}
       </div>
-      <div className="flex items-center justify-center gap-6 mt-3 text-xs text-foreground-muted">
+      <div className="relative h-32">
+        <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="w-full h-full">
+          <defs>
+            <linearGradient id="backlogGradient" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="rgb(168, 85, 247)" stopOpacity="0.3" />
+              <stop offset="100%" stopColor="rgb(168, 85, 247)" stopOpacity="0.02" />
+            </linearGradient>
+          </defs>
+          <path d={areaPath} fill="url(#backlogGradient)" />
+          <path d={linePath} fill="none" stroke="rgb(168, 85, 247)" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
+        </svg>
+        {/* Y-axis labels */}
+        <div className="absolute top-0 right-0 text-[10px] text-foreground-muted">{maxOpen}</div>
+        <div className="absolute bottom-0 right-0 text-[10px] text-foreground-muted">{scaleMin}</div>
+      </div>
+      <div className="flex items-center justify-between mt-3 text-xs text-foreground-muted">
+        <span>{dailyStats[0]?.date?.slice(5)}</span>
         <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 rounded-sm bg-amber-500/60" />
-          <span>Keskim. vasteaika</span>
+          <div className="w-3 h-3 rounded-sm bg-purple-500/70" />
+          <span>Avoimet tiketit</span>
         </div>
+        <span>{dailyStats[dailyStats.length - 1]?.date?.slice(5)}</span>
       </div>
     </div>
   )
@@ -221,7 +251,7 @@ export function SupportPage() {
               <div className={`text-2xl font-bold ${summary?.weekBreaches > 0 ? 'text-destructive' : 'text-foreground'}`}>
                 {summary?.weekBreaches ?? 0}
               </div>
-              <div className="text-xs text-foreground-muted mt-1">SLA-rikkomusta</div>
+              <div className="text-xs text-foreground-muted mt-1">SLA-ylityksiä</div>
             </div>
             <div className="text-center">
               <div className="text-2xl font-bold text-foreground">
@@ -235,7 +265,7 @@ export function SupportPage() {
         {/* Charts */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <TicketVolumeChart dailyStats={dailyStats} />
-          <ResponseTimeChart dailyStats={dailyStats} />
+          <BacklogTrendChart dailyStats={dailyStats} />
         </div>
 
         {/* Open Tickets Table */}
