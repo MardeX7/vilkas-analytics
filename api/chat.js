@@ -41,7 +41,7 @@ const supabase = createClient(
 async function resolveStoreIds(shopId) {
   const { data: shop } = await supabase
     .from('shops')
-    .select('id, store_id, currency, name')
+    .select('id, store_id, currency, name, domain')
     .eq('id', shopId)
     .single()
 
@@ -51,7 +51,8 @@ async function resolveStoreIds(shopId) {
     shopId: shop.id,
     storeId: shop.store_id,  // stores.id UUID as TEXT
     currency: shop.currency || 'EUR',
-    shopName: shop.name || ''
+    shopName: shop.name || '',
+    domain: shop.domain || ''
   }
 }
 
@@ -672,8 +673,9 @@ async function fetchContextData(dateRange, storeId, shopId) {
  * Build system prompt for Emma chat
  * Updated: Facts-first, terminology-locked, goal-connected
  */
-function buildSystemPrompt(language) {
+function buildSystemPrompt(language, shopInfo = {}) {
   const isFi = language === 'fi'
+  const { shopName, domain, currency } = shopInfo
 
   const langInstructions = isFi
     ? 'Vastaa AINA suomeksi. Käytä "sinä"-muotoa.'
@@ -709,7 +711,15 @@ TERMINOLOGI (använd EXAKT dessa):
     ? 'TAVOITEKYTKENTÄ: Yhdistä AINA vastaus tavoitteisiin. Esim: "Tämä vaikuttaa liikevaihto-tavoitteeseesi +X kr" tai "Tavoitevauhtisi: X% - tarvitset Y kr/pv pysyäksesi aikataulussa"'
     : 'MÅLKOPPLING: Koppla ALLTID svaret till mål. T.ex: "Detta påverkar ditt omsättningsmål +X kr" eller "Din måltakt: X% - du behöver Y kr/dag för att hålla tidtabellen"'
 
+  const shopIdentity = shopName
+    ? (isFi
+      ? `KAUPPA: ${shopName}${domain ? ` (${domain})` : ''}${currency ? `, valuutta ${currency}` : ''}`
+      : `BUTIK: ${shopName}${domain ? ` (${domain})` : ''}${currency ? `, valuta ${currency}` : ''}`)
+    : ''
+
   return `Du är Emma, digital analytiker för denna e-handelsbutik. ${langInstructions}
+
+${shopIdentity}
 
 ROLL: Johtoryhmän luotettava digitaalinen analyytikko. Faktat ensin, johtopäätökset selkeästi.
 
@@ -1084,7 +1094,7 @@ export default async function handler(req, res) {
       return res.status(404).json({ error: 'Shop not found' })
     }
 
-    const { shopId, storeId, currency, shopName } = ids
+    const { shopId, storeId, currency, shopName, domain } = ids
     const currencySymbol = currency === 'EUR' ? '€' : 'kr'
 
     // Try RAG first, fall back to legacy context fetching
@@ -1144,7 +1154,7 @@ export default async function handler(req, res) {
       model: 'deepseek-chat',
       max_tokens: 1000,
       messages: [
-        { role: 'system', content: buildSystemPrompt(language) },
+        { role: 'system', content: buildSystemPrompt(language, { shopName, domain, currency }) },
         ...messages
       ]
     })
