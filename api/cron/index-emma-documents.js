@@ -270,6 +270,101 @@ async function indexCategories(storeId, shopId) {
   return 1
 }
 
+async function indexSupportMetrics(shopId) {
+  // Check if this shop has support tickets
+  const { count: totalCount } = await supabase
+    .from('support_tickets')
+    .select('*', { count: 'exact', head: true })
+    .eq('shop_id', shopId)
+
+  if (!totalCount) return 0
+
+  let count = 0
+
+  // 1. Overview: open tickets, recent activity
+  const { count: openCount } = await supabase
+    .from('support_tickets')
+    .select('*', { count: 'exact', head: true })
+    .eq('shop_id', shopId)
+    .neq('status_category', 'done')
+
+  const sevenDaysAgo = new Date()
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
+  const sevenDaysAgoStr = sevenDaysAgo.toISOString().split('T')[0]
+
+  const { count: newLast7d } = await supabase
+    .from('support_tickets')
+    .select('*', { count: 'exact', head: true })
+    .eq('shop_id', shopId)
+    .gte('created_at', `${sevenDaysAgoStr}T00:00:00`)
+
+  const { count: resolvedLast7d } = await supabase
+    .from('support_tickets')
+    .select('*', { count: 'exact', head: true })
+    .eq('shop_id', shopId)
+    .gte('resolved_at', `${sevenDaysAgoStr}T00:00:00`)
+
+  const { data: recentWithResponse } = await supabase
+    .from('support_tickets')
+    .select('first_response_ms')
+    .eq('shop_id', shopId)
+    .not('first_response_ms', 'is', null)
+    .gte('created_at', `${sevenDaysAgoStr}T00:00:00`)
+
+  const avgResponseHours = recentWithResponse?.length
+    ? Math.round(recentWithResponse.reduce((s, t) => s + t.first_response_ms, 0) / recentWithResponse.length / (1000 * 60 * 60) * 10) / 10
+    : null
+
+  const responseText = avgResponseHours ? ` Keskimääräinen vasteaika ${avgResponseHours} tuntia.` : ''
+  if ((await upsertDocument(shopId, 'metric', 'support_overview', 'support', { name_fi: 'Asiakaspalvelun tilanne', open: openCount || 0, new_7d: newLast7d || 0, resolved_7d: resolvedLast7d || 0, avg_response_hours: avgResponseHours }, `ASIAKASPALVELU: ${openCount || 0} avointa tikettiä. Viimeisen 7 päivän aikana ${newLast7d || 0} uutta ja ${resolvedLast7d || 0} ratkaistua tikettiä.${responseText}`, 9)).success) count++
+
+  // 2. SLA status
+  const { data: recentBreached } = await supabase
+    .from('support_tickets')
+    .select('sla_first_response_breached, sla_resolution_breached')
+    .eq('shop_id', shopId)
+    .gte('created_at', `${sevenDaysAgoStr}T00:00:00`)
+
+  if (recentBreached?.length) {
+    const frBreaches = recentBreached.filter(t => t.sla_first_response_breached).length
+    const resBreaches = recentBreached.filter(t => t.sla_resolution_breached).length
+    const totalBreaches = frBreaches + resBreaches
+    const frCompliance = recentBreached.length > 0 ? Math.round(((recentBreached.length - frBreaches) / recentBreached.length) * 100) : 100
+    const resCompliance = recentBreached.length > 0 ? Math.round(((recentBreached.length - resBreaches) / recentBreached.length) * 100) : 100
+
+    if ((await upsertDocument(shopId, 'metric', 'support_sla', 'support', { name_fi: 'SLA-tilanne', total_breaches: totalBreaches, fr_compliance: frCompliance, res_compliance: resCompliance }, `SLA-TILANNE: ${totalBreaches} rikkomusta viimeisen 7 päivän aikana. Vasteaika-SLA: ${frCompliance}% noudatettu. Ratkaisuaika-SLA: ${resCompliance}% noudatettu.`, 8)).success) count++
+  }
+
+  // 3. Trends (30d vs previous 30d)
+  const thirtyDaysAgo = new Date()
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+  const sixtyDaysAgo = new Date()
+  sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60)
+
+  const { data: last30 } = await supabase
+    .from('support_daily_stats')
+    .select('tickets_created')
+    .eq('shop_id', shopId)
+    .gte('date', thirtyDaysAgo.toISOString().split('T')[0])
+
+  const { data: prev30 } = await supabase
+    .from('support_daily_stats')
+    .select('tickets_created')
+    .eq('shop_id', shopId)
+    .gte('date', sixtyDaysAgo.toISOString().split('T')[0])
+    .lt('date', thirtyDaysAgo.toISOString().split('T')[0])
+
+  if (last30?.length && prev30?.length) {
+    const avgLast = (last30.reduce((s, d) => s + (d.tickets_created || 0), 0) / last30.length).toFixed(1)
+    const avgPrev = (prev30.reduce((s, d) => s + (d.tickets_created || 0), 0) / prev30.length).toFixed(1)
+    const change = avgPrev > 0 ? Math.round(((avgLast - avgPrev) / avgPrev) * 100) : 0
+
+    if ((await upsertDocument(shopId, 'metric', 'support_trends', 'support', { name_fi: 'Tikettitrendit', avg_last_30d: parseFloat(avgLast), avg_prev_30d: parseFloat(avgPrev), change_percent: change }, `TIKETTITRENDIT: Viimeisen 30 päivän keskiarvo ${avgLast} tikettiä/päivä. Edellisen 30 päivän keskiarvo ${avgPrev}. Muutos ${change > 0 ? '+' : ''}${change}%.`, 7)).success) count++
+  }
+
+  return count
+}
+
 /**
  * Main handler (Multi-tenant)
  */
@@ -284,7 +379,7 @@ export default async function handler(req, res) {
   // Fetch all shops
   const { data: shops, error: shopsError } = await supabase
     .from('shops')
-    .select('id, name, store_id, currency')
+    .select('id, name, store_id, currency, jira_host')
 
   if (shopsError || !shops?.length) {
     return res.status(500).json({ error: 'No shops found' })
@@ -317,6 +412,9 @@ export default async function handler(req, res) {
       totalDocs += await indexProductRoles(storeId, shopId)
       totalDocs += await indexWeeklyAnalysis(shopId)
       totalDocs += await indexCategories(storeId, shopId)
+      if (shop.jira_host) {
+        totalDocs += await indexSupportMetrics(shopId)
+      }
 
       const { data: deleted } = await supabase.rpc('cleanup_emma_documents', {
         p_store_id: shopId,

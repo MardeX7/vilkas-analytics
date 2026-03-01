@@ -10,7 +10,8 @@
  * 3. Fulfillment metrics (unshipped, avg wait, overdue, shipped yesterday)
  * 4. Stock warnings (out of stock + critical)
  * 5. New vs returning customers
- * 6. New orders since yesterday 16:00
+ * 6. Support metrics (Jira - if configured)
+ * 7. New orders since yesterday 16:00
  */
 
 import { createClient } from '@supabase/supabase-js'
@@ -295,7 +296,69 @@ async function fetchCustomerMetrics(supabase, storeId, yesterdayStr) {
 }
 
 // ============================================
-// 6. NEW ORDERS SINCE 16:00
+// 6. SUPPORT METRICS (Jira)
+// ============================================
+async function fetchSupportMetrics(supabase, shopId) {
+  // Currently open tickets
+  const { count: openCount } = await supabase
+    .from('support_tickets')
+    .select('*', { count: 'exact', head: true })
+    .eq('shop_id', shopId)
+    .neq('status_category', 'done')
+
+  // Yesterday's stats
+  const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+  const { data: stats } = await supabase
+    .from('support_daily_stats')
+    .select('*')
+    .eq('shop_id', shopId)
+    .eq('date', yesterday)
+    .maybeSingle()
+
+  // SLA breaches in last 7 days
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+  const { data: recentStats } = await supabase
+    .from('support_daily_stats')
+    .select('sla_breaches')
+    .eq('shop_id', shopId)
+    .gte('date', sevenDaysAgo)
+
+  const weekSlaBreaches = (recentStats || []).reduce((sum, s) => sum + (s.sla_breaches || 0), 0)
+
+  // Average first response time (7d)
+  const { data: recentTickets } = await supabase
+    .from('support_tickets')
+    .select('first_response_ms')
+    .eq('shop_id', shopId)
+    .not('first_response_ms', 'is', null)
+    .gte('created_at', `${sevenDaysAgo}T00:00:00`)
+
+  let avgResponseMs = null
+  if (recentTickets?.length) {
+    avgResponseMs = Math.round(
+      recentTickets.reduce((sum, t) => sum + t.first_response_ms, 0) / recentTickets.length
+    )
+  }
+
+  return {
+    openCount: openCount || 0,
+    created: stats?.tickets_created || 0,
+    resolved: stats?.tickets_resolved || 0,
+    weekSlaBreaches,
+    avgResponseMs,
+  }
+}
+
+function formatDuration(ms) {
+  if (!ms) return 'N/A'
+  const hours = Math.floor(ms / (1000 * 60 * 60))
+  const minutes = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60))
+  if (hours > 0) return `${hours}h ${minutes}min`
+  return `${minutes}min`
+}
+
+// ============================================
+// 7. NEW ORDERS SINCE 16:00
 // ============================================
 async function fetchNewOrders(supabase, storeId) {
   const now = new Date()
@@ -317,7 +380,7 @@ async function fetchNewOrders(supabase, storeId) {
 // ============================================
 // BUILD MESSAGE
 // ============================================
-function buildMorningBrief(dailyData, weeklyData, fulfillmentData, stockData, customerData, ordersData, yesterdayStr, shopName, currency) {
+function buildMorningBrief(dailyData, weeklyData, fulfillmentData, stockData, customerData, supportData, ordersData, yesterdayStr, shopName, currency) {
   const yesterdayDate = new Date(yesterdayStr)
   const lang = getLanguage(currency)
   const weekday = getWeekdayName(yesterdayDate, lang)
@@ -422,7 +485,27 @@ function buildMorningBrief(dailyData, weeklyData, fulfillmentData, stockData, cu
     ))
   }
 
-  // --- SECTION 6: New Orders since 16:00 ---
+  // --- SECTION 6: Support Metrics (Jira) ---
+  if (supportData) {
+    blocks.push(divider())
+
+    const slaText = supportData.weekSlaBreaches > 0
+      ? `\n:warning: SLA-rikkomukset (7pv): ${supportData.weekSlaBreaches}`
+      : ''
+    const responseText = supportData.avgResponseMs
+      ? `\n:stopwatch: Keskim. vasteaika (7pv): ${formatDuration(supportData.avgResponseMs)}`
+      : ''
+
+    blocks.push(section(
+      `:headphones: *Asiakaspalvelu*\n` +
+      `Avoimet tiketit: *${supportData.openCount}*\n` +
+      `Eilinen: ${supportData.created} uutta | ${supportData.resolved} ratkaistua` +
+      slaText +
+      responseText
+    ))
+  }
+
+  // --- SECTION 7: New Orders since 16:00 ---
   blocks.push(divider())
   if (ordersData.length === 0) {
     blocks.push(section(`:package: *Tilaukset klo 16 jälkeen*\n:zzz: Ei uusia tilauksia`))
@@ -472,7 +555,7 @@ export default async function handler(req, res) {
   // Fetch all shops with their store_id and webhook
   const { data: shops, error: shopsError } = await supabase
     .from('shops')
-    .select('id, name, store_id, currency, slack_webhook_url')
+    .select('id, name, store_id, currency, slack_webhook_url, jira_host')
 
   if (shopsError || !shops?.length) {
     console.error('Failed to fetch shops:', shopsError?.message)
@@ -504,18 +587,20 @@ export default async function handler(req, res) {
     try {
       console.log(`Processing morning brief for ${shop.name} (store: ${storeId})`)
 
-      const [dailyData, weeklyData, fulfillmentData, stockData, customerData, ordersData] = await Promise.all([
+      const hasJira = !!shop.jira_host
+      const [dailyData, weeklyData, fulfillmentData, stockData, customerData, supportData, ordersData] = await Promise.all([
         fetchDailySalesYoY(supabase, storeId, yesterdayStr),
         fetchWeeklyTotalsYoY(supabase, storeId, yesterdayStr),
         fetchFulfillmentMetrics(supabase, storeId, yesterdayStr),
         fetchStockWarnings(supabase, storeId),
         fetchCustomerMetrics(supabase, storeId, yesterdayStr),
+        hasJira ? fetchSupportMetrics(supabase, shop.id) : Promise.resolve(null),
         fetchNewOrders(supabase, storeId)
       ])
 
       console.log(`${shop.name}: rev=${dailyData.revenue}, orders=${dailyData.orders}, unshipped=${fulfillmentData.totalUnshipped} (${fulfillmentData.overdueCount} overdue), stock=${stockData.outOfStock} OOS, customers=${customerData.total} (${customerData.newCustomers} new)`)
 
-      const message = buildMorningBrief(dailyData, weeklyData, fulfillmentData, stockData, customerData, ordersData, yesterdayStr, shop.name, shop.currency)
+      const message = buildMorningBrief(dailyData, weeklyData, fulfillmentData, stockData, customerData, supportData, ordersData, yesterdayStr, shop.name, shop.currency)
       const slackResult = await sendToSlack(webhookUrl, message)
 
       results.push({

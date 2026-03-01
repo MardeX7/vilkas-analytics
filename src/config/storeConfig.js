@@ -44,7 +44,7 @@ export function useCurrentShop() {
  * @returns {{ column: string, value: string }}
  */
 export function getStoreIdForTable(tableName, storeId, shopId) {
-  const shopIdTables = ['ga4_ecommerce', 'shops', 'weekly_analyses', 'action_recommendations', 'chat_sessions', 'merchant_goals', 'context_notes', 'growth_engine_snapshots']
+  const shopIdTables = ['ga4_ecommerce', 'shops', 'weekly_analyses', 'action_recommendations', 'chat_sessions', 'merchant_goals', 'context_notes', 'growth_engine_snapshots', 'support_tickets', 'support_daily_stats']
   const storeIdTables = ['orders', 'products', 'gsc_tokens', 'gsc_search_analytics', 'ga4_tokens', 'order_line_items']
 
   if (shopIdTables.includes(tableName)) {

@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { BarChart3, Search, TrendingUp, Target, Settings, Globe, LogOut, Activity, Warehouse, Users, ChevronsUpDown } from 'lucide-react'
+import { BarChart3, Search, TrendingUp, Target, Settings, Globe, LogOut, Activity, Warehouse, Users, ChevronsUpDown, Headphones } from 'lucide-react'
 import { useState, useRef, useEffect } from 'react'
 import { useTranslation } from '@/lib/i18n'
 import { useAuth } from '@/contexts/AuthContext'
@@ -25,6 +25,8 @@ export function Sidebar() {
   // Navigaatio järjestetty käyttölogiikan mukaan:
   // 1. JOHTAMINEN: Tilannekuva (entry point) + Analyysit (tulkinta)
   // 2. DATA & TODISTEET: Myynti, Hakukoneet, Kävijät
+  const hasJira = !!currentShop?.jira_host
+
   const navItems = [
     // Johtamisen näkymät
     { to: '/', icon: Target, label: t('nav.overview') },
@@ -35,6 +37,8 @@ export function Sidebar() {
     { to: '/inventory', icon: Warehouse, label: t('nav.inventory') },
     { to: '/search-console', icon: Search, label: t('nav.searchConsole') },
     { to: '/analytics', icon: Activity, label: t('nav.analytics') },
+    // Asiakaspalvelu (ehdollinen: vain jos Jira on konfiguroitu)
+    ...(hasJira ? [{ to: '/support', icon: Headphones, label: t('nav.support') }] : []),
   ]
 
   const flag = getShopFlag(currentShop?.domain)

@@ -8,6 +8,7 @@ import { InsightsPage } from '@/pages/InsightsPage'
 import { IndicatorsPage } from '@/pages/IndicatorsPage'
 import { IndicatorDetailPage } from '@/pages/IndicatorDetailPage'
 import { CustomersPage } from '@/pages/CustomersPage'
+import { SupportPage } from '@/pages/SupportPage'
 import { SettingsPage } from '@/pages/SettingsPage'
 import { LoginPage } from '@/components/auth/LoginPage'
 import { AuthCallback } from '@/components/auth/AuthCallback'
@@ -39,6 +40,7 @@ function App() {
           <Route path="/search-console" element={<SearchConsolePage />} />
           <Route path="/analytics" element={<GA4Page />} />
           <Route path="/inventory" element={<InventoryPage />} />
+          <Route path="/support" element={<SupportPage />} />
 
           {/* Tuki-sivut */}
           <Route path="/indicators/:indicatorId" element={<IndicatorDetailPage />} />

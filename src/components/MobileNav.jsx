@@ -16,7 +16,8 @@ import {
   Activity,
   Warehouse,
   Users,
-  ChevronsUpDown
+  ChevronsUpDown,
+  Headphones
 } from 'lucide-react'
 import { useTranslation } from '@/lib/i18n'
 import { useAuth } from '@/contexts/AuthContext'
@@ -28,6 +29,8 @@ export function MobileNav() {
   const { t, language, toggleLanguage } = useTranslation()
   const { currentShop, shops, switchShop } = useAuth()
 
+  const hasJira = !!currentShop?.jira_host
+
   const navItems = [
     { to: '/', icon: Target, label: t('nav.overview') },
     { to: '/insights', icon: TrendingUp, label: t('nav.insights') },
@@ -36,6 +39,7 @@ export function MobileNav() {
     { to: '/inventory', icon: Warehouse, label: t('nav.inventory') },
     { to: '/search-console', icon: Search, label: t('nav.searchConsole') },
     { to: '/analytics', icon: Activity, label: t('nav.analytics') },
+    ...(hasJira ? [{ to: '/support', icon: Headphones, label: t('nav.support') }] : []),
   ]
 
   const closeMenu = () => {
