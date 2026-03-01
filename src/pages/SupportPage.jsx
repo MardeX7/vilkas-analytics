@@ -65,44 +65,66 @@ function TicketVolumeChart({ dailyStats }) {
     ...dailyStats.map(d => Math.max(d.tickets_created || 0, d.tickets_resolved || 0)),
     1
   )
+  const barWidth = 100 / dailyStats.length
 
   return (
     <div className="bg-background-elevated rounded-xl border border-card-border p-5">
       <h3 className="text-sm font-semibold text-foreground mb-4">Tikettimäärä (30pv)</h3>
-      <div className="flex items-end gap-0.5 h-32">
-        {dailyStats.map((day, i) => {
-          const created = day.tickets_created || 0
-          const resolved = day.tickets_resolved || 0
-          const createdH = Math.max((created / maxVal) * 100, 2)
-          const resolvedH = Math.max((resolved / maxVal) * 100, 2)
+      <div className="relative h-32">
+        <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="w-full h-full">
+          {dailyStats.map((day, i) => {
+            const created = day.tickets_created || 0
+            const resolved = day.tickets_resolved || 0
+            const createdH = (created / maxVal) * 100
+            const resolvedH = (resolved / maxVal) * 100
+            const x = i * barWidth
+            const w = barWidth * 0.7
 
-          return (
-            <div key={day.date || i} className="flex-1 flex flex-col items-center gap-0.5 group relative">
-              <div className="w-full flex flex-col items-center gap-0.5">
-                <div
-                  className="w-full bg-blue-500/70 rounded-t-sm transition-all"
-                  style={{ height: `${createdH}%` }}
-                  title={`${day.date}: ${created} uutta`}
-                />
-                <div
-                  className="w-full bg-emerald-500/70 rounded-b-sm transition-all"
-                  style={{ height: `${resolvedH}%` }}
-                  title={`${day.date}: ${resolved} ratkaistua`}
-                />
-              </div>
-            </div>
-          )
-        })}
+            return (
+              <g key={day.date || i}>
+                {created > 0 && (
+                  <rect
+                    x={x}
+                    y={100 - createdH}
+                    width={w / 2}
+                    height={createdH}
+                    fill="rgba(59, 130, 246, 0.7)"
+                    rx="0.3"
+                  >
+                    <title>{`${day.date}: ${created} uutta`}</title>
+                  </rect>
+                )}
+                {resolved > 0 && (
+                  <rect
+                    x={x + w / 2}
+                    y={100 - resolvedH}
+                    width={w / 2}
+                    height={resolvedH}
+                    fill="rgba(16, 185, 129, 0.7)"
+                    rx="0.3"
+                  >
+                    <title>{`${day.date}: ${resolved} ratkaistua`}</title>
+                  </rect>
+                )}
+              </g>
+            )
+          })}
+        </svg>
+        <div className="absolute top-0 right-0 text-[10px] text-foreground-muted">{maxVal}</div>
       </div>
-      <div className="flex items-center justify-center gap-6 mt-3 text-xs text-foreground-muted">
-        <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 rounded-sm bg-blue-500/70" />
-          <span>Uudet</span>
+      <div className="flex items-center justify-between mt-3 text-xs text-foreground-muted">
+        <span>{dailyStats[0]?.date?.slice(5)}</span>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-1.5">
+            <div className="w-3 h-3 rounded-sm bg-blue-500/70" />
+            <span>Uudet</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-3 h-3 rounded-sm bg-emerald-500/70" />
+            <span>Ratkaistut</span>
+          </div>
         </div>
-        <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 rounded-sm bg-emerald-500/70" />
-          <span>Ratkaistut</span>
-        </div>
+        <span>{dailyStats[dailyStats.length - 1]?.date?.slice(5)}</span>
       </div>
     </div>
   )
