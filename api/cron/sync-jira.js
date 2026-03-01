@@ -215,7 +215,7 @@ async function updateDailyStats(supabase, shopId, yesterday) {
 /**
  * Sync Jira tickets for a single shop
  */
-async function syncJiraForShop(supabase, shop) {
+async function syncJiraForShop(supabase, shop, forceBackfill = false) {
   const { id: shopId, name, jira_email, jira_api_token, jira_project_key } = shop
   // Normalize jira_host: remove protocol and trailing slash if present
   const jira_host = shop.jira_host
@@ -245,12 +245,17 @@ async function syncJiraForShop(supabase, shop) {
   // Map issues to ticket rows
   const tickets = issues.map(issue => mapIssueToTicket(issue, shopId))
 
-  // Fetch SLA data for recently updated tickets (last 1 day to limit API calls)
-  const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
-  const recentIssues = issues.filter(i => i.fields?.updated >= oneDayAgo)
-  console.log(`  Fetching SLA for ${recentIssues.length} recently updated issues`)
+  // Fetch SLA data for open tickets + recently updated tickets
+  const openOrRecentIssues = issues.filter(i => {
+    const statusCategory = i.fields?.status?.statusCategory?.key
+    if (statusCategory !== 'done') return true // all open tickets
+    // Also include done tickets updated in last 24h (freshly resolved)
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+    return i.fields?.updated >= oneDayAgo
+  })
+  console.log(`  Fetching SLA for ${openOrRecentIssues.length} open/recent issues`)
 
-  for (const issue of recentIssues) {
+  for (const issue of openOrRecentIssues) {
     const sla = await fetchIssueSLA(jira_host, jira_email, jira_api_token, issue.key)
     if (sla) {
       const ticket = tickets.find(t => t.jira_issue_id === issue.id)
@@ -279,16 +284,55 @@ async function syncJiraForShop(supabase, shop) {
     console.log(`  ✅ Upserted ${tickets.length} tickets`)
   }
 
-  // Update daily stats for yesterday
+  // Update daily stats
+  const isInitialSync = existingCount === 0 || forceBackfill
   const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-  const stats = await updateDailyStats(supabase, shopId, yesterday)
-  console.log(`  ✅ Daily stats: ${stats.created} created, ${stats.resolved} resolved, ${stats.open} open`)
+
+  if (isInitialSync && tickets.length > 0) {
+    // Backfill daily stats from historical ticket data (last 90 days)
+    console.log('  Backfilling daily stats from historical data...')
+    const backfillDays = 90
+    let backfilledCount = 0
+
+    for (let d = backfillDays; d >= 0; d--) {
+      const date = new Date(Date.now() - d * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+      const dateTickets = tickets.filter(t => t.created_at?.startsWith(date))
+      const resolvedTickets = tickets.filter(t => t.resolved_at?.startsWith(date))
+
+      // Count open tickets as of that date: created before/on date and not resolved before/on date
+      const openAsOfDate = tickets.filter(t => {
+        const created = t.created_at?.split('T')[0]
+        const resolved = t.resolved_at?.split('T')[0]
+        return created <= date && (!resolved || resolved > date)
+      }).length
+
+      if (dateTickets.length > 0 || resolvedTickets.length > 0 || openAsOfDate > 0) {
+        await supabase
+          .from('support_daily_stats')
+          .upsert({
+            shop_id: shopId,
+            date,
+            tickets_created: dateTickets.length,
+            tickets_resolved: resolvedTickets.length,
+            tickets_open: openAsOfDate,
+            avg_first_response_ms: null,
+            avg_resolution_ms: null,
+            sla_breaches: 0,
+          }, { onConflict: 'shop_id,date' })
+        backfilledCount++
+      }
+    }
+    console.log(`  ✅ Backfilled ${backfilledCount} days of daily stats`)
+  } else {
+    const stats = await updateDailyStats(supabase, shopId, yesterday)
+    console.log(`  ✅ Daily stats: ${stats.created} created, ${stats.resolved} resolved, ${stats.open} open`)
+  }
 
   return {
     status: 'success',
     tickets_synced: tickets.length,
-    sla_fetched: recentIssues.length,
-    daily_stats: stats,
+    sla_fetched: openOrRecentIssues.length,
+    initial_sync: isInitialSync,
   }
 }
 
@@ -330,10 +374,14 @@ export default async function handler(req, res) {
 
     console.log(`Found ${shops.length} shop(s) with Jira configured`)
 
+    // Check for force backfill flag
+    const forceBackfill = req.query?.backfill === 'true'
+    if (forceBackfill) console.log('⚡ Force backfill mode enabled')
+
     // Process each shop
     for (const shop of shops) {
       try {
-        const result = await syncJiraForShop(supabase, shop)
+        const result = await syncJiraForShop(supabase, shop, forceBackfill)
         results.shops.push({ shop: shop.name, ...result })
       } catch (err) {
         console.error(`❌ ${shop.name} Jira sync error:`, err.message)
