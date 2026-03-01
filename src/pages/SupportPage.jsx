@@ -11,6 +11,7 @@ import {
   CheckCircle2,
   ArrowUpRight,
   ArrowDownRight,
+  Info,
 } from 'lucide-react'
 
 function formatDuration(ms) {
@@ -139,7 +140,15 @@ function BacklogTrendChart({ dailyStats }) {
   return (
     <div className="bg-background-elevated rounded-xl border border-card-border p-5">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-sm font-semibold text-foreground">Avoimet tiketit (30pv)</h3>
+        <div className="flex items-center gap-2">
+          <h3 className="text-sm font-semibold text-foreground">Avoimet tiketit (30pv)</h3>
+          <div className="group relative">
+            <Info className="w-3.5 h-3.5 text-foreground-muted cursor-help" />
+            <div className="hidden group-hover:block absolute left-1/2 -translate-x-1/2 top-6 z-10 w-56 p-2.5 bg-background-elevated border border-card-border rounded-lg shadow-lg text-xs text-foreground-muted leading-relaxed">
+              Näyttää avointen tikettien määrän kehityksen. Laskeva trendi tarkoittaa, että tiimi ratkaisee tikettejä nopeammin kuin uusia saapuu.
+            </div>
+          </div>
+        </div>
         {prev7.length > 0 && (
           <div className={`flex items-center gap-1 text-xs font-medium ${trendDown ? 'text-success' : 'text-amber-500'}`}>
             {trendDown ? <ArrowDownRight className="w-3.5 h-3.5" /> : <ArrowUpRight className="w-3.5 h-3.5" />}

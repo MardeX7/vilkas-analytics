@@ -288,41 +288,56 @@ async function syncJiraForShop(supabase, shop, forceBackfill = false) {
   const isInitialSync = existingCount === 0 || forceBackfill
   const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0]
 
-  if (isInitialSync && tickets.length > 0) {
-    // Backfill daily stats from historical ticket data (last 90 days)
-    console.log('  Backfilling daily stats from historical data...')
-    const backfillDays = 90
-    let backfilledCount = 0
+  if (isInitialSync) {
+    // Backfill daily stats from ALL tickets in DB (not just freshly fetched ones)
+    console.log('  Backfilling daily stats from all tickets in database...')
 
-    for (let d = backfillDays; d >= 0; d--) {
-      const date = new Date(Date.now() - d * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-      const dateTickets = tickets.filter(t => t.created_at?.startsWith(date))
-      const resolvedTickets = tickets.filter(t => t.resolved_at?.startsWith(date))
+    const { data: allTickets } = await supabase
+      .from('support_tickets')
+      .select('created_at, resolved_at, status_category, first_response_ms, resolution_ms, sla_first_response_breached, sla_resolution_breached')
+      .eq('shop_id', shopId)
 
-      // Count open tickets as of that date: created before/on date and not resolved before/on date
-      const openAsOfDate = tickets.filter(t => {
-        const created = t.created_at?.split('T')[0]
-        const resolved = t.resolved_at?.split('T')[0]
-        return created <= date && (!resolved || resolved > date)
-      }).length
+    if (allTickets?.length) {
+      const backfillDays = 90
+      let backfilledCount = 0
 
-      if (dateTickets.length > 0 || resolvedTickets.length > 0 || openAsOfDate > 0) {
-        await supabase
-          .from('support_daily_stats')
-          .upsert({
-            shop_id: shopId,
-            date,
-            tickets_created: dateTickets.length,
-            tickets_resolved: resolvedTickets.length,
-            tickets_open: openAsOfDate,
-            avg_first_response_ms: null,
-            avg_resolution_ms: null,
-            sla_breaches: 0,
-          }, { onConflict: 'shop_id,date' })
-        backfilledCount++
+      for (let d = backfillDays; d >= 0; d--) {
+        const date = new Date(Date.now() - d * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+        const dateTickets = allTickets.filter(t => t.created_at?.startsWith(date))
+        const resolvedTickets = allTickets.filter(t => t.resolved_at?.startsWith(date))
+
+        // Count open tickets as of that date
+        const openAsOfDate = allTickets.filter(t => {
+          const created = t.created_at?.split('T')[0]
+          const resolved = t.resolved_at?.split('T')[0]
+          return created && created <= date && (!resolved || resolved > date)
+        }).length
+
+        if (dateTickets.length > 0 || resolvedTickets.length > 0 || openAsOfDate > 0) {
+          // Calculate SLA stats for this day's created tickets
+          const withSla = dateTickets.filter(t => t.first_response_ms || t.resolution_ms)
+          const avgFirstResp = withSla.length
+            ? Math.round(withSla.filter(t => t.first_response_ms).reduce((s, t) => s + t.first_response_ms, 0) / (withSla.filter(t => t.first_response_ms).length || 1))
+            : null
+          const breaches = dateTickets.filter(t => t.sla_first_response_breached || t.sla_resolution_breached).length
+
+          await supabase
+            .from('support_daily_stats')
+            .upsert({
+              shop_id: shopId,
+              date,
+              tickets_created: dateTickets.length,
+              tickets_resolved: resolvedTickets.length,
+              tickets_open: openAsOfDate,
+              avg_first_response_ms: avgFirstResp,
+              avg_resolution_ms: null,
+              sla_breaches: breaches,
+            }, { onConflict: 'shop_id,date' })
+          backfilledCount++
+        }
       }
+      console.log(`  ✅ Backfilled ${backfilledCount} days from ${allTickets.length} total tickets`)
     }
-    console.log(`  ✅ Backfilled ${backfilledCount} days of daily stats`)
   } else {
     const stats = await updateDailyStats(supabase, shopId, yesterday)
     console.log(`  ✅ Daily stats: ${stats.created} created, ${stats.resolved} resolved, ${stats.open} open`)
