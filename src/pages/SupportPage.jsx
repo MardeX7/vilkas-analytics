@@ -1,7 +1,7 @@
 import { useSupport } from '@/hooks/useSupport'
 import { useTranslation } from '@/lib/i18n'
 import { useCurrentShop } from '@/config/storeConfig'
-import { MetricCard, MetricCardGroup } from '@/components/MetricCard'
+import { MetricCard } from '@/components/MetricCard'
 import {
   Headphones,
   Loader2,
@@ -138,43 +138,6 @@ function TicketVolumeChart({ dailyStats: rawStats }) {
   )
 }
 
-function WowMetric({ label, value, prev, invertColor, valueClass, isPercent }) {
-  // Calculate WoW change
-  let arrow = null
-  const numValue = typeof value === 'number' ? value : parseFloat(value)
-  const numPrev = typeof prev === 'number' ? prev : parseFloat(prev)
-
-  if (prev != null && !isNaN(numPrev) && numPrev !== 0 && !isNaN(numValue)) {
-    const change = isPercent
-      ? numValue - numPrev                  // absolute pp difference
-      : ((numValue - numPrev) / numPrev) * 100 // percentage change
-    const isUp = change > 0
-    // invertColor: up = bad (red), down = good (green). Default: up = green, down = red.
-    const colorClass = isUp
-      ? (invertColor ? 'text-destructive' : 'text-success')
-      : (invertColor ? 'text-success' : 'text-destructive')
-
-    if (Math.abs(change) >= 0.5) {
-      arrow = (
-        <span className={`inline-flex items-center gap-0.5 text-[10px] font-medium ${colorClass}`}>
-          {isUp ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
-          {Math.abs(Math.round(change))}{isPercent ? 'pp' : '%'}
-        </span>
-      )
-    }
-  }
-
-  return (
-    <div className="text-center">
-      <div className={`text-2xl font-bold ${valueClass || 'text-foreground'}`}>
-        {value}
-      </div>
-      <div className="text-xs text-foreground-muted mt-1">{label}</div>
-      {arrow && <div className="mt-0.5">{arrow}</div>}
-    </div>
-  )
-}
-
 function BacklogTrendChart({ dailyStats: rawStats }) {
   const dailyStats = fillDays(rawStats, 30)
 
@@ -290,68 +253,75 @@ export function SupportPage() {
       </header>
 
       <main className="px-4 sm:px-6 lg:px-8 py-6 max-w-7xl mx-auto space-y-6">
-        {/* KPI Cards */}
-        <MetricCardGroup>
-          <MetricCard
-            label="Avoimet tiketit"
-            value={summary?.openCount ?? 0}
-          />
-          <MetricCard
-            label="Keskim. vasteaika (7pv)"
-            value={summary?.avgFirstResponseMs ? formatDuration(summary.avgFirstResponseMs) : '—'}
-          />
-          <MetricCard
-            label="SLA compliance (7pv)"
-            value={summary?.slaCompliance != null ? summary.slaCompliance : '—'}
-            suffix={summary?.slaCompliance != null ? '%' : ''}
-          />
-          <MetricCard
-            label="Ratkaistu eilen"
-            value={summary?.resolvedYesterday ?? 0}
-          />
-        </MetricCardGroup>
+        {/* KPI Grid – unified metrics */}
+        {(() => {
+          const s = summary || {}
+          const wowDelta = (curr, prev) =>
+            prev > 0 ? ((curr - prev) / prev) * 100 : undefined
 
-        {/* 7-day summary with WoW */}
-        <div className="bg-background-elevated rounded-xl border border-card-border p-5">
-          <h3 className="text-sm font-semibold text-foreground mb-3">Viimeisen 7 päivän yhteenveto</h3>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-            <WowMetric
-              label="Uutta tikettiä"
-              value={summary?.weekCreated ?? 0}
-              prev={summary?.prevWeekCreated}
-              invertColor
-            />
-            <WowMetric
-              label="Ratkaistua"
-              value={summary?.weekResolved ?? 0}
-              prev={summary?.prevWeekResolved}
-              valueClass="text-success"
-            />
-            <WowMetric
-              label="SLA-ylityksiä"
-              value={summary?.weekBreaches ?? 0}
-              valueClass={summary?.weekBreaches > 0 ? 'text-destructive' : undefined}
-            />
-            <WowMetric
-              label="Ratkaisuprosentti"
-              value={summary?.resolutionRate != null ? `${summary.resolutionRate}%` : '—'}
-              prev={summary?.prevResolutionRate != null ? summary.prevResolutionRate : undefined}
-              isPercent
-            />
-            <WowMetric
-              label="Tikettejä / 100 til."
-              value={summary?.ticketsPer100Orders != null ? summary.ticketsPer100Orders : '—'}
-              prev={summary?.prevTicketsPer100Orders}
-              invertColor
-            />
-            <div className="text-center">
-              <div className="text-2xl font-bold text-foreground">
-                {summary?.avgFirstResponseMs ? formatDuration(summary.avgFirstResponseMs) : '—'}
-              </div>
-              <div className="text-xs text-foreground-muted mt-1">Keskim. vasteaika</div>
+          return (
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              {/* Row 1: Volyymi */}
+              <MetricCard
+                label="Avoimet tiketit"
+                value={s.openCount ?? 0}
+                size="small"
+              />
+              <MetricCard
+                label="Uudet tiketit (7pv)"
+                value={s.weekCreated ?? 0}
+                delta={wowDelta(s.weekCreated, s.prevWeekCreated)}
+                deltaLabel="vv"
+                previousValue={s.prevWeekCreated}
+                invertDelta
+                size="small"
+              />
+              <MetricCard
+                label="Ratkaistut (7pv)"
+                value={s.weekResolved ?? 0}
+                delta={wowDelta(s.weekResolved, s.prevWeekResolved)}
+                deltaLabel="vv"
+                previousValue={s.prevWeekResolved}
+                size="small"
+              />
+              <MetricCard
+                label="Ratkaistu eilen"
+                value={s.resolvedYesterday ?? 0}
+                size="small"
+              />
+
+              {/* Row 2: Laatu & suhdeluvut */}
+              <MetricCard
+                label="Keskim. vasteaika (7pv)"
+                value={s.avgFirstResponseMs ? formatDuration(s.avgFirstResponseMs) : '—'}
+                size="small"
+              />
+              <MetricCard
+                label="SLA compliance (7pv)"
+                value={s.slaCompliance != null ? s.slaCompliance : '—'}
+                suffix={s.slaCompliance != null ? '%' : ''}
+                size="small"
+              />
+              <MetricCard
+                label="Ratkaisuprosentti"
+                value={s.resolutionRate != null ? s.resolutionRate : '—'}
+                suffix={s.resolutionRate != null ? '%' : ''}
+                delta={s.prevResolutionRate != null && s.resolutionRate != null
+                  ? s.resolutionRate - s.prevResolutionRate : undefined}
+                deltaLabel="pp vv"
+                size="small"
+              />
+              <MetricCard
+                label="Tikettejä / 100 tilausta"
+                value={s.ticketsPer100Orders != null ? s.ticketsPer100Orders : '—'}
+                delta={wowDelta(s.ticketsPer100Orders, s.prevTicketsPer100Orders)}
+                deltaLabel="vv"
+                invertDelta
+                size="small"
+              />
             </div>
-          </div>
-        </div>
+          )
+        })()}
 
         {/* Charts */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
