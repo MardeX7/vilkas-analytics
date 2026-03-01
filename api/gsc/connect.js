@@ -12,7 +12,10 @@ export default function handler(req, res) {
   ].join(' ')
 
   // State parameter (store_id for callback)
-  const state = req.query.store_id || 'a28836f6-9487-4b67-9194-e907eaf94b69'
+  const state = req.query.store_id
+  if (!state) {
+    return res.status(400).json({ error: 'store_id query parameter is required' })
+  }
 
   const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth')
   authUrl.searchParams.set('client_id', clientId)

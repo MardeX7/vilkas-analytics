@@ -21,9 +21,21 @@ export default async function handler(req, res) {
     return res.redirect('/?gsc_error=no_code')
   }
 
-  const storeId = state || 'a28836f6-9487-4b67-9194-e907eaf94b69'
+  if (!state) {
+    console.error('OAuth callback missing state (store_id)')
+    return res.redirect('/?gsc_error=missing_store_id')
+  }
+  const storeId = state
 
   try {
+    // Look up shop domain for site matching
+    const { data: shop } = await supabase
+      .from('shops')
+      .select('domain')
+      .eq('store_id', storeId)
+      .maybeSingle()
+    const shopDomain = shop?.domain || ''
+
     // Exchange code for tokens
     const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
@@ -54,11 +66,15 @@ export default async function handler(req, res) {
     )
     const sitesData = await sitesResponse.json()
 
-    // Find billackering.eu site or use first one
+    // Find the site matching this shop's domain
     const sites = sitesData.siteEntry || []
-    const targetSite = sites.find(s =>
-      s.siteUrl.includes('billackering')
+    const targetSite = (shopDomain
+      ? sites.find(s => s.siteUrl.includes(shopDomain))
+      : null
     ) || sites[0]
+
+    console.log(`GSC sites available: ${sites.map(s => s.siteUrl).join(', ')}`)
+    console.log(`Looking for domain: ${shopDomain}, selected: ${targetSite?.siteUrl}`)
 
     if (!targetSite) {
       return res.redirect('/?gsc_error=no_sites_found')
