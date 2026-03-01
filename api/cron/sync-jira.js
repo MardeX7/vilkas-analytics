@@ -216,7 +216,11 @@ async function updateDailyStats(supabase, shopId, yesterday) {
  * Sync Jira tickets for a single shop
  */
 async function syncJiraForShop(supabase, shop) {
-  const { id: shopId, name, jira_host, jira_email, jira_api_token, jira_project_key } = shop
+  const { id: shopId, name, jira_email, jira_api_token, jira_project_key } = shop
+  // Normalize jira_host: remove protocol and trailing slash if present
+  const jira_host = shop.jira_host
+    .replace(/^https?:\/\//, '')
+    .replace(/\/+$/, '')
 
   console.log(`\n📋 Syncing Jira for ${name} (project: ${jira_project_key}, host: ${jira_host})`)
 
