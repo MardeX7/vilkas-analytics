@@ -7,9 +7,10 @@
  * Sections:
  * 1. Yesterday's sales & orders + YoY comparison
  * 2. 7-day rolling totals + YoY comparison
- * 3. Stock warnings (out of stock + critical)
- * 4. New vs returning customers
- * 5. New orders since yesterday 16:00
+ * 3. Fulfillment metrics (unshipped, avg wait, overdue, shipped yesterday)
+ * 4. Stock warnings (out of stock + critical)
+ * 5. New vs returning customers
+ * 6. New orders since yesterday 16:00
  */
 
 import { createClient } from '@supabase/supabase-js'
@@ -124,7 +125,72 @@ async function fetchWeeklyTotalsYoY(supabase, storeId, yesterdayStr) {
 }
 
 // ============================================
-// 3. STOCK WARNINGS
+// 3. FULFILLMENT METRICS
+// ============================================
+
+/**
+ * Count business days (Mon-Fri) between two dates.
+ * Excludes weekends (Sat/Sun). Does not count the start date itself.
+ */
+function getBusinessDays(startDate, endDate) {
+  let count = 0
+  const current = new Date(startDate)
+  current.setHours(0, 0, 0, 0)
+  const end = new Date(endDate)
+  end.setHours(0, 0, 0, 0)
+  while (current < end) {
+    current.setDate(current.getDate() + 1)
+    const day = current.getDay()
+    if (day !== 0 && day !== 6) count++
+  }
+  return count
+}
+
+async function fetchFulfillmentMetrics(supabase, storeId, yesterdayStr) {
+  const now = new Date()
+
+  // 1. Unshipped orders: paid but not yet shipped
+  const { data: unshipped } = await supabase
+    .from('orders')
+    .select('id, creation_date, order_number')
+    .eq('store_id', storeId)
+    .eq('status', 'paid')
+
+  const ordersWithWait = (unshipped || []).map(o => {
+    const created = new Date(o.creation_date)
+    const businessDays = getBusinessDays(created, now)
+    return { ...o, businessDays }
+  })
+
+  const totalUnshipped = ordersWithWait.length
+  const avgWaitDays = totalUnshipped > 0
+    ? ordersWithWait.reduce((sum, o) => sum + o.businessDays, 0) / totalUnshipped
+    : 0
+  const overdue = ordersWithWait.filter(o => o.businessDays > 2)
+  const oldestWait = ordersWithWait.length > 0
+    ? Math.max(...ordersWithWait.map(o => o.businessDays))
+    : 0
+
+  // 2. Yesterday's shipments (dispatched_on within yesterday)
+  const { data: shipped } = await supabase
+    .from('orders')
+    .select('id')
+    .eq('store_id', storeId)
+    .in('status', ['shipped', 'delivered'])
+    .gte('dispatched_on', `${yesterdayStr}T00:00:00`)
+    .lte('dispatched_on', `${yesterdayStr}T23:59:59`)
+
+  return {
+    totalUnshipped,
+    avgWaitDays: Math.round(avgWaitDays * 10) / 10,
+    overdueCount: overdue.length,
+    oldestWait,
+    shippedYesterday: shipped?.length || 0
+  }
+}
+
+// ============================================
+// 4. STOCK WARNINGS
 // ============================================
 async function fetchStockWarnings(supabase, storeId) {
   const { data: products } = await supabase
@@ -191,7 +257,7 @@ async function fetchStockWarnings(supabase, storeId) {
 }
 
 // ============================================
-// 4. NEW VS RETURNING CUSTOMERS
+// 5. NEW VS RETURNING CUSTOMERS
 // ============================================
 async function fetchCustomerMetrics(supabase, storeId, yesterdayStr) {
   const { data: yesterdayOrders } = await supabase
@@ -229,7 +295,7 @@ async function fetchCustomerMetrics(supabase, storeId, yesterdayStr) {
 }
 
 // ============================================
-// 5. NEW ORDERS SINCE 16:00
+// 6. NEW ORDERS SINCE 16:00
 // ============================================
 async function fetchNewOrders(supabase, storeId) {
   const now = new Date()
@@ -251,7 +317,7 @@ async function fetchNewOrders(supabase, storeId) {
 // ============================================
 // BUILD MESSAGE
 // ============================================
-function buildMorningBrief(dailyData, weeklyData, stockData, customerData, ordersData, yesterdayStr, shopName, currency) {
+function buildMorningBrief(dailyData, weeklyData, fulfillmentData, stockData, customerData, ordersData, yesterdayStr, shopName, currency) {
   const yesterdayDate = new Date(yesterdayStr)
   const lang = getLanguage(currency)
   const weekday = getWeekdayName(yesterdayDate, lang)
@@ -309,7 +375,28 @@ function buildMorningBrief(dailyData, weeklyData, stockData, customerData, order
     `*Tilaukset*\n${weeklyData.orders} kpl${weekOrdYoYText}`
   ]))
 
-  // --- SECTION 3: Stock Warnings ---
+  // --- SECTION 3: Fulfillment ---
+  blocks.push(divider())
+  if (fulfillmentData.totalUnshipped === 0) {
+    blocks.push(section(`:truck: *Keräily & lähetys*\n:white_check_mark: Ei lähettämättömiä tilauksia`))
+  } else {
+    const overdueText = fulfillmentData.overdueCount > 0
+      ? `\n:red_circle: *${fulfillmentData.overdueCount} tilausta yli 2 arkipv* (vanhin ${fulfillmentData.oldestWait} arkipv)`
+      : ''
+
+    blocks.push(section(
+      `:truck: *Keräily & lähetys*\n` +
+      `Lähettämättä: *${fulfillmentData.totalUnshipped} tilausta*\n` +
+      `:hourglass: Keskim. odotus: ${formatNumber(fulfillmentData.avgWaitDays, 1)} arkipv` +
+      overdueText
+    ))
+  }
+
+  if (fulfillmentData.shippedYesterday > 0) {
+    blocks.push(context(`:white_check_mark: Eilen lähetetty: ${fulfillmentData.shippedYesterday} tilausta`))
+  }
+
+  // --- SECTION 4: Stock Warnings ---
   if (stockData.outOfStock > 0 || stockData.criticalLow > 0) {
     blocks.push(divider())
 
@@ -326,7 +413,7 @@ function buildMorningBrief(dailyData, weeklyData, stockData, customerData, order
     }
   }
 
-  // --- SECTION 4: Customer Metrics ---
+  // --- SECTION 5: Customer Metrics ---
   if (customerData.total > 0) {
     blocks.push(divider())
     blocks.push(section(
@@ -335,7 +422,7 @@ function buildMorningBrief(dailyData, weeklyData, stockData, customerData, order
     ))
   }
 
-  // --- SECTION 5: New Orders since 16:00 ---
+  // --- SECTION 6: New Orders since 16:00 ---
   blocks.push(divider())
   if (ordersData.length === 0) {
     blocks.push(section(`:package: *Tilaukset klo 16 jälkeen*\n:zzz: Ei uusia tilauksia`))
@@ -417,17 +504,18 @@ export default async function handler(req, res) {
     try {
       console.log(`Processing morning brief for ${shop.name} (store: ${storeId})`)
 
-      const [dailyData, weeklyData, stockData, customerData, ordersData] = await Promise.all([
+      const [dailyData, weeklyData, fulfillmentData, stockData, customerData, ordersData] = await Promise.all([
         fetchDailySalesYoY(supabase, storeId, yesterdayStr),
         fetchWeeklyTotalsYoY(supabase, storeId, yesterdayStr),
+        fetchFulfillmentMetrics(supabase, storeId, yesterdayStr),
         fetchStockWarnings(supabase, storeId),
         fetchCustomerMetrics(supabase, storeId, yesterdayStr),
         fetchNewOrders(supabase, storeId)
       ])
 
-      console.log(`${shop.name}: rev=${dailyData.revenue}, orders=${dailyData.orders}, stock=${stockData.outOfStock} OOS, customers=${customerData.total} (${customerData.newCustomers} new)`)
+      console.log(`${shop.name}: rev=${dailyData.revenue}, orders=${dailyData.orders}, unshipped=${fulfillmentData.totalUnshipped} (${fulfillmentData.overdueCount} overdue), stock=${stockData.outOfStock} OOS, customers=${customerData.total} (${customerData.newCustomers} new)`)
 
-      const message = buildMorningBrief(dailyData, weeklyData, stockData, customerData, ordersData, yesterdayStr, shop.name, shop.currency)
+      const message = buildMorningBrief(dailyData, weeklyData, fulfillmentData, stockData, customerData, ordersData, yesterdayStr, shop.name, shop.currency)
       const slackResult = await sendToSlack(webhookUrl, message)
 
       results.push({
@@ -435,6 +523,8 @@ export default async function handler(req, res) {
         success: slackResult.success,
         revenue: dailyData.revenue,
         orders: dailyData.orders,
+        unshipped: fulfillmentData.totalUnshipped,
+        overdue: fulfillmentData.overdueCount,
         stockWarnings: stockData.outOfStock + stockData.criticalLow,
         newCustomers: customerData.newCustomers,
         returningCustomers: customerData.returningCustomers,
