@@ -83,13 +83,17 @@ export function formatChange(change, invertColors = false) {
 }
 
 /**
- * Get Swedish weekday name
+ * Get localized weekday name
  * @param {Date} date - Date object
+ * @param {string} language - 'fi' or 'sv'
  * @returns {string}
  */
-export function getWeekdayName(date) {
-  const weekdays = ['Son', 'Man', 'Tis', 'Ons', 'Tor', 'Fre', 'Lor']
-  return weekdays[date.getDay()]
+export function getWeekdayName(date, language = 'fi') {
+  const weekdays = {
+    fi: ['Su', 'Ma', 'Ti', 'Ke', 'To', 'Pe', 'La'],
+    sv: ['Sön', 'Mån', 'Tis', 'Ons', 'Tor', 'Fre', 'Lör']
+  }
+  return (weekdays[language] || weekdays.fi)[date.getDay()]
 }
 
 /**

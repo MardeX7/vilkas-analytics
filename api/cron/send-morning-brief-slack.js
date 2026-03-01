@@ -4,13 +4,12 @@
  * Runs daily at 06:15 UTC
  * AFTER sync-data (06:00) so all data is fresh
  *
- * Iterates all shops and sends per-shop morning brief
- * to each shop's Slack channel via slack_webhook_url
- *
- * Combines:
- * 1. New orders since yesterday 15:00 UTC
- * 2. Daily sales summary (yesterday)
- * 3. Stock warnings (out of stock + critical low)
+ * Sections:
+ * 1. Yesterday's sales & orders + YoY comparison
+ * 2. 7-day rolling totals + YoY comparison
+ * 3. Stock warnings (out of stock + critical)
+ * 4. New vs returning customers
+ * 5. New orders since yesterday 16:00
  */
 
 import { createClient } from '@supabase/supabase-js'
@@ -40,117 +39,92 @@ export const config = {
   maxDuration: 120,
 }
 
-// ============================================
-// 1. ORDERS - New orders since yesterday 15:00 UTC
-// ============================================
-async function fetchNewOrders(supabase, storeId) {
-  const now = new Date()
-  const yesterday = new Date(now)
-  yesterday.setDate(yesterday.getDate() - 1)
-  yesterday.setUTCHours(15, 0, 0, 0)
+function getCurrencySymbol(currency) {
+  return currency === 'SEK' ? 'kr' : '€'
+}
 
-  const { data: orders, error } = await supabase
-    .from('orders')
-    .select('order_number, creation_date, grand_total, billing_company, billing_city, currency')
-    .eq('store_id', storeId)
-    .neq('status', 'cancelled')
-    .gte('creation_date', yesterday.toISOString())
-    .order('grand_total', { ascending: false })
-
-  if (error) {
-    console.error('Error fetching orders:', error.message)
-    return []
-  }
-  return orders || []
+function getLanguage(currency) {
+  return currency === 'SEK' ? 'sv' : 'fi'
 }
 
 // ============================================
-// 2. DAILY SALES - Yesterday's summary
+// 1. YESTERDAY'S SALES + YoY
 // ============================================
-async function fetchDailySales(supabase, storeId, yesterdayStr, defaultCurrency) {
-  const { data: sales } = await supabase
-    .from('v_daily_sales')
-    .select('total_revenue, order_count, unique_customers, avg_order_value, currency')
-    .eq('store_id', storeId)
-    .eq('sale_date', yesterdayStr)
-    .maybeSingle()
+async function fetchDailySalesYoY(supabase, storeId, yesterdayStr) {
+  const lastYearDate = new Date(yesterdayStr)
+  lastYearDate.setFullYear(lastYearDate.getFullYear() - 1)
+  const lastYearStr = lastYearDate.toISOString().split('T')[0]
 
-  // Rolling 7-day average (7 days before yesterday)
-  const weekAgoEnd = new Date(yesterdayStr)
-  weekAgoEnd.setDate(weekAgoEnd.getDate() - 1)
-  const weekAgoStart = new Date(yesterdayStr)
-  weekAgoStart.setDate(weekAgoStart.getDate() - 7)
-
-  const { data: prev7Days } = await supabase
-    .from('v_daily_sales')
-    .select('total_revenue, order_count')
-    .eq('store_id', storeId)
-    .gte('sale_date', weekAgoStart.toISOString().split('T')[0])
-    .lte('sale_date', weekAgoEnd.toISOString().split('T')[0])
-
-  const daysWithData = prev7Days?.length || 0
-  const avgRevenue = daysWithData > 0
-    ? prev7Days.reduce((sum, d) => sum + (d.total_revenue || 0), 0) / daysWithData
-    : 0
-  const avgOrders = daysWithData > 0
-    ? prev7Days.reduce((sum, d) => sum + (d.order_count || 0), 0) / daysWithData
-    : 0
-
-  // Gross margin
-  const margin = await calculateGrossMargin(supabase, storeId, yesterdayStr)
+  const [current, lastYear] = await Promise.all([
+    supabase
+      .from('v_daily_sales')
+      .select('total_revenue, order_count')
+      .eq('store_id', storeId)
+      .eq('sale_date', yesterdayStr)
+      .maybeSingle(),
+    supabase
+      .from('v_daily_sales')
+      .select('total_revenue, order_count')
+      .eq('store_id', storeId)
+      .eq('sale_date', lastYearStr)
+      .maybeSingle()
+  ])
 
   return {
-    revenue: sales?.total_revenue || 0,
-    orders: sales?.order_count || 0,
-    customers: sales?.unique_customers || 0,
-    aov: sales?.avg_order_value || 0,
-    currency: sales?.currency || defaultCurrency || 'EUR',
-    marginPercent: margin.marginPercent,
-    grossProfit: margin.grossProfit,
-    prevRevenue: avgRevenue,
-    prevOrders: avgOrders
+    revenue: current.data?.total_revenue || 0,
+    orders: current.data?.order_count || 0,
+    lyRevenue: lastYear.data?.total_revenue || 0,
+    lyOrders: lastYear.data?.order_count || 0,
+    lastYearDate: lastYearStr
   }
 }
 
-async function calculateGrossMargin(supabase, storeId, dateStr) {
-  const { data: orders } = await supabase
-    .from('orders')
-    .select('id, grand_total, order_line_items (quantity, total_price, product_number)')
-    .eq('store_id', storeId)
-    .neq('status', 'cancelled')
-    .gte('creation_date', `${dateStr}T00:00:00`)
-    .lte('creation_date', `${dateStr}T23:59:59`)
+// ============================================
+// 2. 7-DAY ROLLING TOTALS + YoY
+// ============================================
+async function fetchWeeklyTotalsYoY(supabase, storeId, yesterdayStr) {
+  const weekEnd = new Date(yesterdayStr)
+  const weekStart = new Date(yesterdayStr)
+  weekStart.setDate(weekStart.getDate() - 6)
+  const weekStartStr = weekStart.toISOString().split('T')[0]
 
-  if (!orders || orders.length === 0) return { grossProfit: 0, marginPercent: 0 }
+  // Same 7-day window last year
+  const lyWeekEnd = new Date(weekEnd)
+  lyWeekEnd.setFullYear(lyWeekEnd.getFullYear() - 1)
+  const lyWeekStart = new Date(weekStart)
+  lyWeekStart.setFullYear(lyWeekStart.getFullYear() - 1)
+  const lyWeekStartStr = lyWeekStart.toISOString().split('T')[0]
+  const lyWeekEndStr = lyWeekEnd.toISOString().split('T')[0]
 
-  const productNumbers = new Set()
-  orders.forEach(o => o.order_line_items?.forEach(i => {
-    if (i.product_number) productNumbers.add(i.product_number)
-  }))
+  const [current, lastYear] = await Promise.all([
+    supabase
+      .from('v_daily_sales')
+      .select('total_revenue, order_count')
+      .eq('store_id', storeId)
+      .gte('sale_date', weekStartStr)
+      .lte('sale_date', yesterdayStr),
+    supabase
+      .from('v_daily_sales')
+      .select('total_revenue, order_count')
+      .eq('store_id', storeId)
+      .gte('sale_date', lyWeekStartStr)
+      .lte('sale_date', lyWeekEndStr)
+  ])
 
-  if (productNumbers.size === 0) return { grossProfit: 0, marginPercent: 0 }
+  const sum = (rows) => ({
+    revenue: rows?.reduce((s, d) => s + (d.total_revenue || 0), 0) || 0,
+    orders: rows?.reduce((s, d) => s + (d.order_count || 0), 0) || 0
+  })
 
-  const { data: products } = await supabase
-    .from('products')
-    .select('product_number, cost_price')
-    .eq('store_id', storeId)
-    .in('product_number', Array.from(productNumbers))
-
-  const costMap = new Map()
-  products?.forEach(p => { if (p.cost_price) costMap.set(p.product_number, p.cost_price) })
-
-  let totalRevenue = 0, totalCost = 0
-  orders.forEach(o => o.order_line_items?.forEach(item => {
-    totalRevenue += item.total_price || 0
-    totalCost += (costMap.get(item.product_number) || 0) * (item.quantity || 1)
-  }))
-
-  const grossProfit = totalRevenue - totalCost
-  return { grossProfit, marginPercent: totalRevenue > 0 ? (grossProfit / totalRevenue) * 100 : 0 }
+  return {
+    ...sum(current.data),
+    ly: sum(lastYear.data),
+    periodStart: weekStartStr
+  }
 }
 
 // ============================================
-// 3. STOCK WARNINGS - Out of stock + critical
+// 3. STOCK WARNINGS
 // ============================================
 async function fetchStockWarnings(supabase, storeId) {
   const { data: products } = await supabase
@@ -217,60 +191,122 @@ async function fetchStockWarnings(supabase, storeId) {
 }
 
 // ============================================
-// BUILD MESSAGE
+// 4. NEW VS RETURNING CUSTOMERS
 // ============================================
-function buildMorningBrief(ordersData, salesData, stockData, yesterdayStr, shopName) {
-  const yesterdayDate = new Date(yesterdayStr)
-  const weekday = getWeekdayName(yesterdayDate)
-  const currency = salesData.currency || 'EUR'
-  const dateDisplay = yesterdayStr
+async function fetchCustomerMetrics(supabase, storeId, yesterdayStr) {
+  const { data: yesterdayOrders } = await supabase
+    .from('orders')
+    .select('customer_id')
+    .eq('store_id', storeId)
+    .neq('status', 'cancelled')
+    .gte('creation_date', `${yesterdayStr}T00:00:00`)
+    .lte('creation_date', `${yesterdayStr}T23:59:59`)
 
-  const blocks = [
-    header(`:sunrise: Aamubrief ${shopName} ${dateDisplay} (${weekday})`)
-  ]
-
-  // --- SECTION 1: New Orders ---
-  blocks.push(divider())
-  if (ordersData.length === 0) {
-    blocks.push(section(`:package: *Uudet tilaukset eilisestä klo 17*\n:zzz: Ei uusia tilauksia`))
-  } else {
-    const totalValue = ordersData.reduce((sum, o) => sum + (o.grand_total || 0), 0)
-    blocks.push(section(
-      `:package: *Uudet tilaukset eilisestä klo 17*\n` +
-      `*${ordersData.length} tilausta* yhteensä *${formatNumber(Math.round(totalValue))} ${currency}*`
-    ))
-
-    const orderLines = ordersData.slice(0, 5).map(o => {
-      const customer = o.billing_company || o.billing_city || 'Tuntematon'
-      const shortCustomer = customer.length > 20 ? customer.substring(0, 18) + '..' : customer
-      return `\`#${o.order_number}\` ${formatNumber(Math.round(o.grand_total))} ${currency} - ${shortCustomer}`
-    })
-    blocks.push(section(orderLines.join('\n')))
-
-    if (ordersData.length > 5) {
-      blocks.push(context(`_...ja ${ordersData.length - 5} lisää_`))
-    }
+  if (!yesterdayOrders || yesterdayOrders.length === 0) {
+    return { newCustomers: 0, returningCustomers: 0, total: 0 }
   }
 
-  // --- SECTION 2: Daily Sales Summary ---
+  const customerIds = [...new Set(yesterdayOrders.map(o => o.customer_id).filter(Boolean))]
+
+  if (customerIds.length === 0) {
+    return { newCustomers: 0, returningCustomers: 0, total: 0 }
+  }
+
+  // Find which of yesterday's customers have ordered before
+  const { data: priorOrders } = await supabase
+    .from('orders')
+    .select('customer_id')
+    .eq('store_id', storeId)
+    .neq('status', 'cancelled')
+    .lt('creation_date', `${yesterdayStr}T00:00:00`)
+    .in('customer_id', customerIds)
+
+  const returningIds = new Set(priorOrders?.map(o => o.customer_id) || [])
+  const returningCustomers = customerIds.filter(id => returningIds.has(id)).length
+  const newCustomers = customerIds.length - returningCustomers
+
+  return { newCustomers, returningCustomers, total: customerIds.length }
+}
+
+// ============================================
+// 5. NEW ORDERS SINCE 16:00
+// ============================================
+async function fetchNewOrders(supabase, storeId) {
+  const now = new Date()
+  const yesterday = new Date(now)
+  yesterday.setDate(yesterday.getDate() - 1)
+  yesterday.setUTCHours(14, 0, 0, 0) // ~16:00 Finnish time (EET = UTC+2)
+
+  const { data: orders } = await supabase
+    .from('orders')
+    .select('order_number, creation_date, grand_total, billing_company, billing_city')
+    .eq('store_id', storeId)
+    .neq('status', 'cancelled')
+    .gte('creation_date', yesterday.toISOString())
+    .order('grand_total', { ascending: false })
+
+  return orders || []
+}
+
+// ============================================
+// BUILD MESSAGE
+// ============================================
+function buildMorningBrief(dailyData, weeklyData, stockData, customerData, ordersData, yesterdayStr, shopName, currency) {
+  const yesterdayDate = new Date(yesterdayStr)
+  const lang = getLanguage(currency)
+  const weekday = getWeekdayName(yesterdayDate, lang)
+  const cs = getCurrencySymbol(currency)
+
+  const blocks = [
+    header(`:sunrise: Aamubrief ${shopName} ${yesterdayStr} (${weekday})`)
+  ]
+
+  // --- SECTION 1: Yesterday's Sales + YoY ---
   blocks.push(divider())
+  blocks.push(section(':chart_with_upwards_trend: *Eilisen myynti*'))
 
-  const revenueChange = calculateChange(salesData.revenue, salesData.prevRevenue)
-  const ordersChange = calculateChange(salesData.orders, salesData.prevOrders)
-  const revFmt = formatChange(revenueChange)
-  const ordFmt = formatChange(ordersChange)
+  const revYoY = calculateChange(dailyData.revenue, dailyData.lyRevenue)
+  const ordYoY = calculateChange(dailyData.orders, dailyData.lyOrders)
+  const revYoYFmt = formatChange(revYoY)
+  const ordYoYFmt = formatChange(ordYoY)
 
-  const revCompare = revenueChange !== null ? ` ${revFmt.emoji} ${revFmt.text} vs 7pv ka.` : ''
-  const ordCompare = ordersChange !== null ? ` ${ordFmt.emoji} ${ordFmt.text} vs 7pv ka.` : ''
+  const revYoYText = dailyData.lyRevenue > 0
+    ? `\n_Viime vuosi: ${formatNumber(Math.round(dailyData.lyRevenue))} ${cs}_ ${revYoYFmt.emoji} ${revYoYFmt.text}`
+    : ''
+  const ordYoYText = dailyData.lyOrders > 0
+    ? `\n_Viime vuosi: ${formatNumber(dailyData.lyOrders)} kpl_ ${ordYoYFmt.emoji} ${ordYoYFmt.text}`
+    : ''
 
   blocks.push(sectionFields([
-    `*Liikevaihto*\n${formatNumber(Math.round(salesData.revenue))} ${currency}${revCompare}`,
-    `*Tilaukset*\n${salesData.orders} kpl${ordCompare}`
+    `*Myynti*\n${formatNumber(Math.round(dailyData.revenue))} ${cs}${revYoYText}`,
+    `*Tilaukset*\n${dailyData.orders} kpl${ordYoYText}`
   ]))
 
+  // --- SECTION 2: 7-day Rolling Totals + YoY ---
+  blocks.push(divider())
+
+  const periodStartDate = new Date(weeklyData.periodStart)
+  const periodStartDisplay = `${periodStartDate.getDate()}.${periodStartDate.getMonth() + 1}.`
+  const periodEndDate = new Date(yesterdayStr)
+  const periodEndDisplay = `${periodEndDate.getDate()}.${periodEndDate.getMonth() + 1}.`
+
+  blocks.push(section(`:bar_chart: *7pv yhteensä* (${periodStartDisplay}\u2013${periodEndDisplay})`))
+
+  const weekRevYoY = calculateChange(weeklyData.revenue, weeklyData.ly.revenue)
+  const weekOrdYoY = calculateChange(weeklyData.orders, weeklyData.ly.orders)
+  const weekRevFmt = formatChange(weekRevYoY)
+  const weekOrdFmt = formatChange(weekOrdYoY)
+
+  const weekRevYoYText = weeklyData.ly.revenue > 0
+    ? `\n_Viime vuosi: ${formatNumber(Math.round(weeklyData.ly.revenue))} ${cs}_ ${weekRevFmt.emoji} ${weekRevFmt.text}`
+    : ''
+  const weekOrdYoYText = weeklyData.ly.orders > 0
+    ? `\n_Viime vuosi: ${formatNumber(weeklyData.ly.orders)} kpl_ ${weekOrdFmt.emoji} ${weekOrdFmt.text}`
+    : ''
+
   blocks.push(sectionFields([
-    `*Bruttokate*\n${formatNumber(salesData.marginPercent, 1)}% (${formatNumber(Math.round(salesData.grossProfit))} ${currency})`,
-    `*Keskitilaus*\n${formatNumber(Math.round(salesData.aov))} ${currency}`
+    `*Myynti*\n${formatNumber(Math.round(weeklyData.revenue))} ${cs}${weekRevYoYText}`,
+    `*Tilaukset*\n${weeklyData.orders} kpl${weekOrdYoYText}`
   ]))
 
   // --- SECTION 3: Stock Warnings ---
@@ -282,14 +318,44 @@ function buildMorningBrief(ordersData, salesData, stockData, yesterdayStr, shopN
     if (stockData.criticalLow > 0) stockParts.push(`:warning: ${stockData.criticalLow} kriittinen`)
 
     blocks.push(section(
-      `:rotating_light: *Varastovaroitus* (${stockData.totalActive} aktiivista)\n${stockParts.join(' | ')}`
+      `:rotating_light: *Varastovaroitus*\n${stockParts.join(' | ')}`
     ))
 
     if (stockData.topItems.length > 0) {
       blocks.push(section(stockData.topItems.join('\n')))
     }
+  }
 
-    blocks.push(context(`<https://vilkas-analytics.vercel.app/inventory|Katso kaikki Varastonäkymässä>`))
+  // --- SECTION 4: Customer Metrics ---
+  if (customerData.total > 0) {
+    blocks.push(divider())
+    blocks.push(section(
+      `:busts_in_silhouette: *Eilisen asiakkaat*\n` +
+      `:new: ${customerData.newCustomers} uutta | :repeat: ${customerData.returningCustomers} palaavaa`
+    ))
+  }
+
+  // --- SECTION 5: New Orders since 16:00 ---
+  blocks.push(divider())
+  if (ordersData.length === 0) {
+    blocks.push(section(`:package: *Tilaukset klo 16 jälkeen*\n:zzz: Ei uusia tilauksia`))
+  } else {
+    const totalValue = ordersData.reduce((sum, o) => sum + (o.grand_total || 0), 0)
+    blocks.push(section(
+      `:package: *Tilaukset klo 16 jälkeen*\n` +
+      `*${ordersData.length} tilausta* yhteensä *${formatNumber(Math.round(totalValue))} ${cs}*`
+    ))
+
+    const orderLines = ordersData.slice(0, 5).map(o => {
+      const customer = o.billing_company || o.billing_city || ''
+      const shortCustomer = customer.length > 20 ? customer.substring(0, 18) + '..' : customer
+      return `\`#${o.order_number}\` ${formatNumber(Math.round(o.grand_total))} ${cs} - ${shortCustomer}`
+    })
+    blocks.push(section(orderLines.join('\n')))
+
+    if (ordersData.length > 5) {
+      blocks.push(context(`_...ja ${ordersData.length - 5} lisää_`))
+    }
   }
 
   // --- FOOTER ---
@@ -351,23 +417,27 @@ export default async function handler(req, res) {
     try {
       console.log(`Processing morning brief for ${shop.name} (store: ${storeId})`)
 
-      const [ordersData, salesData, stockData] = await Promise.all([
-        fetchNewOrders(supabase, storeId),
-        fetchDailySales(supabase, storeId, yesterdayStr, shop.currency),
-        fetchStockWarnings(supabase, storeId)
+      const [dailyData, weeklyData, stockData, customerData, ordersData] = await Promise.all([
+        fetchDailySalesYoY(supabase, storeId, yesterdayStr),
+        fetchWeeklyTotalsYoY(supabase, storeId, yesterdayStr),
+        fetchStockWarnings(supabase, storeId),
+        fetchCustomerMetrics(supabase, storeId, yesterdayStr),
+        fetchNewOrders(supabase, storeId)
       ])
 
-      console.log(`${shop.name}: ${ordersData.length} orders, ${salesData.revenue} revenue, ${stockData.outOfStock} out of stock`)
+      console.log(`${shop.name}: rev=${dailyData.revenue}, orders=${dailyData.orders}, stock=${stockData.outOfStock} OOS, customers=${customerData.total} (${customerData.newCustomers} new)`)
 
-      const message = buildMorningBrief(ordersData, salesData, stockData, yesterdayStr, shop.name)
+      const message = buildMorningBrief(dailyData, weeklyData, stockData, customerData, ordersData, yesterdayStr, shop.name, shop.currency)
       const slackResult = await sendToSlack(webhookUrl, message)
 
       results.push({
         shop: shop.name,
         success: slackResult.success,
-        orders: ordersData.length,
-        revenue: salesData.revenue,
+        revenue: dailyData.revenue,
+        orders: dailyData.orders,
         stockWarnings: stockData.outOfStock + stockData.criticalLow,
+        newCustomers: customerData.newCustomers,
+        returningCustomers: customerData.returningCustomers,
         slackError: slackResult.error || null
       })
     } catch (error) {
