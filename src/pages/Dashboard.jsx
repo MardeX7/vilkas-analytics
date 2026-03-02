@@ -18,6 +18,7 @@ import { RefreshCw, BarChart3, TrendingUp, Package, XCircle, Truck, Tag, Gift, C
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { useCurrentShop } from '@/config/storeConfig'
+import { useLastSync } from '@/hooks/useLastSync'
 
 // Helper to create default date range with YoY comparison enabled
 function createDefaultDateRange() {
@@ -38,6 +39,7 @@ function createDefaultDateRange() {
 export function Dashboard() {
   const { t, language } = useTranslation()
   const { currencySymbol } = useCurrentShop()
+  const { lastOrderDate } = useLastSync()
   const [dateRange, setDateRange] = useState(() => createDefaultDateRange())
   const [comparisonMode, setComparisonMode] = useState('yoy') // 'mom' or 'yoy', default YoY
 
@@ -218,9 +220,16 @@ export function Dashboard() {
               {dateRange.label || t(`datePicker.presets.${dateRange.preset || 'last30'}`)}
             </span>
           </div>
-          <span className="text-xs text-foreground-subtle">
-            {dateRange.startDate} → {dateRange.endDate}
-          </span>
+          <div className="flex flex-col items-end gap-0.5">
+            <span className="text-xs text-foreground-subtle">
+              {dateRange.startDate} → {dateRange.endDate}
+            </span>
+            {lastOrderDate && (
+              <span className="text-[10px] text-foreground-subtle/60" title={t('dashboard.revenueExclVat')}>
+                {t('dashboard.dataAsOf')} {lastOrderDate.toLocaleString(language === 'fi' ? 'fi-FI' : 'sv-SE', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' })} · ALV 0%
+              </span>
+            )}
+          </div>
         </div>
 
         {/* KPI Cards - Top row: 5 core metrics */}

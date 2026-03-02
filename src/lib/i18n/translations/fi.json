@@ -247,6 +247,8 @@
     "subtitle": "Reaaliaikainen analytiikka verkkokaupallesi",
     "compare": "Vertaa",
     "showingDataFor": "Näytetään data:",
+    "dataAsOf": "Data päivitetty",
+    "revenueExclVat": "Liikevaihto ALV 0%",
     "metrics": {
       "sales": "Myynti",
       "grossMargin": "Myyntikate",

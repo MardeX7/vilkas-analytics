@@ -24,10 +24,12 @@ import { EmmaChatFullscreen } from '@/components/EmmaChatFullscreen'
 import { ActionRecommendationsCard } from '@/components/ActionRecommendationsCard'
 import { supabase } from '@/lib/supabase'
 import { useCurrentShop } from '@/config/storeConfig'
+import { useLastSync } from '@/hooks/useLastSync'
 
 export function InsightsPage() {
   const { storeId, ready, currencySymbol } = useCurrentShop()
   const { t, language } = useTranslation()
+  const { lastOrderDate } = useLastSync()
   const isFi = language === 'fi'
 
   // Emma chat modal state
@@ -179,6 +181,11 @@ export function InsightsPage() {
             <Calendar className="w-3.5 h-3.5" />
             <span>{isFi ? 'Vk' : 'V'} {weekNumber} / {year}</span>
           </div>
+          {lastOrderDate && (
+            <span className="text-[10px] text-foreground-subtle/60">
+              {t('dashboard.dataAsOf')} {lastOrderDate.toLocaleString(language === 'fi' ? 'fi-FI' : 'sv-SE', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' })} · ALV 0%
+            </span>
+          )}
         </div>
       </header>
 

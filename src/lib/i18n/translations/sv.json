@@ -247,6 +247,8 @@
     "subtitle": "Realtidsanalytik för din webshop",
     "compare": "Jämför",
     "showingDataFor": "Visar data för:",
+    "dataAsOf": "Data uppdaterad",
+    "revenueExclVat": "Omsättning exkl. moms",
     "metrics": {
       "sales": "Försäljning",
       "grossMargin": "Bruttomarginal",
