@@ -194,11 +194,27 @@ async function indexGoals(storeId, shopId) {
   const { data: goals } = await supabase.from('merchant_goals').select('*').eq('store_id', storeId).eq('is_active', true)
   if (!goals?.length) return 0
 
+  // Fiscal year context: March 1 - February 28/29
+  const now = new Date()
+  const fyStart = now.getMonth() >= 2
+    ? new Date(now.getFullYear(), 2, 1)      // Mar 1 this year
+    : new Date(now.getFullYear() - 1, 2, 1)  // Mar 1 last year
+  const fyEnd = new Date(fyStart.getFullYear() + 1, 1, 28) // Feb 28 next year
+  const fyLabel = `${fyStart.toISOString().slice(0, 10)} – ${fyEnd.toISOString().slice(0, 10)}`
+  const fyDaysTotal = Math.ceil((fyEnd - fyStart) / (1000 * 60 * 60 * 24))
+  const fyDaysElapsed = Math.ceil((now - fyStart) / (1000 * 60 * 60 * 24))
+
   for (const goal of goals) {
     const progressPercent = goal.target_value > 0 ? Math.round((goal.current_value / goal.target_value) * 100) : 0
-    await upsertDocument(shopId, 'goal', `goal_${goal.id}`, 'goals', { goal_type: goal.goal_type, target: goal.target_value, current: goal.current_value, progress: progressPercent }, `TAVOITE ${goal.goal_type}: ${goal.current_value || 0} / ${goal.target_value} (${progressPercent}% valmis).`, 7)
+    const goalText = `TAVOITE ${goal.goal_type}: ${goal.current_value || 0} / ${goal.target_value} (${progressPercent}% valmis). Tilikausi: ${fyLabel} (${fyDaysElapsed}/${fyDaysTotal} päivää kulunut). Tilikausi alkaa 1.3. ja päättyy 28.2.`
+    await upsertDocument(shopId, 'goal', `goal_${goal.id}`, 'goals', { goal_type: goal.goal_type, target: goal.target_value, current: goal.current_value, progress: progressPercent, fiscal_year: fyLabel, fy_days_elapsed: fyDaysElapsed, fy_days_total: fyDaysTotal }, goalText, 7)
   }
-  return goals.length
+
+  // Index fiscal year context as a standalone document
+  const fyContextText = `TILIKAUSI: Yrityksen tilikausi on 1.3.–28.2. (maaliskuun alusta helmikuun loppuun). Nykyinen tilikausi: ${fyLabel}. Tilikaudesta on kulunut ${fyDaysElapsed} päivää (${fyDaysTotal} päivää yhteensä). Kun puhutaan vuositavoitteista, liikevaihtoennusteista tai vuosittaisesta kehityksestä, viittaa aina tilikauteen (1.3.–28.2.), ei kalenterivuoteen.`
+  await upsertDocument(shopId, 'business_context', 'fiscal_year', 'context', { fiscal_year: fyLabel, fy_start: fyStart.toISOString().slice(0, 10), fy_end: fyEnd.toISOString().slice(0, 10), fy_days_elapsed: fyDaysElapsed, fy_days_total: fyDaysTotal }, fyContextText, 9)
+
+  return goals.length + 1
 }
 
 async function indexContextNotes(storeId, shopId) {
