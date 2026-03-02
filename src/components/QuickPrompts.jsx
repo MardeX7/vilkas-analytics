@@ -105,66 +105,66 @@ const CATEGORIES = {
  */
 const QUESTIONS = {
   tilannekuva: [
-    { id: 't1', text: 'Mikä vaikutti eniten kokonaisindeksiin viime viikolla?' },
-    { id: 't2', text: 'Mitkä kolme mittaria selittävät tämän viikon muutoksen?' },
-    { id: 't3', text: 'Onko tämä viikko linjassa sesongin kanssa vai poikkeama?' },
-    { id: 't4', text: 'Missä osa-alueessa olemme heikoimmillamme?' },
-    { id: 't5', text: 'Mikä kehittyi positiivisesti ilman toimenpiteitä?' }
+    { id: 't1', text: 'Anna tilannekatsaus: myynti, asiakkaat, varasto, näkyvyys.' },
+    { id: 't2', text: 'Miten tämä viikko vertautuu viime vuoden vastaavaan viikkoon?' },
+    { id: 't3', text: 'Mikä selittää Growth Engine -indeksin muutoksen?' },
+    { id: 't4', text: 'Onko jokin mittari hälyttävällä tasolla juuri nyt?' },
+    { id: 't5', text: 'Onko tämä viikko linjassa sesongin kanssa vai poikkeama?' }
   ],
   kasvu: [
-    { id: 'k1', text: 'Mistä viime viikon myynnin muutos oikeasti johtui?' },
-    { id: 'k2', text: 'Mitkä tuotteet tai kategoriat vetävät kasvua?' },
-    { id: 'k3', text: 'Kasvaako myynti laadukkaasti vai hinnan kautta?' },
-    { id: 'k4', text: 'Mikä rajoittaa myynnin kasvua juuri nyt?' },
-    { id: 'k5', text: 'Miltä seuraavat 4 viikkoa näyttävät ilman muutoksia?' }
+    { id: 'k1', text: 'Paljonko päivämyynnin pitäisi olla, jotta tilikauden tavoite toteutuu?' },
+    { id: 'k2', text: 'Miten keskitilaus (AOV) on kehittynyt ja miksi?' },
+    { id: 'k3', text: 'Kasvaako liikevaihto orgaanisesti vai kampanjoiden kautta?' },
+    { id: 'k4', text: 'Missä on suurin kasvupotentiaali juuri nyt?' },
+    { id: 'k5', text: 'Mitkä tuotteet tai kategoriat vetävät kasvua?' }
   ],
   tavoitteet: [
-    { id: 'ta1', text: 'Olemmeko matkalla kohti vuositavoitetta?' },
-    { id: 'ta2', text: 'Mikä uhkaa tavoitteen saavuttamista eniten?' },
-    { id: 'ta3', text: 'Paljonko myynnin pitäisi kasvaa viikkotasolla?' },
-    { id: 'ta4', text: 'Mitä pitäisi tapahtua, jotta ennuste paranisi?' },
-    { id: 'ta5', text: 'Onko nykyinen tavoite realistinen?' }
+    { id: 'ta1', text: 'Miten tilikausi etenee tavoitteeseen nähden?' },
+    { id: 'ta2', text: 'Kuinka monta kauppapäivää tavoitteeseen on jäljellä ja mikä on vaadittu päivävauhti?' },
+    { id: 'ta3', text: 'Vertaa edistymistämme viime tilikauden samaan ajankohtaan.' },
+    { id: 'ta4', text: 'Onko ennuste realistinen vai tarvitaanko toimenpiteitä?' },
+    { id: 'ta5', text: 'Mikä uhkaa tavoitteen saavuttamista eniten?' }
   ],
   asiakkaat: [
-    { id: 'a1', text: 'Miten palaavien asiakkaiden osuus kehittyi?' },
-    { id: 'a2', text: 'Ostavatko asiakkaat enemmän vai useammin?' },
-    { id: 'a3', text: 'Onko B2B- ja B2C-asiakkaissa eroja juuri nyt?' },
-    { id: 'a4', text: 'Miksi asiakas ei palaa toista kertaa?' },
-    { id: 'a5', text: 'Mitkä tuotteet toimivat sisäänheittotuotteina?' }
+    { id: 'a1', text: 'Miten B2B- ja B2C-asiakkaat eroavat ostokäyttäytymiseltään?' },
+    { id: 'a2', text: 'Mikä on palaavien asiakkaiden elinkaarioarvo vs. uudet?' },
+    { id: 'a3', text: 'Mitkä tuotteet tuovat meille uusia asiakkaita?' },
+    { id: 'a4', text: 'Miten asiakashankinta on muuttunut viime kuukausina?' },
+    { id: 'a5', text: 'Ostavatko asiakkaat enemmän vai useammin?' }
   ],
   varasto: [
-    { id: 'v1', text: 'Mitkä A-tuotteet ovat suurin riski kuukauden aikana?' },
-    { id: 'v2', text: 'Onko varastossa pääomaa tuotteissa jotka eivät tue kasvua?' },
-    { id: 'v3', text: 'Missä tuotteissa kysyntä ja varasto ovat epätasapainossa?' },
-    { id: 'v4', text: 'Mihin tuotteisiin täydennykset pitäisi priorisoida?' },
-    { id: 'v5', text: 'Mitkä tuotteet heikentävät katetta eniten?' }
+    { id: 'v1', text: 'Mitkä hero-tuotteet vetävät myyntiä ja onko niitä varastossa?' },
+    { id: 'v2', text: 'Analysoi tuoteroolien jakauma: herot, ankkurit, täyttäjät, häntä.' },
+    { id: 'v3', text: 'Mitkä tuotteet pitäisi tilata lisää ennen kuin varasto loppuu?' },
+    { id: 'v4', text: 'Onko sisäänheittotuotteissa (entry) muutoksia?' },
+    { id: 'v5', text: 'Mihin tuotteisiin täydennykset pitäisi priorisoida?' }
   ],
   seo: [
-    { id: 's1', text: 'Onko SEO-näkyvyydessä muutoksia joilla on myyntivaikutus?' },
-    { id: 's2', text: 'Mitkä sivut menettivät näkyvyyttä viime viikolla?' },
-    { id: 's3', text: 'Kasvaako orgaaninen näkyvyys oikeissa kategorioissa?' },
-    { id: 's4', text: 'Missä näkyvyyden kasvu ei vielä näy myynnissä?' },
-    { id: 's5', text: 'Tukeeko SEO tulevaa sesonkia riittävästi?' }
+    { id: 's1', text: 'Mitkä hakutermit tuovat eniten myyntiä?' },
+    { id: 's2', text: 'Onko SEO-positiossa muutoksia jotka vaikuttavat liikevaihtoon?' },
+    { id: 's3', text: 'Kasvaako orgaaninen liikenne strategisesti tärkeissä kategorioissa?' },
+    { id: 's4', text: 'Mikä on orgaanisen haun konversioprosentti vs. muu liikenne?' },
+    { id: 's5', text: 'Tukeeko SEO-näkyvyys tilikauden myyntitavoitetta?' }
   ],
   toimenpiteet: [
-    { id: 'to1', text: 'Mitkä 3 asiaa minun kannattaa tehdä seuraavaksi?' },
-    { id: 'to2', text: 'Mikä toimenpide tuottaisi suurimman vaikutuksen?' },
-    { id: 'to3', text: 'Mitä kannattaisi lopettaa tai vähentää?' },
-    { id: 'to4', text: 'Mikä näyttää kiireelliseltä mutta ei ole tärkeää?' },
-    { id: 'to5', text: 'Jos aikaa on vain yhteen asiaan, mikä se on?' }
+    { id: 'to1', text: 'Mikä yksittäinen toimenpide vaikuttaisi eniten tilikauden tavoitteeseen?' },
+    { id: 'to2', text: 'Priorisoi tämän viikon 3 tärkeintä tehtävää datan perusteella.' },
+    { id: 'to3', text: 'Mitä pitäisi lopettaa tekemästä – mikä ei tuota tulosta?' },
+    { id: 'to4', text: 'Mitä pitäisi valmistella seuraavaa sesonkia varten?' },
+    { id: 'to5', text: 'Mikä näyttää kiireelliseltä mutta ei ole tärkeää?' }
   ],
   selittavat: [
-    { id: 'se1', text: 'Selitä yksinkertaisesti miksi kokonaisindeksi muuttui.' },
-    { id: 'se2', text: 'Miten tämä mittari vaikuttaa kokonaisuuteen?' },
-    { id: 'se3', text: 'Miksi tämä kehitys on ongelma – tai miksi ei?' },
-    { id: 'se4', text: 'Miten tämä eroaa viime vuodesta samaan aikaan?' },
-    { id: 'se5', text: 'Mitä tästä pitäisi oppia seuraavaa sesonkia varten?' }
+    { id: 'se1', text: 'Selitä miten Growth Engine -indeksi lasketaan ja mitä se kertoo.' },
+    { id: 'se2', text: 'Miksi konversio muuttui ja miten se vaikuttaa liikevaihtoon?' },
+    { id: 'se3', text: 'Mitä tuoteroolit (hero, anchor, filler) tarkoittavat käytännössä?' },
+    { id: 'se4', text: 'Miten tilikausivertailu huomioi sesonkivaihtelut?' },
+    { id: 'se5', text: 'Mitä tästä datasta pitäisi oppia seuraavaa sesonkia varten?' }
   ],
   meta: [
-    { id: 'm1', text: 'Missä olemme parempia kuin viime vuonna – ja miksi?' },
-    { id: 'm2', text: 'Missä olemme haavoittuvia vaikka luvut näyttävät hyviltä?' },
-    { id: 'm3', text: 'Mitä tämä data ei vielä kerro meille?' },
-    { id: 'm4', text: 'Mikä signaali ennakoi seuraavaa isoa muutosta?' }
+    { id: 'm1', text: 'Missä olemme strategisesti vahvempia kuin viime tilikaudella?' },
+    { id: 'm2', text: 'Mikä on suurin piiloriski jonka data paljastaa?' },
+    { id: 'm3', text: 'Mitä data ei vielä kerro – mitä tietoa puuttuu?' },
+    { id: 'm4', text: 'Ennusta 3 kuukautta eteenpäin: mihin olemme menossa?' }
   ]
 }
 
@@ -174,61 +174,61 @@ const QUESTIONS = {
 function getRecommendedQuestions(growthEngineData) {
   const recommended = []
 
-  // Always: Overview question
+  // Always: Fiscal year progress
   recommended.push({
-    id: 'rec_overview',
-    category: 'tilannekuva',
-    text: 'Mikä vaikutti eniten kokonaisindeksiin viime viikolla?'
+    id: 'rec_fy',
+    category: 'tavoitteet',
+    text: 'Miten tilikausi etenee tavoitteeseen nähden?'
   })
 
   if (!growthEngineData) {
     recommended.push({
-      id: 'rec_goals',
-      category: 'tavoitteet',
-      text: 'Olemmeko matkalla kohti vuositavoitetta?'
+      id: 'rec_overview',
+      category: 'tilannekuva',
+      text: 'Anna tilannekatsaus: myynti, asiakkaat, varasto, näkyvyys.'
     })
     recommended.push({
       id: 'rec_action',
       category: 'toimenpiteet',
-      text: 'Mitkä 3 asiaa minun kannattaa tehdä seuraavaksi?'
+      text: 'Priorisoi tämän viikon 3 tärkeintä tehtävää datan perusteella.'
     })
     return recommended
   }
 
   const { salesEfficiency, demandGrowth, productLeverage } = growthEngineData
 
-  // Conversion issues
+  // Conversion issues → ask about growth blockers
   if (salesEfficiency?.metrics?.conversionRate?.yoyChange < -5) {
     recommended.push({
       id: 'rec_conv',
       category: 'kasvu',
-      text: 'Mikä rajoittaa myynnin kasvua juuri nyt?'
+      text: 'Missä on suurin kasvupotentiaali juuri nyt?'
     })
   }
 
-  // Stock issues
+  // Stock issues → ask about hero product availability
   if (productLeverage?.metrics?.seoStockHealth?.current < 85) {
     recommended.push({
       id: 'rec_stock',
       category: 'varasto',
-      text: 'Mitkä A-tuotteet ovat suurin riski kuukauden aikana?'
+      text: 'Mitkä hero-tuotteet vetävät myyntiä ja onko niitä varastossa?'
     })
   }
 
-  // SEO changes
+  // SEO changes → ask about search terms driving revenue
   if (demandGrowth?.metrics?.organicClicks?.yoyChange < -10) {
     recommended.push({
       id: 'rec_seo',
       category: 'seo',
-      text: 'Mitkä sivut menettivät näkyvyyttä viime viikolla?'
+      text: 'Onko SEO-positiossa muutoksia jotka vaikuttavat liikevaihtoon?'
     })
   }
 
-  // Always add action question
+  // Always add prioritized action question
   recommended.push({
     id: 'rec_action',
     category: 'toimenpiteet',
-    text: 'Jos aikaa on vain yhteen asiaan, mikä se on?'
+    text: 'Mikä yksittäinen toimenpide vaikuttaisi eniten tilikauden tavoitteeseen?'
   })
 
   return recommended.slice(0, 4)

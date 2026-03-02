@@ -45,16 +45,16 @@ import { useCurrentShop } from '@/config/storeConfig'
  */
 const QUICK_PROMPTS = {
   fi: [
-    { id: 'overview', text: 'Mikä vaikutti eniten viime viikolla?', icon: '📊' },
-    { id: 'action', text: 'Mitä minun pitäisi tehdä seuraavaksi?', icon: '💡' },
-    { id: 'growth', text: 'Mistä myynnin muutos johtui?', icon: '📈' },
-    { id: 'risk', text: 'Missä olemme haavoittuvia?', icon: '⚠️' }
+    { id: 'fy_progress', text: 'Miten tilikausi etenee tavoitteeseen nähden?', icon: '📊' },
+    { id: 'attention', text: 'Mikä yksittäinen asia vaatii huomiotani nyt?', icon: '⚠️' },
+    { id: 'daily_target', text: 'Paljonko päivämyynnin pitää olla tavoitteen saavuttamiseksi?', icon: '📈' },
+    { id: 'priorities', text: 'Priorisoi tämän viikon tehtävät datan perusteella.', icon: '💡' }
   ],
   sv: [
-    { id: 'overview', text: 'Vad påverkade mest förra veckan?', icon: '📊' },
-    { id: 'action', text: 'Vad ska jag göra härnäst?', icon: '💡' },
-    { id: 'growth', text: 'Vad berodde försäljningsförändringen på?', icon: '📈' },
-    { id: 'risk', text: 'Var är vi sårbara?', icon: '⚠️' }
+    { id: 'fy_progress', text: 'Hur går räkenskapsåret mot målet?', icon: '📊' },
+    { id: 'attention', text: 'Vad kräver min uppmärksamhet just nu?', icon: '⚠️' },
+    { id: 'daily_target', text: 'Hur mycket dagförsäljning krävs för att nå målet?', icon: '📈' },
+    { id: 'priorities', text: 'Prioritera veckans uppgifter baserat på data.', icon: '💡' }
   ]
 }
 
@@ -69,16 +69,16 @@ const CATEGORIES = {
     color: 'violet',
     questions: {
       fi: [
-        'Mikä vaikutti eniten kokonaisindeksiin viime viikolla?',
-        'Mitkä kolme mittaria selittävät tämän viikon muutoksen?',
-        'Onko tämä viikko linjassa sesongin kanssa vai poikkeama?',
-        'Missä osa-alueessa olemme heikoimmillamme?'
+        'Anna tilannekatsaus: myynti, asiakkaat, varasto, näkyvyys.',
+        'Miten tämä viikko vertautuu viime vuoden vastaavaan viikkoon?',
+        'Mikä selittää Growth Engine -indeksin muutoksen?',
+        'Onko jokin mittari hälyttävällä tasolla juuri nyt?'
       ],
       sv: [
-        'Vad påverkade mest det övergripande indexet förra veckan?',
-        'Vilka tre mätvärden förklarar veckans förändring?',
-        'Är denna vecka i linje med säsongen eller ett undantag?',
-        'Inom vilket område är vi svagast?'
+        'Ge en lägesbild: försäljning, kunder, lager, synlighet.',
+        'Hur jämför sig denna vecka med samma vecka förra året?',
+        'Vad förklarar förändringen i Growth Engine-indexet?',
+        'Är något mätvärde på en alarmerande nivå just nu?'
       ]
     }
   },
@@ -89,16 +89,16 @@ const CATEGORIES = {
     color: 'emerald',
     questions: {
       fi: [
-        'Mistä viime viikon myynnin muutos oikeasti johtui?',
-        'Mitkä tuotteet tai kategoriat vetävät kasvua?',
-        'Kasvaako myynti laadukkaasti vai hinnan kautta?',
-        'Mikä rajoittaa myynnin kasvua juuri nyt?'
+        'Paljonko päivämyynnin pitäisi olla, jotta tilikauden tavoite toteutuu?',
+        'Miten keskitilaus (AOV) on kehittynyt ja miksi?',
+        'Kasvaako liikevaihto orgaanisesti vai kampanjoiden kautta?',
+        'Missä on suurin kasvupotentiaali juuri nyt?'
       ],
       sv: [
-        'Vad berodde förra veckans försäljningsförändring på?',
-        'Vilka produkter eller kategorier driver tillväxten?',
-        'Växer försäljningen kvalitativt eller genom prissänkningar?',
-        'Vad begränsar försäljningstillväxten just nu?'
+        'Hur mycket måste dagförsäljningen vara för att nå räkenskapsårets mål?',
+        'Hur har genomsnittsorder (AOV) utvecklats och varför?',
+        'Växer omsättningen organiskt eller genom kampanjer?',
+        'Var finns den största tillväxtpotentialen just nu?'
       ]
     }
   },
@@ -109,16 +109,16 @@ const CATEGORIES = {
     color: 'blue',
     questions: {
       fi: [
-        'Olemmeko matkalla kohti vuositavoitetta?',
-        'Mikä uhkaa tavoitteen saavuttamista eniten?',
-        'Paljonko myynnin pitäisi kasvaa viikkotasolla?',
-        'Onko nykyinen tavoite realistinen?'
+        'Miten tilikausi etenee tavoitteeseen nähden?',
+        'Kuinka monta kauppapäivää tavoitteeseen on jäljellä ja mikä on vaadittu päivävauhti?',
+        'Vertaa edistymistämme viime tilikauden samaan ajankohtaan.',
+        'Onko ennuste realistinen vai tarvitaanko toimenpiteitä?'
       ],
       sv: [
-        'Är vi på väg mot årsmålet?',
-        'Vad hotar måluppfyllelsen mest?',
-        'Hur mycket bör försäljningen öka per vecka?',
-        'Är det nuvarande målet realistiskt?'
+        'Hur går räkenskapsåret mot målet?',
+        'Hur många handelsdagar kvar till målet och vad krävs per dag?',
+        'Jämför vår utveckling med samma tidpunkt förra räkenskapsåret.',
+        'Är prognosen realistisk eller behövs åtgärder?'
       ]
     }
   },
@@ -129,16 +129,16 @@ const CATEGORIES = {
     color: 'pink',
     questions: {
       fi: [
-        'Miten palaavien asiakkaiden osuus kehittyi?',
-        'Ostavatko asiakkaat enemmän vai useammin?',
-        'Miksi asiakas ei palaa toista kertaa?',
-        'Mitkä tuotteet toimivat sisäänheittotuotteina?'
+        'Miten B2B- ja B2C-asiakkaat eroavat ostokäyttäytymiseltään?',
+        'Mikä on palaavien asiakkaiden elinkaarioarvo vs. uudet?',
+        'Mitkä tuotteet tuovat meille uusia asiakkaita?',
+        'Miten asiakashankinta on muuttunut viime kuukausina?'
       ],
       sv: [
-        'Hur utvecklades andelen återkommande kunder?',
-        'Köper kunderna mer eller oftare?',
-        'Varför kommer kunden inte tillbaka?',
-        'Vilka produkter fungerar som ingångsprodukter?'
+        'Hur skiljer sig B2B- och B2C-kunders köpbeteende?',
+        'Vad är livstidsvärdet för återkommande kunder vs. nya?',
+        'Vilka produkter lockar nya kunder till oss?',
+        'Hur har kundanskaffningen förändrats de senaste månaderna?'
       ]
     }
   },
@@ -149,16 +149,16 @@ const CATEGORIES = {
     color: 'amber',
     questions: {
       fi: [
-        'Mitkä A-tuotteet ovat suurin riski kuukauden aikana?',
-        'Missä tuotteissa kysyntä ja varasto ovat epätasapainossa?',
-        'Mihin tuotteisiin täydennykset pitäisi priorisoida?',
-        'Mitkä tuotteet heikentävät katetta eniten?'
+        'Mitkä hero-tuotteet vetävät myyntiä ja onko niitä varastossa?',
+        'Analysoi tuoteroolien jakauma: herot, ankkurit, täyttäjät, häntä.',
+        'Mitkä tuotteet pitäisi tilata lisää ennen kuin varasto loppuu?',
+        'Onko sisäänheittotuotteissa (entry) muutoksia?'
       ],
       sv: [
-        'Vilka A-produkter är störst risk under månaden?',
-        'Vilka produkter har obalans mellan efterfrågan och lager?',
-        'Vilka produkter bör prioriteras för påfyllning?',
-        'Vilka produkter försämrar marginalen mest?'
+        'Vilka hjälteprodukter driver försäljningen och finns de i lager?',
+        'Analysera produktrollerna: hjältar, ankare, utfyllnad, svans.',
+        'Vilka produkter bör beställas innan lagret tar slut?',
+        'Har det skett förändringar bland ingångsprodukterna?'
       ]
     }
   },
@@ -169,16 +169,16 @@ const CATEGORIES = {
     color: 'cyan',
     questions: {
       fi: [
-        'Onko SEO-näkyvyydessä muutoksia joilla on myyntivaikutus?',
-        'Mitkä sivut menettivät näkyvyyttä viime viikolla?',
-        'Kasvaako orgaaninen näkyvyys oikeissa kategorioissa?',
-        'Missä näkyvyyden kasvu ei vielä näy myynnissä?'
+        'Mitkä hakutermit tuovat eniten myyntiä?',
+        'Onko SEO-positiossa muutoksia jotka vaikuttavat liikevaihtoon?',
+        'Kasvaako orgaaninen liikenne strategisesti tärkeissä kategorioissa?',
+        'Mikä on orgaanisen haun konversioprosentti vs. muu liikenne?'
       ],
       sv: [
-        'Finns det SEO-förändringar som påverkar försäljningen?',
-        'Vilka sidor tappade synlighet förra veckan?',
-        'Växer organisk synlighet i rätt kategorier?',
-        'Var syns inte synlighetstillväxten i försäljningen ännu?'
+        'Vilka söktermer genererar mest försäljning?',
+        'Har SEO-positionerna förändrats på ett sätt som påverkar omsättningen?',
+        'Växer organisk trafik i strategiskt viktiga kategorier?',
+        'Vad är konverteringsgraden för organisk sökning vs. övrig trafik?'
       ]
     }
   },
@@ -189,16 +189,16 @@ const CATEGORIES = {
     color: 'orange',
     questions: {
       fi: [
-        'Mitkä 3 asiaa minun kannattaa tehdä seuraavaksi?',
-        'Mikä toimenpide tuottaisi suurimman vaikutuksen?',
-        'Mitä kannattaisi lopettaa tai vähentää?',
-        'Jos aikaa on vain yhteen asiaan, mikä se on?'
+        'Mikä yksittäinen toimenpide vaikuttaisi eniten tilikauden tavoitteeseen?',
+        'Priorisoi tämän viikon 3 tärkeintä tehtävää datan perusteella.',
+        'Mitä pitäisi lopettaa tekemästä – mikä ei tuota tulosta?',
+        'Mitä pitäisi valmistella seuraavaa sesonkia varten?'
       ],
       sv: [
-        'Vilka 3 saker bör jag göra härnäst?',
-        'Vilken åtgärd skulle ge störst effekt?',
-        'Vad bör vi sluta med eller minska?',
-        'Om det bara finns tid för en sak, vad är det?'
+        'Vilken enskild åtgärd skulle påverka räkenskapsårets mål mest?',
+        'Prioritera veckans 3 viktigaste uppgifter baserat på data.',
+        'Vad bör vi sluta göra – vad ger inte resultat?',
+        'Vad bör förberedas inför nästa säsong?'
       ]
     }
   },
@@ -209,16 +209,16 @@ const CATEGORIES = {
     color: 'slate',
     questions: {
       fi: [
-        'Selitä yksinkertaisesti miksi kokonaisindeksi muuttui.',
-        'Miten tämä mittari vaikuttaa kokonaisuuteen?',
-        'Miksi tämä kehitys on ongelma – tai miksi ei?',
-        'Mitä tästä pitäisi oppia seuraavaa sesonkia varten?'
+        'Selitä miten Growth Engine -indeksi lasketaan ja mitä se kertoo.',
+        'Miksi konversio muuttui ja miten se vaikuttaa liikevaihtoon?',
+        'Mitä tuoteroolit (hero, anchor, filler) tarkoittavat käytännössä?',
+        'Miten tilikausivertailu huomioi sesonkivaihtelut?'
       ],
       sv: [
-        'Förklara enkelt varför det övergripande indexet förändrades.',
-        'Hur påverkar detta mätvärde helheten?',
-        'Varför är denna utveckling ett problem – eller varför inte?',
-        'Vad bör vi lära oss inför nästa säsong?'
+        'Förklara hur Growth Engine-indexet beräknas och vad det visar.',
+        'Varför förändrades konverteringen och hur påverkar det omsättningen?',
+        'Vad betyder produktrollerna (hjälte, ankare, utfyllnad) i praktiken?',
+        'Hur tar räkenskapsårsjämförelsen hänsyn till säsongsvariationer?'
       ]
     }
   }
