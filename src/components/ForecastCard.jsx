@@ -1,167 +1,225 @@
 /**
- * ForecastCard - Vuosiennuste vs Tavoite
+ * ForecastCard - Tilikauden ennuste vs Tavoite
  *
- * Näyttää:
- * - YoY-pohjaisen vuosiennusteen
- * - Eron tavoitteeseen
- * - Luottamustason
- * - Sesonkikorjauksen
+ * Ennustealgoritmi (YoY-pohjainen):
+ *   1. Ensisijainen: lastFY_total × (currentFY_YTD / lastFY_samePeriod)
+ *   2. Fallback:     dailyAvg × daysInFY  (lineaarinen, jos ei edellisvuoden dataa)
+ *
+ * Tilikausi: 1.3. – 28/29.2.
  */
 
-import { useState, useMemo } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import {
   TrendingUp,
-  Target,
-  Calendar,
-  Info,
   ChevronRight,
   AlertCircle
 } from 'lucide-react'
 import { useTranslation } from '@/lib/i18n'
-import { useAnalytics } from '@/hooks/useAnalytics'
+import { useCurrentShop } from '@/config/storeConfig'
 import { useMerchantGoals } from '@/hooks/useMerchantGoals'
+import { supabase } from '@/lib/supabase'
 
 /**
- * Seasonal factors by month (based on typical e-commerce patterns)
- * 1.0 = average month, >1 = above average, <1 = below average
+ * Fiscal year months in order (March → February)
  */
-const SEASONAL_FACTORS = {
-  1: 0.7,   // January - post-holiday slump
-  2: 0.75,  // February
-  3: 0.85,  // March
-  4: 0.9,   // April
-  5: 0.95,  // May
-  6: 0.85,  // June - summer slowdown
-  7: 0.8,   // July
-  8: 0.85,  // August
-  9: 1.0,   // September - back to normal
-  10: 1.1,  // October
-  11: 1.3,  // November - Black Friday
-  12: 1.4   // December - Holiday peak
+const FY_MONTHS = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2]
+
+/**
+ * Get fiscal year boundaries for a given date.
+ * Fiscal year: March 1 – February 28/29.
+ */
+function getFiscalYear(date) {
+  const year = date.getFullYear()
+  const month = date.getMonth() + 1
+
+  // March or later → FY starts this calendar year; Jan/Feb → FY started last year
+  const fyStartYear = month >= 3 ? year : year - 1
+
+  const start = new Date(fyStartYear, 2, 1) // March 1
+
+  // End: Feb 28 or 29 of the following year
+  const endYear = fyStartYear + 1
+  const isLeap = new Date(endYear, 1, 29).getMonth() === 1
+  const end = new Date(endYear, 1, isLeap ? 29 : 28)
+
+  // Previous fiscal year
+  const prevStart = new Date(fyStartYear - 1, 2, 1)
+  const prevEndYear = fyStartYear
+  const prevIsLeap = new Date(prevEndYear, 1, 29).getMonth() === 1
+  const prevEnd = new Date(prevEndYear, 1, prevIsLeap ? 29 : 28)
+
+  const label = `03/${fyStartYear}–02/${endYear}`
+  const prevLabel = `03/${fyStartYear - 1}–02/${prevEndYear}`
+
+  return { start, end, label, prevStart, prevEnd, prevLabel, fyStartYear }
 }
 
 /**
- * Calculate year-end forecast based on YTD performance
+ * Days elapsed since fiscal year start (inclusive).
  */
-function calculateForecast(ytdRevenue, lastYearTotal, currentMonth, currentDayOfMonth) {
-  if (!lastYearTotal || lastYearTotal <= 0) {
-    return null
-  }
+function getDayOfFiscalYear(date) {
+  const fy = getFiscalYear(date)
+  const diff = date - fy.start
+  return Math.floor(diff / (1000 * 60 * 60 * 24)) + 1
+}
 
-  // Calculate how much of the year has passed
-  const daysInYear = 365
-  const dayOfYear = getDayOfYear(new Date())
-  const yearProgress = dayOfYear / daysInYear
+/**
+ * Total days in the fiscal year.
+ */
+function getDaysInFiscalYear(date) {
+  const fy = getFiscalYear(date)
+  const diff = fy.end - fy.start
+  return Math.floor(diff / (1000 * 60 * 60 * 24)) + 1
+}
 
-  // If less than 2 weeks of data, don't forecast
-  if (dayOfYear < 14) {
-    return null
-  }
+/**
+ * Format date as YYYY-MM-DD
+ */
+function fmt(date) {
+  return date.toISOString().split('T')[0]
+}
 
-  // Calculate current run rate
-  const dailyRunRate = ytdRevenue / dayOfYear
+/**
+ * Calculate YoY-based fiscal year forecast
+ *
+ * Primary:  lastFY_total × (currentFY_YTD / lastFY_samePeriod)
+ * Fallback: dailyAvg × daysInFY (linear)
+ */
+function calculateYoYForecast(currentYTD, lastFYSamePeriod, lastFYTotal, daysElapsed, daysInFY) {
+  // Need at least 14 days of data
+  if (daysElapsed < 14) return null
 
-  // Apply seasonal adjustment for remaining months
-  let remainingRevenue = 0
-  const currentDate = new Date()
+  const yearProgress = daysElapsed / daysInFY
 
-  for (let month = currentMonth; month <= 12; month++) {
-    const daysInMonth = new Date(currentDate.getFullYear(), month, 0).getDate()
-    const factor = SEASONAL_FACTORS[month] || 1.0
+  // Primary: YoY method
+  if (lastFYSamePeriod > 0 && lastFYTotal > 0) {
+    const yoyGrowthRate = currentYTD / lastFYSamePeriod
+    const yoyForecast = Math.round(lastFYTotal * yoyGrowthRate)
 
-    if (month === currentMonth) {
-      // Remaining days in current month
-      const remainingDays = daysInMonth - currentDayOfMonth
-      remainingRevenue += dailyRunRate * remainingDays * factor
-    } else {
-      // Full months
-      remainingRevenue += dailyRunRate * daysInMonth * factor
+    let confidence = 'low'
+    if (yearProgress > 0.5) confidence = 'medium'
+    if (yearProgress > 0.75) confidence = 'high'
+
+    return {
+      forecast: yoyForecast,
+      method: 'yoy',
+      confidence,
+      daysElapsed,
+      yearProgress: Math.round(yearProgress * 100),
+      yoyGrowthRate: Math.round((yoyGrowthRate - 1) * 100),
+      lastFYTotal,
+      lastFYSamePeriod,
+      dailyRunRate: Math.round(currentYTD / daysElapsed)
     }
   }
 
-  const yearEndForecast = ytdRevenue + remainingRevenue
+  // Fallback: linear
+  const dailyAvg = currentYTD / daysElapsed
+  const linearForecast = Math.round(dailyAvg * daysInFY)
 
-  // Calculate confidence based on how much of the year has passed
   let confidence = 'low'
   if (yearProgress > 0.5) confidence = 'medium'
   if (yearProgress > 0.75) confidence = 'high'
 
-  // YoY growth rate
-  const yoyGrowthRate = lastYearTotal > 0
-    ? ((ytdRevenue / (lastYearTotal * yearProgress)) - 1) * 100
-    : 0
-
   return {
-    yearEndForecast: Math.round(yearEndForecast),
+    forecast: linearForecast,
+    method: 'linear',
     confidence,
-    yoyGrowthRate: Math.round(yoyGrowthRate * 10) / 10,
+    daysElapsed,
     yearProgress: Math.round(yearProgress * 100),
-    dailyRunRate: Math.round(dailyRunRate)
+    dailyRunRate: Math.round(dailyAvg)
   }
-}
-
-/**
- * Get day of year (1-365)
- */
-function getDayOfYear(date) {
-  const start = new Date(date.getFullYear(), 0, 0)
-  const diff = date - start
-  const oneDay = 1000 * 60 * 60 * 24
-  return Math.floor(diff / oneDay)
 }
 
 /**
  * Main ForecastCard Component
  */
 export function ForecastCard() {
-  const { t, formatCurrency, formatNumber, language } = useTranslation()
+  const { t, formatCurrency, language } = useTranslation()
+  const { storeId, ready } = useCurrentShop()
   const [showDetails, setShowDetails] = useState(false)
 
-  // Get current year's data
-  const currentYear = new Date().getFullYear()
-  const yearStart = `${currentYear}-01-01`
-  const today = new Date().toISOString().split('T')[0]
+  const [ytdRevenue, setYtdRevenue] = useState(null)
+  const [lastFYTotal, setLastFYTotal] = useState(null)
+  const [lastFYSamePeriod, setLastFYSamePeriod] = useState(null)
+  const [loading, setLoading] = useState(true)
 
-  // Get last year's data for comparison
-  const lastYearStart = `${currentYear - 1}-01-01`
-  const lastYearEnd = `${currentYear - 1}-12-31`
+  const now = new Date()
+  const fy = getFiscalYear(now)
+  const daysElapsed = getDayOfFiscalYear(now)
+  const daysInFY = getDaysInFiscalYear(now)
 
-  const { summary: currentYearSummary, loading: loadingCurrent } = useAnalytics({
-    startDate: yearStart,
-    endDate: today
-  })
+  // Fetch revenue data from v_daily_sales
+  useEffect(() => {
+    async function fetchRevenueData() {
+      setLoading(true)
+      const today = fmt(now)
 
-  const { summary: lastYearSummary, loading: loadingLastYear } = useAnalytics({
-    startDate: lastYearStart,
-    endDate: lastYearEnd
-  })
+      // 1. Current FY YTD
+      const fyStartStr = fmt(fy.start)
+      const { data: ytdData } = await supabase
+        .from('v_daily_sales')
+        .select('total_revenue')
+        .eq('store_id', storeId)
+        .gte('sale_date', fyStartStr)
+        .lte('sale_date', today)
+
+      if (ytdData) {
+        setYtdRevenue(ytdData.reduce((sum, d) => sum + (parseFloat(d.total_revenue) || 0), 0))
+      }
+
+      // 2. Last FY — same period (for YoY ratio)
+      //    Same number of days from previous FY start
+      const prevFYSameDayEnd = new Date(fy.prevStart)
+      prevFYSameDayEnd.setDate(prevFYSameDayEnd.getDate() + daysElapsed - 1)
+
+      const { data: lastPeriodData } = await supabase
+        .from('v_daily_sales')
+        .select('total_revenue')
+        .eq('store_id', storeId)
+        .gte('sale_date', fmt(fy.prevStart))
+        .lte('sale_date', fmt(prevFYSameDayEnd))
+
+      if (lastPeriodData) {
+        setLastFYSamePeriod(lastPeriodData.reduce((sum, d) => sum + (parseFloat(d.total_revenue) || 0), 0))
+      }
+
+      // 3. Last FY — full year total
+      const { data: lastFullData } = await supabase
+        .from('v_daily_sales')
+        .select('total_revenue')
+        .eq('store_id', storeId)
+        .gte('sale_date', fmt(fy.prevStart))
+        .lte('sale_date', fmt(fy.prevEnd))
+
+      if (lastFullData) {
+        setLastFYTotal(lastFullData.reduce((sum, d) => sum + (parseFloat(d.total_revenue) || 0), 0))
+      }
+
+      setLoading(false)
+    }
+
+    if (!ready || !storeId) return
+    fetchRevenueData()
+  }, [storeId, ready])
 
   const { goals, loading: loadingGoals } = useMerchantGoals()
-
-  const loading = loadingCurrent || loadingLastYear || loadingGoals
 
   // Find yearly revenue goal
   const revenueGoal = goals?.find(g =>
     g.goal_type === 'revenue' &&
-    (g.period_type === 'yearly' || g.period_label === `${currentYear}`)
+    (g.period_type === 'yearly' || g.period_label === `${fy.fyStartYear}`)
   )
 
   // Calculate forecast
-  const forecast = useMemo(() => {
-    if (!currentYearSummary?.totalRevenue) return null
+  const forecastData = useMemo(() => {
+    if (ytdRevenue === null || ytdRevenue === 0) return null
+    return calculateYoYForecast(ytdRevenue, lastFYSamePeriod, lastFYTotal, daysElapsed, daysInFY)
+  }, [ytdRevenue, lastFYSamePeriod, lastFYTotal, daysElapsed, daysInFY])
 
-    const currentMonth = new Date().getMonth() + 1
-    const currentDayOfMonth = new Date().getDate()
+  const isLoading = loading || loadingGoals
 
-    return calculateForecast(
-      currentYearSummary.totalRevenue,
-      lastYearSummary?.totalRevenue || 0,
-      currentMonth,
-      currentDayOfMonth
-    )
-  }, [currentYearSummary, lastYearSummary])
-
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="bg-background-elevated border border-card-border rounded-lg p-6">
         <div className="animate-pulse">
@@ -174,19 +232,20 @@ export function ForecastCard() {
   }
 
   const targetValue = revenueGoal?.target_value || 0
-  const forecastValue = forecast?.yearEndForecast || 0
-  const ytdValue = currentYearSummary?.totalRevenue || 0
+  const forecastValue = forecastData?.forecast || 0
 
-  // Calculate difference to target
+  // Difference to target
   const diffToTarget = forecastValue - targetValue
   const diffPercent = targetValue > 0
     ? Math.round((diffToTarget / targetValue) * 1000) / 10
     : 0
 
-  // Progress percentage
+  // Progress percentage (YTD vs target)
   const progressPercent = targetValue > 0
-    ? Math.min(Math.round((ytdValue / targetValue) * 100), 100)
+    ? Math.min(Math.round((ytdRevenue / targetValue) * 100), 100)
     : 0
+
+  const isFi = language === 'fi'
 
   const getConfidenceLabel = (conf) => {
     switch (conf) {
@@ -213,13 +272,18 @@ export function ForecastCard() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <TrendingUp className="h-5 w-5 text-primary" />
-            <h3 className="font-semibold text-foreground">
-              {t('forecast.title')}
-            </h3>
+            <div>
+              <h3 className="font-semibold text-foreground">
+                {t('forecast.title')}
+              </h3>
+              <p className="text-xs text-muted-foreground">
+                {t('forecast.fiscalYear')} {fy.label}
+              </p>
+            </div>
           </div>
-          {forecast?.confidence && (
-            <span className={`text-xs font-medium ${getConfidenceColor(forecast.confidence)}`}>
-              {getConfidenceLabel(forecast.confidence)}
+          {forecastData?.confidence && (
+            <span className={`text-xs font-medium ${getConfidenceColor(forecastData.confidence)}`}>
+              {getConfidenceLabel(forecastData.confidence)}
             </span>
           )}
         </div>
@@ -227,7 +291,7 @@ export function ForecastCard() {
 
       {/* Content */}
       <div className="p-4 space-y-4">
-        {!forecast ? (
+        {!forecastData ? (
           <div className="text-center py-4">
             <AlertCircle className="h-8 w-8 text-muted-foreground/30 mx-auto mb-2" />
             <p className="text-sm text-muted-foreground">
@@ -236,12 +300,14 @@ export function ForecastCard() {
           </div>
         ) : (
           <>
-            {/* Main forecast vs target */}
+            {/* Main forecast */}
             <div className="space-y-2">
               <div className="flex items-end justify-between">
                 <div>
                   <p className="text-xs text-muted-foreground">
-                    {t('forecast.yearEndForecast')}
+                    {forecastData.method === 'yoy'
+                      ? (isFi ? 'Tilikauden ennuste (YoY)' : 'Räkenskapsårsprognos (YoY)')
+                      : (isFi ? 'Tilikauden ennuste (lineaarinen)' : 'Räkenskapsårsprognos (linjär)')}
                   </p>
                   <p className="text-2xl font-bold text-foreground">
                     {formatCurrency(forecastValue)}
@@ -258,6 +324,21 @@ export function ForecastCard() {
                   </div>
                 )}
               </div>
+
+              {/* YoY explanation */}
+              {forecastData.method === 'yoy' ? (
+                <p className="text-xs text-muted-foreground">
+                  {isFi
+                    ? `Edellinen tilikausi ${formatCurrency(forecastData.lastFYTotal)} × ${forecastData.yoyGrowthRate >= 0 ? '+' : ''}${forecastData.yoyGrowthRate}% kasvu`
+                    : `Föregående räkenskapsår ${formatCurrency(forecastData.lastFYTotal)} × ${forecastData.yoyGrowthRate >= 0 ? '+' : ''}${forecastData.yoyGrowthRate}% tillväxt`}
+                </p>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  {isFi
+                    ? `${formatCurrency(forecastData.dailyRunRate)}/päivä × ${daysInFY} päivää`
+                    : `${formatCurrency(forecastData.dailyRunRate)}/dag × ${daysInFY} dagar`}
+                </p>
+              )}
 
               {/* Progress bar */}
               {targetValue > 0 && (
@@ -280,6 +361,23 @@ export function ForecastCard() {
                     {progressPercent}% {t('forecast.ofTarget')}
                   </p>
                 </div>
+              )}
+            </div>
+
+            {/* YTD comparison */}
+            <div className="space-y-1">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">{isFi ? 'YTD toteutuma' : 'YTD utfall'}</span>
+                <span className="text-foreground font-medium">
+                  {formatCurrency(Math.round(ytdRevenue))}
+                </span>
+              </div>
+              {forecastData.method === 'yoy' && lastFYSamePeriod > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  {isFi
+                    ? `vs. edellinen tilikausi sama aika: ${formatCurrency(Math.round(lastFYSamePeriod))} (${forecastData.yoyGrowthRate >= 0 ? '+' : ''}${forecastData.yoyGrowthRate}%)`
+                    : `vs. föregående räkenskapsår samma tid: ${formatCurrency(Math.round(lastFYSamePeriod))} (${forecastData.yoyGrowthRate >= 0 ? '+' : ''}${forecastData.yoyGrowthRate}%)`}
+                </p>
               )}
             </div>
 
@@ -314,10 +412,17 @@ export function ForecastCard() {
             {/* Details */}
             {showDetails && (
               <div className="text-xs text-muted-foreground space-y-1 pl-4 border-l-2 border-card-border">
-                <p>{t('forecast.basedOn')}: {forecast.yearProgress}% {t('forecast.ofYearComplete')}</p>
-                <p>{t('forecast.dailyRunRate')}: {formatCurrency(forecast.dailyRunRate)}</p>
-                <p>{t('forecast.yoyGrowth')}: {forecast.yoyGrowthRate > 0 ? '+' : ''}{forecast.yoyGrowthRate}%</p>
-                <p>{t('forecast.seasonalAdjustment')}: {t('forecast.applied')}</p>
+                <p>{t('forecast.basedOn')}: {forecastData.yearProgress}% {t('forecast.ofYearComplete')}</p>
+                <p>{isFi ? 'Päivittäinen keskiarvo' : 'Daglig genomsnitt'}: {formatCurrency(forecastData.dailyRunRate)}</p>
+                {forecastData.method === 'yoy' && (
+                  <>
+                    <p>{isFi ? 'Menetelmä' : 'Metod'}: {isFi ? 'YoY-kasvu (edellinen tilikausi)' : 'YoY-tillväxt (föregående räkenskapsår)'}</p>
+                    <p>{isFi ? 'Kaava' : 'Formel'}: {formatCurrency(forecastData.lastFYTotal)} × {((forecastData.yoyGrowthRate / 100) + 1).toFixed(2)}</p>
+                  </>
+                )}
+                {forecastData.method === 'linear' && (
+                  <p>{isFi ? 'Menetelmä' : 'Metod'}: {isFi ? 'Lineaarinen (ei edellisvuoden dataa)' : 'Linjär (ingen förra årets data)'}</p>
+                )}
               </div>
             )}
           </>
