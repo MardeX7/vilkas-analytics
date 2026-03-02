@@ -45,16 +45,16 @@ import { useCurrentShop } from '@/config/storeConfig'
  */
 const QUICK_PROMPTS = {
   fi: [
-    { id: 'fy_progress', text: 'Miten tilikausi etenee tavoitteeseen nähden?', icon: '📊' },
-    { id: 'attention', text: 'Mikä yksittäinen asia vaatii huomiotani nyt?', icon: '⚠️' },
-    { id: 'daily_target', text: 'Paljonko päivämyynnin pitää olla tavoitteen saavuttamiseksi?', icon: '📈' },
-    { id: 'priorities', text: 'Priorisoi tämän viikon tehtävät datan perusteella.', icon: '💡' }
+    { id: 'growth_prob', text: 'Millä todennäköisyydellä saavutamme 20% kasvutavoitteen?', icon: '🎯' },
+    { id: 'blocker', text: 'Mikä on suurin yksittäinen este kasvulle juuri nyt?', icon: '🚧' },
+    { id: 'stop_doing', text: 'Mitä meidän pitäisi lopettaa tekemästä?', icon: '✂️' },
+    { id: 'next_30d', text: 'Anna 3 strategista toimenpidettä seuraavalle 30 päivälle.', icon: '⚡' }
   ],
   sv: [
-    { id: 'fy_progress', text: 'Hur går räkenskapsåret mot målet?', icon: '📊' },
-    { id: 'attention', text: 'Vad kräver min uppmärksamhet just nu?', icon: '⚠️' },
-    { id: 'daily_target', text: 'Hur mycket dagförsäljning krävs för att nå målet?', icon: '📈' },
-    { id: 'priorities', text: 'Prioritera veckans uppgifter baserat på data.', icon: '💡' }
+    { id: 'growth_prob', text: 'Med vilken sannolikhet når vi 20% tillväxtmålet?', icon: '🎯' },
+    { id: 'blocker', text: 'Vad är det största enskilda hindret för tillväxt just nu?', icon: '🚧' },
+    { id: 'stop_doing', text: 'Vad borde vi sluta göra?', icon: '✂️' },
+    { id: 'next_30d', text: 'Ge 3 strategiska åtgärder för de närmaste 30 dagarna.', icon: '⚡' }
   ]
 }
 
@@ -64,161 +64,161 @@ const QUICK_PROMPTS = {
 const CATEGORIES = {
   tilannekuva: {
     icon: Eye,
-    labelFi: 'Tilannekuva',
-    labelSv: 'Lägesbild',
+    labelFi: 'Kasvuanalyysi',
+    labelSv: 'Tillväxtanalys',
     color: 'violet',
     questions: {
       fi: [
-        'Anna tilannekatsaus: myynti, asiakkaat, varasto, näkyvyys.',
-        'Miten tämä viikko vertautuu viime vuoden vastaavaan viikkoon?',
-        'Mikä selittää Growth Engine -indeksin muutoksen?',
-        'Onko jokin mittari hälyttävällä tasolla juuri nyt?'
+        'Millä todennäköisyydellä saavutamme 20% kasvutavoitteen? Mikä on suurin riski?',
+        'Onko kasvumme volyymiä vai konversiota? Erota nämä.',
+        'Menetämmekö markkinaosuutta? Vertaa orgaanista trendiä YoY.',
+        'Mikä rakenteellinen heikkous hidastaa kasvua eniten?'
       ],
       sv: [
-        'Ge en lägesbild: försäljning, kunder, lager, synlighet.',
-        'Hur jämför sig denna vecka med samma vecka förra året?',
-        'Vad förklarar förändringen i Growth Engine-indexet?',
-        'Är något mätvärde på en alarmerande nivå just nu?'
+        'Med vilken sannolikhet når vi 20% tillväxtmålet? Vad är största risken?',
+        'Är vår tillväxt volym eller konvertering? Separera dessa.',
+        'Tappar vi marknadsandelar? Jämför organisk trend YoY.',
+        'Vilken strukturell svaghet bromsar tillväxten mest?'
       ]
     }
   },
   kasvu: {
     icon: TrendingUp,
-    labelFi: 'Kasvu & myynti',
-    labelSv: 'Tillväxt',
+    labelFi: 'Liikevaihto',
+    labelSv: 'Omsättning',
     color: 'emerald',
     questions: {
       fi: [
-        'Paljonko päivämyynnin pitäisi olla, jotta tilikauden tavoite toteutuu?',
-        'Miten keskitilaus (AOV) on kehittynyt ja miksi?',
-        'Kasvaako liikevaihto orgaanisesti vai kampanjoiden kautta?',
-        'Missä on suurin kasvupotentiaali juuri nyt?'
+        'Kasvaako liikevaihto orgaanisesti vai olemmeko kampanjariippuvaisia?',
+        'Paljonko päivämyynnin pitäisi olla tavoitteen saavuttamiseksi? Onko realistista?',
+        'Jos emme tee mitään, mihin nykyinen trajectory vie meidät tilikauden lopussa?',
+        'Onko top 10 SKU:n osuus >50%? Arvioi keskittymäriski.'
       ],
       sv: [
-        'Hur mycket måste dagförsäljningen vara för att nå räkenskapsårets mål?',
-        'Hur har genomsnittsorder (AOV) utvecklats och varför?',
-        'Växer omsättningen organiskt eller genom kampanjer?',
-        'Var finns den största tillväxtpotentialen just nu?'
+        'Växer omsättningen organiskt eller är vi kampanjberoende?',
+        'Hur mycket dagförsäljning krävs för målet? Är det realistiskt?',
+        'Om vi inte gör något, vart leder nuvarande trajectory vid räkenskapsårets slut?',
+        'Är top 10 SKU:s andel >50%? Bedöm koncentrationsrisken.'
       ]
     }
   },
   tavoitteet: {
     icon: Target,
-    labelFi: 'Tavoitteet',
-    labelSv: 'Mål',
+    labelFi: 'Tavoite & ennuste',
+    labelSv: 'Mål & prognos',
     color: 'blue',
     questions: {
       fi: [
-        'Miten tilikausi etenee tavoitteeseen nähden?',
-        'Kuinka monta kauppapäivää tavoitteeseen on jäljellä ja mikä on vaadittu päivävauhti?',
-        'Vertaa edistymistämme viime tilikauden samaan ajankohtaan.',
-        'Onko ennuste realistinen vai tarvitaanko toimenpiteitä?'
+        'Vertaa edistymistä viime tilikauteen – olemmeko edellä vai jäljessä ja miksi?',
+        'Kuinka monta kauppapäivää jäljellä ja mikä on vaadittu päivävauhti? Haasta realismi.',
+        'Mikä uhkaa tavoitteen saavuttamista eniten? Anna aikataulu korjaukselle.',
+        'Onko 20% tavoite realistinen vai pitäisikö strategiaa muuttaa?'
       ],
       sv: [
-        'Hur går räkenskapsåret mot målet?',
-        'Hur många handelsdagar kvar till målet och vad krävs per dag?',
-        'Jämför vår utveckling med samma tidpunkt förra räkenskapsåret.',
-        'Är prognosen realistisk eller behövs åtgärder?'
+        'Jämför med förra räkenskapsåret – ligger vi före eller efter och varför?',
+        'Hur många handelsdagar kvar och vad krävs per dag? Utmana realismen.',
+        'Vad hotar måluppfyllelsen mest? Ge en tidslinje för korrigering.',
+        'Är 20% målet realistiskt eller bör strategin ändras?'
       ]
     }
   },
   asiakkaat: {
     icon: Users,
-    labelFi: 'Asiakkaat',
-    labelSv: 'Kunder',
+    labelFi: 'Asiakkaat & B2B',
+    labelSv: 'Kunder & B2B',
     color: 'pink',
     questions: {
       fi: [
-        'Miten B2B- ja B2C-asiakkaat eroavat ostokäyttäytymiseltään?',
-        'Mikä on palaavien asiakkaiden elinkaarioarvo vs. uudet?',
-        'Mitkä tuotteet tuovat meille uusia asiakkaita?',
-        'Miten asiakashankinta on muuttunut viime kuukausina?'
+        'Onko B2B-pipeline todellinen vai toiveajattelua? Vaadi todisteet ja aikataulu.',
+        'Palaavien asiakkaiden arvo vs. uudet – pitäisikö keskittyä retentioon?',
+        'Mitkä entry-tuotteet tuovat uusia asiakkaita ja miten LTV kehittyy?',
+        'Onko asiakashankinnassa trendi joka uhkaa kasvua?'
       ],
       sv: [
-        'Hur skiljer sig B2B- och B2C-kunders köpbeteende?',
-        'Vad är livstidsvärdet för återkommande kunder vs. nya?',
-        'Vilka produkter lockar nya kunder till oss?',
-        'Hur har kundanskaffningen förändrats de senaste månaderna?'
+        'Är B2B-pipelinen verklig eller önsketänkande? Kräv bevis och tidslinje.',
+        'Återkommande kunders värde vs. nya – borde vi fokusera på retention?',
+        'Vilka entry-produkter lockar nya kunder och hur utvecklas LTV?',
+        'Finns det en trend i kundanskaffningen som hotar tillväxten?'
       ]
     }
   },
   varasto: {
     icon: Package,
-    labelFi: 'Tuotteet',
-    labelSv: 'Produkter',
+    labelFi: 'Tuotteet & paketit',
+    labelSv: 'Produkter & paket',
     color: 'amber',
     questions: {
       fi: [
-        'Mitkä hero-tuotteet vetävät myyntiä ja onko niitä varastossa?',
-        'Analysoi tuoteroolien jakauma: herot, ankkurit, täyttäjät, häntä.',
-        'Mitkä tuotteet pitäisi tilata lisää ennen kuin varasto loppuu?',
-        'Onko sisäänheittotuotteissa (entry) muutoksia?'
+        'Onko pakettien osuus liikevaihdosta >20%? Jos ei, strategia alisuoriutuu.',
+        'Mitkä hero-tuotteet ovat loppumassa ja mikä on myyntivaikutus?',
+        'Heikentävätkö jotkut tuotteet katetta – pitäisikö ne poistaa?',
+        'Onko varastoon sitoutunut pääomaa tuotteissa jotka eivät tue kasvua?'
       ],
       sv: [
-        'Vilka hjälteprodukter driver försäljningen och finns de i lager?',
-        'Analysera produktrollerna: hjältar, ankare, utfyllnad, svans.',
-        'Vilka produkter bör beställas innan lagret tar slut?',
-        'Har det skett förändringar bland ingångsprodukterna?'
+        'Är paketens andel av omsättningen >20%? Om inte, underpresterar strategin.',
+        'Vilka hjälteprodukter håller på att ta slut och vad blir försäljningspåverkan?',
+        'Försämrar vissa produkter marginalen – bör de avvecklas?',
+        'Finns det bundet kapital i produkter som inte stödjer tillväxten?'
       ]
     }
   },
   seo: {
     icon: Search,
-    labelFi: 'Näkyvyys',
-    labelSv: 'Synlighet',
+    labelFi: 'Näkyvyys & markkina',
+    labelSv: 'Synlighet & marknad',
     color: 'cyan',
     questions: {
       fi: [
-        'Mitkä hakutermit tuovat eniten myyntiä?',
-        'Onko SEO-positiossa muutoksia jotka vaikuttavat liikevaihtoon?',
-        'Kasvaako orgaaninen liikenne strategisesti tärkeissä kategorioissa?',
-        'Mikä on orgaanisen haun konversioprosentti vs. muu liikenne?'
+        'Menetämmekö orgaanista näkyvyyttä? Jos trendi laskeva → tarvitaanko SEO-sprintti?',
+        'Mitkä hakutermit tuovat myyntiä ja onko positiossa uhkia?',
+        'Tukeeko orgaaninen liikenne kasvutavoitetta vai olemmeko paid-riippuvaisia?',
+        'Missä kategorioissa näkyvyys ei muutu myynniksi – miksi?'
       ],
       sv: [
-        'Vilka söktermer genererar mest försäljning?',
-        'Har SEO-positionerna förändrats på ett sätt som påverkar omsättningen?',
-        'Växer organisk trafik i strategiskt viktiga kategorier?',
-        'Vad är konverteringsgraden för organisk sökning vs. övrig trafik?'
+        'Tappar vi organisk synlighet? Om trenden är nedåt → behövs SEO-sprint?',
+        'Vilka söktermer driver försäljning och finns det positionsrisker?',
+        'Stödjer organisk trafik tillväxtmålet eller är vi beroende av betald trafik?',
+        'I vilka kategorier syns inte synligheten i försäljningen – varför?'
       ]
     }
   },
   toimenpiteet: {
     icon: Lightbulb,
-    labelFi: 'Toimenpiteet',
-    labelSv: 'Åtgärder',
+    labelFi: 'Päätökset',
+    labelSv: 'Beslut',
     color: 'orange',
     questions: {
       fi: [
-        'Mikä yksittäinen toimenpide vaikuttaisi eniten tilikauden tavoitteeseen?',
-        'Priorisoi tämän viikon 3 tärkeintä tehtävää datan perusteella.',
-        'Mitä pitäisi lopettaa tekemästä – mikä ei tuota tulosta?',
-        'Mitä pitäisi valmistella seuraavaa sesonkia varten?'
+        'Anna 3 strategista toimenpidettä seuraavalle 30 päivälle – priorisoi vaikutuksen mukaan.',
+        'Mitä meidän pitäisi lopettaa tekemästä? Mikä ei tuota tulosta?',
+        'Jos budjetti +10 000€, mihin allokoisit ja miksi?',
+        'Mitä pitäisi valmistella seuraavaa sesonkia varten jo nyt?'
       ],
       sv: [
-        'Vilken enskild åtgärd skulle påverka räkenskapsårets mål mest?',
-        'Prioritera veckans 3 viktigaste uppgifter baserat på data.',
-        'Vad bör vi sluta göra – vad ger inte resultat?',
-        'Vad bör förberedas inför nästa säsong?'
+        'Ge 3 strategiska åtgärder för nästa 30 dagar – prioritera efter effekt.',
+        'Vad borde vi sluta göra? Vad ger inte resultat?',
+        'Om budget +10 000€, vart allokerar du och varför?',
+        'Vad bör förberedas för nästa säsong redan nu?'
       ]
     }
   },
   selittavat: {
     icon: HelpCircle,
-    labelFi: 'Selitä',
-    labelSv: 'Förklara',
+    labelFi: 'Haasta',
+    labelSv: 'Utmana',
     color: 'slate',
     questions: {
       fi: [
-        'Selitä miten Growth Engine -indeksi lasketaan ja mitä se kertoo.',
-        'Miksi konversio muuttui ja miten se vaikuttaa liikevaihtoon?',
-        'Mitä tuoteroolit (hero, anchor, filler) tarkoittavat käytännössä?',
-        'Miten tilikausivertailu huomioi sesonkivaihtelut?'
+        'Missä olemme haavoittuvia vaikka luvut näyttävät hyviltä?',
+        'Mikä on suurin piiloriski jonka data paljastaa?',
+        'Ennusta 3 kuukautta eteenpäin: mihin olemme menossa jos emme muuta mitään?',
+        'Mitä kriittistä tietoa meiltä puuttuu päätöksentekoon?'
       ],
       sv: [
-        'Förklara hur Growth Engine-indexet beräknas och vad det visar.',
-        'Varför förändrades konverteringen och hur påverkar det omsättningen?',
-        'Vad betyder produktrollerna (hjälte, ankare, utfyllnad) i praktiken?',
-        'Hur tar räkenskapsårsjämförelsen hänsyn till säsongsvariationer?'
+        'Var är vi sårbara trots att siffrorna ser bra ut?',
+        'Vad är den största dolda risken som data avslöjar?',
+        'Prognostisera 3 månader framåt: vart är vi på väg om vi inte ändrar något?',
+        'Vilken kritisk information saknar vi för beslutsfattande?'
       ]
     }
   }
