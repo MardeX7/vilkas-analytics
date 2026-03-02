@@ -113,8 +113,11 @@ async function fetchGA4Report(accessToken, propertyId, startDate, endDate) {
           { name: 'date' },
           { name: 'sessionSource' },
           { name: 'sessionMedium' },
-          { name: 'sessionDefaultChannelGrouping' },
-          { name: 'landingPage' }
+          { name: 'sessionDefaultChannelGrouping' }
+          // NOTE: landingPage removed to avoid GA4 Data API thresholding.
+          // High-cardinality landingPage × source × medium combinations cause
+          // GA4 to suppress low-volume rows, resulting in severely undercounted sessions.
+          // Landing page data comes from GSC (gsc_search_analytics) instead.
         ],
         metrics: [
           { name: 'sessions' },
@@ -158,7 +161,7 @@ function transformGA4Data(reportData, storeId, propertyId) {
       session_source: dims[1]?.value || null,
       session_medium: dims[2]?.value || null,
       session_default_channel_grouping: dims[3]?.value || null,
-      landing_page: dims[4]?.value || null,
+      landing_page: null,  // Landing page data comes from GSC
       sessions: parseInt(mets[0]?.value || 0),
       engaged_sessions: parseInt(mets[1]?.value || 0),
       bounce_rate: parseFloat(mets[2]?.value || 0),

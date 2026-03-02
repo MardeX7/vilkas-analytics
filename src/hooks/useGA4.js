@@ -102,20 +102,20 @@ export function useGA4(dateRange = null, comparisonMode = 'mom') {
       if (startDate) sourcesQuery = sourcesQuery.gte('date', startDate)
       if (endDate) sourcesQuery = sourcesQuery.lte('date', endDate)
 
-      // Fetch landing pages
-      let landingQuery = supabase
-        .from('ga4_analytics')
-        .select('landing_page, sessions, engaged_sessions, bounce_rate')
+      // Fetch landing pages from GSC (more reliable than GA4 for page-level data)
+      let gscLandingQuery = supabase
+        .from('gsc_search_analytics')
+        .select('page, clicks, impressions, ctr, position')
         .eq('store_id', storeId)
-        .not('landing_page', 'is', null)
+        .not('page', 'is', null)
 
-      if (startDate) landingQuery = landingQuery.gte('date', startDate)
-      if (endDate) landingQuery = landingQuery.lte('date', endDate)
+      if (startDate) gscLandingQuery = gscLandingQuery.gte('date', startDate)
+      if (endDate) gscLandingQuery = gscLandingQuery.lte('date', endDate)
 
-      const [dailyRes, sourcesRes, landingRes] = await Promise.all([
+      const [dailyRes, sourcesRes, gscLandingRes] = await Promise.all([
         dailyQuery.limit(90),
         sourcesQuery,
-        landingQuery
+        gscLandingQuery.limit(5000)
       ])
 
       // Check if we have GA4 channel data for traffic sources
@@ -166,32 +166,25 @@ export function useGA4(dateRange = null, comparisonMode = 'mom') {
           }))
           .sort((a, b) => b.sessions - a.sessions)
 
-        // Aggregate landing pages
+        // Aggregate landing pages from GSC data
         const pageMap = new Map()
-        landingRes.data?.forEach(row => {
-          const page = row.landing_page
+        gscLandingRes.data?.forEach(row => {
+          const page = row.page
           if (!pageMap.has(page)) {
-            pageMap.set(page, {
-              page,
-              sessions: 0,
-              engaged_sessions: 0,
-              bounceSum: 0,
-              count: 0
-            })
+            pageMap.set(page, { page, clicks: 0, impressions: 0 })
           }
           const p = pageMap.get(page)
-          p.sessions += row.sessions || 0
-          p.engaged_sessions += row.engaged_sessions || 0
-          p.bounceSum += (row.bounce_rate || 0) * (row.sessions || 1)
-          p.count += row.sessions || 1
+          p.clicks += row.clicks || 0
+          p.impressions += row.impressions || 0
         })
 
         landingPages = Array.from(pageMap.values())
           .map(p => ({
             page: p.page,
-            sessions: p.sessions,
-            engaged_sessions: p.engaged_sessions,
-            bounce_rate: p.count > 0 ? p.bounceSum / p.count : 0
+            sessions: p.clicks,
+            impressions: p.impressions,
+            ctr: p.impressions > 0 ? p.clicks / p.impressions : 0,
+            bounce_rate: null // Not available from GSC
           }))
           .sort((a, b) => b.sessions - a.sessions)
           .slice(0, 20)
