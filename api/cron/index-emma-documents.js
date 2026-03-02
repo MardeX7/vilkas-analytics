@@ -210,9 +210,9 @@ async function indexGoals(storeId, shopId) {
     await upsertDocument(shopId, 'goal', `goal_${goal.id}`, 'goals', { goal_type: goal.goal_type, target: goal.target_value, current: goal.current_value, progress: progressPercent, fiscal_year: fyLabel, fy_days_elapsed: fyDaysElapsed, fy_days_total: fyDaysTotal }, goalText, 7)
   }
 
-  // Index fiscal year context as a standalone document
+  // Index fiscal year context as a standalone document (uses 'insight' type + 'general' category to pass CHECK constraints)
   const fyContextText = `TILIKAUSI: Yrityksen tilikausi on 1.3.–28.2. (maaliskuun alusta helmikuun loppuun). Nykyinen tilikausi: ${fyLabel}. Tilikaudesta on kulunut ${fyDaysElapsed} päivää (${fyDaysTotal} päivää yhteensä). Kun puhutaan vuositavoitteista, liikevaihtoennusteista tai vuosittaisesta kehityksestä, viittaa aina tilikauteen (1.3.–28.2.), ei kalenterivuoteen.`
-  await upsertDocument(shopId, 'business_context', 'fiscal_year', 'context', { fiscal_year: fyLabel, fy_start: fyStart.toISOString().slice(0, 10), fy_end: fyEnd.toISOString().slice(0, 10), fy_days_elapsed: fyDaysElapsed, fy_days_total: fyDaysTotal }, fyContextText, 9)
+  await upsertDocument(shopId, 'insight', 'fiscal_year', 'general', { fiscal_year: fyLabel, fy_start: fyStart.toISOString().slice(0, 10), fy_end: fyEnd.toISOString().slice(0, 10), fy_days_elapsed: fyDaysElapsed, fy_days_total: fyDaysTotal }, fyContextText, 9)
 
   return goals.length + 1
 }
