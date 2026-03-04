@@ -1,44 +1,77 @@
 /**
  * Import cost prices from ePages CSV export
  *
- * CSV columns:
- * - B: ID [Alias] = product_number
- * - K: Inköpspris [GBasePurchasePrice] = cost_price
+ * Supports both stores:
+ *   node scripts/import_cost_prices.cjs automaalit
+ *   node scripts/import_cost_prices.cjs billackering
  *
- * Run: node scripts/import_cost_prices.cjs
+ * CSV columns (auto-detected via bracketed names):
+ * - [Alias] = product_number
+ * - [GBasePurchasePrice] = cost_price
+ * - [ListPrices/EUR/gross] or [ListPrices/SEK/gross] = sale price
  */
 
 const { supabase, printProjectInfo } = require('./db.cjs')
 const fs = require('fs')
 const path = require('path')
 
-const CSV_FILE = path.join(__dirname, '..', 'Billackering_products_1_2026.csv')
-const STORE_ID = 'a28836f6-9487-4b67-9194-e907eaf94b69'
+const STORES = {
+  automaalit: {
+    store_id: '9a0ba934-bd6c-428c-8729-791d5c7ac7c2',
+    csv: 'Automaalit_products_3_2026.csv',
+    name: 'Automaalit.net'
+  },
+  billackering: {
+    store_id: 'a28836f6-9487-4b67-9194-e907eaf94b69',
+    csv: 'Billackering_products_1_2026.csv',
+    name: 'Billackering.eu'
+  }
+}
+
 const DEFAULT_MARGIN = 0.50 // 50% margin for products without cost_price
 
 async function importCostPrices() {
   printProjectInfo()
 
-  console.log('\n📥 Importing cost prices from CSV')
+  // Parse store argument
+  const storeArg = (process.argv[2] || '').toLowerCase()
+  const storeConfig = STORES[storeArg]
+
+  if (!storeConfig) {
+    console.log('Usage: node scripts/import_cost_prices.cjs <store>')
+    console.log('  Stores: automaalit, billackering')
+    process.exit(1)
+  }
+
+  const CSV_FILE = path.join(__dirname, '..', storeConfig.csv)
+  const STORE_ID = storeConfig.store_id
+
+  console.log(`\n📥 Importing cost prices for ${storeConfig.name}`)
   console.log('='.repeat(50))
-  console.log(`   File: ${CSV_FILE}`)
+  console.log(`   File: ${storeConfig.csv}`)
+  console.log(`   Store ID: ${STORE_ID}`)
+
+  if (!fs.existsSync(CSV_FILE)) {
+    console.error(`❌ CSV file not found: ${CSV_FILE}`)
+    process.exit(1)
+  }
 
   // Read CSV
   const csvContent = fs.readFileSync(CSV_FILE, 'utf-8')
   const lines = csvContent.split('\n')
 
-  // Parse header to find column indices
+  // Parse header - use bracketed names for language-independent matching
   const header = parseCSVLine(lines[0])
-  const idIndex = header.findIndex(h => h.includes('ID [Alias]'))
-  const costIndex = header.findIndex(h => h.includes('Inköpspris [GBasePurchasePrice]'))
-  const priceIndex = header.findIndex(h => h.includes('Listpris/SEK/gross'))
+  const idIndex = header.findIndex(h => h.includes('[Alias]'))
+  const costIndex = header.findIndex(h => h.includes('[GBasePurchasePrice]'))
+  const priceIndex = header.findIndex(h => h.includes('[ListPrices/'))
 
-  console.log(`   ID column: ${idIndex}`)
-  console.log(`   Cost price column: ${costIndex}`)
-  console.log(`   Price column: ${priceIndex}`)
+  console.log(`   ID column [Alias]: ${idIndex}`)
+  console.log(`   Cost price column [GBasePurchasePrice]: ${costIndex}`)
+  console.log(`   Price column [ListPrices/]: ${priceIndex}`)
 
   if (idIndex === -1 || costIndex === -1) {
-    console.error('❌ Could not find required columns')
+    console.error('❌ Could not find required columns ([Alias] or [GBasePurchasePrice])')
     return
   }
 
@@ -51,11 +84,11 @@ async function importCostPrices() {
     const cols = parseCSVLine(line)
     const productNumber = cols[idIndex]?.trim()
     const costPriceStr = cols[costIndex]?.trim()
-    const priceStr = cols[priceIndex]?.trim()
+    const priceStr = priceIndex >= 0 ? cols[priceIndex]?.trim() : null
 
     if (!productNumber) continue
 
-    // Parse cost price (Swedish format: 32,45 -> 32.45)
+    // Parse cost price (European format: 32,45 -> 32.45)
     let costPrice = null
     if (costPriceStr && costPriceStr !== '') {
       costPrice = parseFloat(costPriceStr.replace(',', '.'))
@@ -76,7 +109,8 @@ async function importCostPrices() {
     })
   }
 
-  console.log(`   Parsed ${csvProducts.length} products from CSV`)
+  const withActualCost = csvProducts.filter(p => p.costPrice !== null && p.costPrice > 0).length
+  console.log(`   Parsed ${csvProducts.length} products from CSV (${withActualCost} with cost price)`)
 
   // Get products from database
   const { data: dbProducts, error } = await supabase
@@ -97,11 +131,12 @@ async function importCostPrices() {
     csvMap.set(p.productNumber, p)
   }
 
-  // Update products
+  // Update products in batches
   let updated = 0
   let withCost = 0
   let withDefault = 0
   let notFound = 0
+  const updates = []
 
   for (const dbProduct of dbProducts) {
     const csvProduct = csvMap.get(dbProduct.product_number)
@@ -116,25 +151,34 @@ async function importCostPrices() {
       // Calculate default cost price (50% of sale price)
       const salePrice = csvProduct?.salePrice || dbProduct.price_amount
       if (salePrice && salePrice > 0) {
-        costPrice = salePrice * (1 - DEFAULT_MARGIN)
+        costPrice = Math.round(salePrice * (1 - DEFAULT_MARGIN) * 100) / 100
         withDefault++
       }
     }
 
     if (costPrice !== null) {
-      const { error: updateError } = await supabase
-        .from('products')
-        .update({ cost_price: costPrice })
-        .eq('id', dbProduct.id)
-
-      if (updateError) {
-        console.error(`   ❌ Failed to update ${dbProduct.product_number}:`, updateError.message)
-      } else {
-        updated++
-      }
+      updates.push({ id: dbProduct.id, product_number: dbProduct.product_number, cost_price: costPrice })
     } else {
       notFound++
     }
+  }
+
+  // Execute updates in batches of 50
+  const batchSize = 50
+  for (let i = 0; i < updates.length; i += batchSize) {
+    const batch = updates.slice(i, i + batchSize)
+    const promises = batch.map(u =>
+      supabase
+        .from('products')
+        .update({ cost_price: u.cost_price })
+        .eq('id', u.id)
+    )
+    const results = await Promise.all(promises)
+    const errors = results.filter(r => r.error)
+    if (errors.length > 0) {
+      console.error(`   ❌ Batch ${Math.floor(i / batchSize) + 1}: ${errors.length} errors`)
+    }
+    updated += batch.length - errors.length
   }
 
   console.log('\n' + '='.repeat(50))
@@ -144,6 +188,15 @@ async function importCostPrices() {
   console.log(`   📏 With default 50% margin: ${withDefault}`)
   console.log(`   ⚠️ Not updated: ${notFound}`)
 
+  // Show sample of updated products with actual cost
+  if (withCost > 0) {
+    const samples = updates.filter((_, i) => i < 5)
+    console.log('\n📋 Sample updates:')
+    for (const s of samples) {
+      console.log(`   ${s.product_number}: cost_price = ${s.cost_price}`)
+    }
+  }
+
   // Verify
   const { data: verify } = await supabase
     .from('products')
@@ -151,9 +204,7 @@ async function importCostPrices() {
     .eq('store_id', STORE_ID)
     .not('cost_price', 'is', null)
 
-  console.log(`\n✅ Verification: ${verify?.length || 0} products now have cost_price`)
-
-  console.log('\n💡 Run "node scripts/run_engine.cjs" to recalculate gross_margin')
+  console.log(`\n✅ Verification: ${verify?.length || 0} products now have cost_price in database`)
 }
 
 /**
