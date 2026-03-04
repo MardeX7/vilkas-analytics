@@ -142,9 +142,9 @@ export function useMerchantGoals() {
  * Goal type configuration
  */
 export const GOAL_TYPES = {
-  revenue: { label: 'Liikevaihto', unit: 'kr', icon: 'TrendingUp', color: 'text-green-500' },
+  revenue: { label: 'Liikevaihto', unit: 'currency', icon: 'TrendingUp', color: 'text-green-500' },
   orders: { label: 'Tilaukset', unit: 'kpl', icon: 'ShoppingCart', color: 'text-blue-500' },
-  aov: { label: 'Keskiostos', unit: 'kr', icon: 'Receipt', color: 'text-purple-500' },
+  aov: { label: 'Keskiostos', unit: 'currency', icon: 'Receipt', color: 'text-purple-500' },
   margin: { label: 'Kate', unit: '%', icon: 'PieChart', color: 'text-orange-500' },
   conversion: { label: 'Konversio', unit: '%', icon: 'Target', color: 'text-cyan-500' }
 }

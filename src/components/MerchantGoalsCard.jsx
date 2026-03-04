@@ -8,6 +8,7 @@ import { useState } from 'react'
 import { Target, Plus, X, TrendingUp, ShoppingCart, Receipt, PieChart, RefreshCw } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useMerchantGoals, GOAL_TYPES, PERIOD_TYPES, getCurrentPeriodLabel } from '@/hooks/useMerchantGoals'
+import { useCurrentShop } from '@/config/storeConfig'
 import { Button } from '@/components/ui/button'
 
 /**
@@ -29,9 +30,10 @@ function ProgressBar({ progress, color = 'bg-primary' }) {
 /**
  * Single goal item
  */
-function GoalItem({ goal, onDeactivate, onRefresh, isDeactivating, isCalculating }) {
+function GoalItem({ goal, onDeactivate, onRefresh, isDeactivating, isCalculating, currencySymbol }) {
   const config = GOAL_TYPES[goal.goal_type] || GOAL_TYPES.revenue
   const periodConfig = PERIOD_TYPES[goal.period_type] || PERIOD_TYPES.monthly
+  const displayUnit = config.unit === 'currency' ? currencySymbol : config.unit
 
   const Icon = {
     TrendingUp,
@@ -84,7 +86,7 @@ function GoalItem({ goal, onDeactivate, onRefresh, isDeactivating, isCalculating
       <div className="space-y-1.5">
         <div className="flex items-baseline justify-between text-sm">
           <span className="text-foreground-muted">
-            {goal.current_value?.toLocaleString('sv-SE')} / {goal.target_value?.toLocaleString('sv-SE')} {config.unit}
+            {goal.current_value?.toLocaleString('sv-SE')} / {goal.target_value?.toLocaleString('sv-SE')} {displayUnit}
           </span>
           <span className={cn('font-semibold tabular-nums', goal.progress_percent >= 100 ? 'text-green-500' : 'text-foreground')}>
             {goal.progress_percent?.toFixed(0)}%
@@ -99,7 +101,7 @@ function GoalItem({ goal, onDeactivate, onRefresh, isDeactivating, isCalculating
 /**
  * Add goal form
  */
-function AddGoalForm({ onSubmit, onCancel, isSubmitting }) {
+function AddGoalForm({ onSubmit, onCancel, isSubmitting, currencySymbol }) {
   const [goalType, setGoalType] = useState('revenue')
   const [periodType, setPeriodType] = useState('monthly')
   const [targetValue, setTargetValue] = useState('')
@@ -147,7 +149,7 @@ function AddGoalForm({ onSubmit, onCancel, isSubmitting }) {
 
       <div>
         <label className="text-xs text-foreground-muted mb-1 block">
-          Tavoite ({GOAL_TYPES[goalType]?.unit})
+          Tavoite ({GOAL_TYPES[goalType]?.unit === 'currency' ? currencySymbol : GOAL_TYPES[goalType]?.unit})
         </label>
         <input
           type="number"
@@ -187,6 +189,7 @@ function AddGoalForm({ onSubmit, onCancel, isSubmitting }) {
  */
 export function MerchantGoalsCard({ className }) {
   const [isAdding, setIsAdding] = useState(false)
+  const { currencySymbol } = useCurrentShop()
   const {
     goals,
     isLoading,
@@ -283,6 +286,7 @@ export function MerchantGoalsCard({ className }) {
             onRefresh={refreshProgress}
             isDeactivating={isDeactivating}
             isCalculating={isCalculating}
+            currencySymbol={currencySymbol}
           />
         ))}
 
@@ -291,6 +295,7 @@ export function MerchantGoalsCard({ className }) {
             onSubmit={handleCreateGoal}
             onCancel={() => setIsAdding(false)}
             isSubmitting={isCreating}
+            currencySymbol={currencySymbol}
           />
         )}
       </div>
