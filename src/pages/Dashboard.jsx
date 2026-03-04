@@ -246,10 +246,12 @@ export function Dashboard() {
             label={t('dashboard.metrics.grossMargin')}
             value={(summary?.marginPercent || 0).toFixed(1)}
             suffix="%"
-            subValue={summary?.grossProfit ? `${Math.round(summary.grossProfit).toLocaleString(language === 'fi' ? 'fi-FI' : 'sv-SE')} ${currencySymbol}` : undefined}
-            delta={comparison?.margin}
-            previousValue={dateRange.compare ? previousSummary?.marginPercent?.toFixed(1) : undefined}
-            deltaLabel={dateRange.compare ? comparisonMode.toUpperCase() : undefined}
+            subValue={summary?.isEstimated
+              ? (language === 'fi' ? '(arvio)' : '(uppskattning)')
+              : summary?.grossProfit ? `(${Math.round(summary.grossProfit).toLocaleString(language === 'fi' ? 'fi-FI' : 'sv-SE')} ${currencySymbol})` : undefined}
+            delta={summary?.isEstimated ? undefined : comparison?.margin}
+            previousValue={dateRange.compare && !summary?.isEstimated ? previousSummary?.marginPercent?.toFixed(1) : undefined}
+            deltaLabel={dateRange.compare && !summary?.isEstimated ? comparisonMode.toUpperCase() : undefined}
           />
           <MetricCard
             label={t('dashboard.metrics.orders')}

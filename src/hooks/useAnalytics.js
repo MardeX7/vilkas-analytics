@@ -145,24 +145,38 @@ async function fetchGrossMargin(storeId, startDate, endDate) {
   // Calculate totals
   let totalRevenue = 0
   let totalCost = 0
+  let itemsWithCost = 0
+  let totalItems = 0
 
   orders.forEach(o => {
     o.order_line_items?.forEach(item => {
       const qty = item.quantity || 1
       const price = item.total_price || 0
       // Look up cost by SKU (product_number)
-      const costPrice = costMapBySku.get(item.product_number) || 0
+      const costPrice = costMapBySku.get(item.product_number) || null
 
       totalRevenue += price
-      totalCost += costPrice * qty
+      totalItems++
+
+      if (costPrice !== null) {
+        totalCost += costPrice * qty
+        itemsWithCost++
+      } else {
+        // No cost_price available → assume 40% margin (60% cost)
+        totalCost += price * 0.6
+      }
     })
   })
 
   const grossProfit = totalRevenue - totalCost
-  const marginPercent = totalRevenue > 0 ? (grossProfit / totalRevenue) * 100 : 0
+  // If no products have cost_price at all, show estimated 40% margin
+  const isEstimated = itemsWithCost === 0 && totalItems > 0
+  const marginPercent = isEstimated
+    ? 40
+    : totalRevenue > 0 ? (grossProfit / totalRevenue) * 100 : 0
 
   // Nimetään marginRevenue erottamaan fetchPeriodSummary:n totalRevenue:sta
-  return { grossProfit, marginPercent, totalCost, marginRevenue: totalRevenue }
+  return { grossProfit, marginPercent, totalCost, marginRevenue: totalRevenue, isEstimated }
 }
 
 // Helper to fetch daily gross margin data
@@ -223,9 +237,9 @@ async function fetchDailyMargin(storeId, startDate, endDate) {
     o.order_line_items?.forEach(item => {
       const qty = item.quantity || 1
       const price = item.total_price || 0
-      const costPrice = costMapBySku.get(item.product_number) || 0
+      const costPrice = costMapBySku.get(item.product_number) || null
       dailyData[date].revenue += price
-      dailyData[date].cost += costPrice * qty
+      dailyData[date].cost += costPrice !== null ? costPrice * qty : price * 0.6
     })
   })
 
@@ -461,7 +475,7 @@ export function useAnalytics(dateRange = null) {
       // Payment methods in date range
       let paymentQuery = supabase
         .from('orders')
-        .select('payment_method, grand_total')
+        .select('payment_method, grand_total, total_before_tax, total_tax')
         .eq('store_id', storeId)
         .neq('status', 'cancelled')
 
@@ -471,7 +485,7 @@ export function useAnalytics(dateRange = null) {
       // Shipping methods in date range
       let shippingQuery = supabase
         .from('orders')
-        .select('shipping_method, grand_total')
+        .select('shipping_method, grand_total, total_before_tax, total_tax')
         .eq('store_id', storeId)
         .neq('status', 'cancelled')
 
@@ -611,7 +625,7 @@ export function useAnalytics(dateRange = null) {
         }
         const pm = paymentMap.get(method)
         pm.order_count += 1
-        pm.total_revenue += order.grand_total || 0
+        pm.total_revenue += order.total_before_tax || (order.grand_total - (order.total_tax || 0)) || 0
       })
       const totalPaymentOrders = ordersForPayment.data?.length || 1
       const paymentMethods = Array.from(paymentMap.values())
@@ -627,7 +641,7 @@ export function useAnalytics(dateRange = null) {
         }
         const sm = shippingMap.get(method)
         sm.order_count += 1
-        sm.total_revenue += order.grand_total || 0
+        sm.total_revenue += order.total_before_tax || (order.grand_total - (order.total_tax || 0)) || 0
       })
       const totalShippingOrders = ordersForShipping.data?.length || 1
       const shippingMethods = Array.from(shippingMap.values())
