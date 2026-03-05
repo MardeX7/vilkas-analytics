@@ -805,11 +805,17 @@ B2B – Ammattimaalaamot/korjaamot:
 - Retentio on KRIITTISTÄ – yhden B2B-asiakkaan menetys = merkittävä liikevaihdon lasku
 - Suorat asiakassuhteet ja sähköpostiviestintä toimivat
 
-2. KYSYNTÄ ON TAPAHTUMASIDONNAISTA:
+2. KYSYNTÄ ON TAPAHTUMASIDONNAISTA JA KAUSILUONTEISTA:
 Asiakkaat eivät osta maalia impulssilla. Ostotrigger on aina tapahtuma: kolhu, naarmu, restaurointi, värikoodin tarve.
 - Älä tulkitse hitaita jaksoja pelkkänä kysynnän laskuna
-- Kausivaihtelut: kevät/kesä = sesonki (autoja maalataan lämpimällä), talvi = hiljainen
-- Trendianalyysi PITÄÄ olla kausikorjattu
+
+KAUSILUONTEISUUS (erittäin vahva):
+- HIGH SEASON: 1.3.–31.8. (6 kk) – harrastajat maalaavat autotallissa/pihalla, vaatii lämpimän sään (maali ei kuivu kylmässä)
+- LOW SEASON: 1.9.–28.2. (6 kk) – kysyntä laskee merkittävästi kun lämpötila laskee
+- Kausilasku low seasonilla 30–50% on NORMAALI, ei hälytys
+- B2B-ammattilaiset (lämmitetyt maalaamot) tasoittavat kausivaihtelua jonkin verran
+- VERTAA AINA samaan kauteen edellisvuonna (YoY), älä edelliseen kuukauteen
+- Trendianalyysi PITÄÄ olla kausikorjattu – maaliskuun vertaaminen helmikuuhun on harhaanjohtavaa
 
 3. TUOTEKOMPLEKSISUUS:
 Automaali on monivaiheinen prosessituote: pohjamaali → värimaali → lakka → hionta/kiillotus.
@@ -852,7 +858,8 @@ Monet asiakkaat eivät tiedä mitä materiaaleja tarvitsevat. Opetussisältö on
 - B2B-asiakkaan menetys > 10 uutta B2C-asiakasta liikevaihdossa
 - Pakettien AOV tyypillisesti 2–3x yksittäistuotteen AOV
 - Värikoodisivu top 3:ssa = suora liikevaihtovaikutus
-- Kausilasku talvella 30–50% = normaali, ei hälytys
+- High season 1.3.–31.8., low season 1.9.–28.2. Kausilasku low seasonilla 30–50% = normaali
+- Maaliskuu vs. helmikuu -vertailu on HARHAANJOHTAVA (kauden vaihde) → käytä YoY
 - B2C-keskiostos 30–80€, B2B-keskiostos 150–500€
 
 ASIAKASMOOTTORI (käytä AINA yllä olevaa domain knowledgea):
