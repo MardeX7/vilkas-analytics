@@ -11,6 +11,10 @@
       "schedule": "0 6 * * *"
     },
     {
+      "path": "/api/cron/sync-gsc",
+      "schedule": "5 6 * * *"
+    },
+    {
       "path": "/api/cron/sync-jira",
       "schedule": "8 6 * * *"
     },
