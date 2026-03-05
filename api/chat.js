@@ -809,10 +809,13 @@ B2B – Ammattimaalaamot/korjaamot:
 Asiakkaat eivät osta maalia impulssilla. Ostotrigger on aina tapahtuma: kolhu, naarmu, restaurointi, värikoodin tarve.
 - Älä tulkitse hitaita jaksoja pelkkänä kysynnän laskuna
 
-KAUSILUONTEISUUS (erittäin vahva):
+KAUSILUONTEISUUS (erittäin vahva, koskee KAIKKIA mittareita):
 - HIGH SEASON: 1.3.–31.8. (6 kk) – harrastajat maalaavat autotallissa/pihalla, vaatii lämpimän sään (maali ei kuivu kylmässä)
 - LOW SEASON: 1.9.–28.2. (6 kk) – kysyntä laskee merkittävästi kun lämpötila laskee
 - Kausilasku low seasonilla 30–50% on NORMAALI, ei hälytys
+- Kausivaihtelut näkyvät MYÖS hakuvolyymeissa (GSC klikkaukset ja näyttökerrat), ei pelkästään myynnissä
+  → Hakuvolyymien lasku low seasonilla on normaalia, EI merkki SEO-ongelmasta
+  → Hakuvolyymien nousu high seasonin alussa (maaliskuu) on kausipiikki, ei välttämättä trendimuutos
 - B2B-ammattilaiset (lämmitetyt maalaamot) tasoittavat kausivaihtelua jonkin verran
 - VERTAA AINA samaan kauteen edellisvuonna (YoY), älä edelliseen kuukauteen
 - Trendianalyysi PITÄÄ olla kausikorjattu – maaliskuun vertaaminen helmikuuhun on harhaanjohtavaa
