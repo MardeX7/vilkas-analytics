@@ -2,6 +2,9 @@ import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useCurrentShop } from '@/config/storeConfig'
 
+/** Get order revenue excl VAT */
+const getNetRevenue = (o) => o.total_before_tax || (o.grand_total - (o.total_tax || 0)) || 0
+
 /**
  * useGrowthEngine - Hook for Growth Engine Index calculation
  *
@@ -230,69 +233,66 @@ export function useGrowthEngine(dateRange = null) {
       ])
 
       // =====================================================
-      // FAIR YoY COMPARISON: Only compare matching days
-      // If current period has 2 days of data, only compare to same 2 days from last year
+      // CURRENT PERIOD TOTALS: Always calculate for display
       // =====================================================
+      let currentClicks = 0
+      let currentImpressions = 0
+      currentGscDaily?.forEach(d => {
+        currentClicks += d.total_clicks || 0
+        currentImpressions += d.total_impressions || 0
+      })
 
-      // Build map of previous year data by day-of-month (e.g., "01-18" -> data)
+      let prevClicksTotal = 0
+      let prevImpressionsTotal = 0
+      prevGscDaily?.forEach(d => {
+        prevClicksTotal += d.total_clicks || 0
+        prevImpressionsTotal += d.total_impressions || 0
+      })
+
+      // =====================================================
+      // FAIR YoY COMPARISON: Only compare matching days for YoY%
+      // =====================================================
       const prevDataByDay = new Map()
       prevGscDaily?.forEach(d => {
-        // Extract MM-DD from date to match with current year
         const dayKey = d.date.slice(5) // "2025-01-18" -> "01-18"
         prevDataByDay.set(dayKey, d)
       })
 
-      // Only sum data from days that exist in current period
-      let currentClicks = 0
-      let currentImpressions = 0
-      let prevClicks = 0
-      let prevImpressions = 0
+      let matchedCurrentClicks = 0
+      let matchedCurrentImpressions = 0
+      let matchedPrevClicks = 0
+      let matchedPrevImpressions = 0
       let matchedDays = 0
 
       currentGscDaily?.forEach(d => {
-        const dayKey = d.date.slice(5) // "2026-01-18" -> "01-18"
+        const dayKey = d.date.slice(5)
         const prevDay = prevDataByDay.get(dayKey)
-
         if (prevDay) {
-          // Both years have data for this day - include in comparison
-          currentClicks += d.total_clicks || 0
-          currentImpressions += d.total_impressions || 0
-          prevClicks += prevDay.total_clicks || 0
-          prevImpressions += prevDay.total_impressions || 0
+          matchedCurrentClicks += d.total_clicks || 0
+          matchedCurrentImpressions += d.total_impressions || 0
+          matchedPrevClicks += prevDay.total_clicks || 0
+          matchedPrevImpressions += prevDay.total_impressions || 0
           matchedDays++
         }
       })
 
-      // Calculate YoY only if we have matched days
-      // Handle missing YoY data: if no previous data, return null to indicate "no comparison available"
-      const clicksYoY = (matchedDays > 0 && prevClicks > 0) ? ((currentClicks - prevClicks) / prevClicks) * 100 : null
-      const impressionsYoY = (matchedDays > 0 && prevImpressions > 0) ? ((currentImpressions - prevImpressions) / prevImpressions) * 100 : null
+      // YoY from matched days only; null if no comparison possible
+      const clicksYoY = (matchedDays > 0 && matchedPrevClicks > 0)
+        ? ((matchedCurrentClicks - matchedPrevClicks) / matchedPrevClicks) * 100 : null
+      const impressionsYoY = (matchedDays > 0 && matchedPrevImpressions > 0)
+        ? ((matchedCurrentImpressions - matchedPrevImpressions) / matchedPrevImpressions) * 100 : null
 
-      // Log for debugging
-      console.log(`GSC YoY: ${matchedDays} matched days, current: ${currentClicks} clicks, prev: ${prevClicks} clicks, YoY: ${clicksYoY?.toFixed(1)}%`)
+      console.log(`GSC YoY: ${matchedDays} matched days, current total: ${currentClicks} clicks, prev total: ${prevClicksTotal}, YoY: ${clicksYoY?.toFixed(1)}%`)
 
       // =====================================================
-      // TOP 10 KEYWORDS - FAIR YoY COMPARISON
-      // Only count keywords from days that exist in both periods
+      // TOP 10 KEYWORDS
+      // Display: all current period keywords
+      // YoY: matched-day keywords only
       // =====================================================
 
-      // Get dates that exist in current period (from GSC daily data)
-      const currentDatesSet = new Set(currentGscDaily?.map(d => d.date.slice(5)) || [])
-
-      // Filter keywords to only matching days
-      const currentKeywordsFiltered = currentKeywords?.filter(row => {
-        const dayKey = row.date?.slice(5) // "2026-01-18" -> "01-18"
-        return dayKey && currentDatesSet.has(dayKey) && prevDataByDay.has(dayKey)
-      }) || []
-
-      const prevKeywordsFiltered = prevKeywords?.filter(row => {
-        const dayKey = row.date?.slice(5) // "2025-01-18" -> "01-18"
-        return dayKey && currentDatesSet.has(dayKey)
-      }) || []
-
-      // Calculate top 10 keywords from filtered data
+      // Current period: ALL keywords (for display)
       const currentTop10Map = new Map()
-      currentKeywordsFiltered.forEach(row => {
+      currentKeywords?.forEach(row => {
         if (row.query) {
           const current = currentTop10Map.get(row.query)
           if (!current || row.position < current) {
@@ -302,8 +302,9 @@ export function useGrowthEngine(dateRange = null) {
       })
       const currentTop10 = Array.from(currentTop10Map.values()).filter(pos => pos <= 10).length
 
+      // Previous period: ALL keywords (for display)
       const prevTop10Map = new Map()
-      prevKeywordsFiltered.forEach(row => {
+      prevKeywords?.forEach(row => {
         if (row.query) {
           const current = prevTop10Map.get(row.query)
           if (!current || row.position < current) {
@@ -312,9 +313,28 @@ export function useGrowthEngine(dateRange = null) {
         }
       })
       const prevTop10 = Array.from(prevTop10Map.values()).filter(pos => pos <= 10).length
-      const top10YoY = (matchedDays > 0 && prevTop10 > 0) ? ((currentTop10 - prevTop10) / prevTop10) * 100 : null
 
-      console.log(`GSC Top10: ${matchedDays} matched days, current: ${currentTop10} keywords, prev: ${prevTop10} keywords, YoY: ${top10YoY?.toFixed(1)}%`)
+      // YoY for keywords: use matched-day filtered data for fair comparison
+      let top10YoY = null
+      if (matchedDays > 0 && prevTop10 > 0) {
+        // If we have matched days, calculate fair YoY from matched-day keywords
+        const currentDatesSet = new Set(currentGscDaily?.map(d => d.date.slice(5)) || [])
+        const currentKeywordsMatched = currentKeywords?.filter(row => {
+          const dayKey = row.date?.slice(5)
+          return dayKey && currentDatesSet.has(dayKey) && prevDataByDay.has(dayKey)
+        }) || []
+        const matchedTop10Map = new Map()
+        currentKeywordsMatched.forEach(row => {
+          if (row.query) {
+            const current = matchedTop10Map.get(row.query)
+            if (!current || row.position < current) matchedTop10Map.set(row.query, row.position)
+          }
+        })
+        const matchedTop10 = Array.from(matchedTop10Map.values()).filter(pos => pos <= 10).length
+        top10YoY = ((matchedTop10 - prevTop10) / prevTop10) * 100
+      }
+
+      console.log(`GSC Top10: current: ${currentTop10}, prev: ${prevTop10}, YoY: ${top10YoY?.toFixed(1)}%`)
 
       // ============================================
       // 2. LIIKENTEEN LAATU (Traffic Quality)
@@ -422,7 +442,7 @@ export function useGrowthEngine(dateRange = null) {
         supabase
           .from('orders')
           .select(`
-            id, grand_total, billing_email, status,
+            id, grand_total, total_before_tax, total_tax, billing_email, status,
             order_line_items (quantity, total_price, product_number, product_name)
           `)
           .eq('store_id', storeId)
@@ -432,7 +452,7 @@ export function useGrowthEngine(dateRange = null) {
         supabase
           .from('orders')
           .select(`
-            id, grand_total, billing_email, status,
+            id, grand_total, total_before_tax, total_tax, billing_email, status,
             order_line_items (quantity, total_price, product_number, product_name)
           `)
           .eq('store_id', storeId)
@@ -442,7 +462,7 @@ export function useGrowthEngine(dateRange = null) {
         // Fetch ALL orders to determine if a customer is truly returning
         supabase
           .from('orders')
-          .select('id, billing_email, creation_date, grand_total')
+          .select('id, billing_email, creation_date, grand_total, total_before_tax, total_tax')
           .eq('store_id', storeId)
           .neq('status', 'cancelled')
           .lte('creation_date', endDate + 'T23:59:59')
@@ -488,7 +508,7 @@ export function useGrowthEngine(dateRange = null) {
 
       // Calculate current period metrics
       const currentOrderCount = currentOrders?.length || 0
-      const currentRevenue = currentOrders?.reduce((sum, o) => sum + (o.grand_total || 0), 0) || 0
+      const currentRevenue = currentOrders?.reduce((sum, o) => sum + getNetRevenue(o), 0) || 0
       const currentAOV = currentOrderCount > 0 ? currentRevenue / currentOrderCount : 0
 
       // Gross margin calculation
@@ -521,7 +541,7 @@ export function useGrowthEngine(dateRange = null) {
           // Track total order count
           customerTotalOrders.set(email, (customerTotalOrders.get(email) || 0) + 1)
           // Track total revenue
-          customerTotalRevenue.set(email, (customerTotalRevenue.get(email) || 0) + (o.grand_total || 0))
+          customerTotalRevenue.set(email, (customerTotalRevenue.get(email) || 0) + getNetRevenue(o))
         }
       })
 
@@ -547,14 +567,14 @@ export function useGrowthEngine(dateRange = null) {
           // Sum their revenue in current period
           currentOrders?.forEach(o => {
             if ((o.billing_email || '').toLowerCase() === email) {
-              currentReturningRevenue += o.grand_total || 0
+              currentReturningRevenue += getNetRevenue(o)
             }
           })
         } else {
           currentNewCustomers++
           currentOrders?.forEach(o => {
             if ((o.billing_email || '').toLowerCase() === email) {
-              currentNewRevenue += o.grand_total || 0
+              currentNewRevenue += getNetRevenue(o)
             }
           })
         }
@@ -582,7 +602,7 @@ export function useGrowthEngine(dateRange = null) {
 
       // Calculate previous period metrics
       const prevOrderCount = prevOrders?.length || 0
-      const prevRevenue = prevOrders?.reduce((sum, o) => sum + (o.grand_total || 0), 0) || 0
+      const prevRevenue = prevOrders?.reduce((sum, o) => sum + getNetRevenue(o), 0) || 0
       const prevAOV = prevOrderCount > 0 ? prevRevenue / prevOrderCount : 0
 
       let prevCost = 0
@@ -627,14 +647,14 @@ export function useGrowthEngine(dateRange = null) {
           prevReturningCustomers++
           prevOrders?.forEach(o => {
             if ((o.billing_email || '').toLowerCase() === email) {
-              prevReturningRevenue += o.grand_total || 0
+              prevReturningRevenue += getNetRevenue(o)
             }
           })
         } else {
           prevNewCustomers++
           prevOrders?.forEach(o => {
             if ((o.billing_email || '').toLowerCase() === email) {
-              prevNewRevenue += o.grand_total || 0
+              prevNewRevenue += getNetRevenue(o)
             }
           })
         }
@@ -693,14 +713,13 @@ export function useGrowthEngine(dateRange = null) {
       // ============================================
 
       // Calculate average position and CTR from ALL GSC data (already fetched above)
-      // Use the daily summary for totals - already have currentClicks, currentImpressions, prevClicks, prevImpressions
 
       // Calculate average CTR
       const currentAvgCTR = currentImpressions > 0
         ? (currentClicks / currentImpressions) * 100
         : null
-      const prevAvgCTR = prevImpressions > 0
-        ? (prevClicks / prevImpressions) * 100
+      const prevAvgCTR = prevImpressionsTotal > 0
+        ? (prevClicksTotal / prevImpressionsTotal) * 100
         : null
 
       // Calculate average position from GSC analytics data
@@ -808,13 +827,13 @@ export function useGrowthEngine(dateRange = null) {
       const demandGrowthMetrics = {
         organicClicks: {
           current: currentClicks,
-          previous: prevClicks,
+          previous: prevClicksTotal,
           yoyChange: safeRound(clicksYoY),
           score: calculateScore(clicksYoY)
         },
         impressions: {
           current: currentImpressions,
-          previous: prevImpressions,
+          previous: prevImpressionsTotal,
           yoyChange: safeRound(impressionsYoY),
           score: calculateScore(impressionsYoY)
         },
