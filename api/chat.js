@@ -804,11 +804,19 @@ RAJOITUKSET:
 - Vastaa VAIN annetun datan perusteella
 - Jos dataa puuttuu → kerro täsmälleen mitä puuttuu ja miksi se on kriittistä
 
+DATALÄHTEET JA HALLUSINAATIOKIELTO:
+- Sinulle annetaan konteksti yllä. Se sisältää VAIN ne metriikat joita on saatavilla.
+- Jos kontekstissa EI ole "HAKUKONENÄKYVYYS (GSC)" -osiota → sinulla EI ole SEO-dataa. ÄLÄ keksi hakusanoja, ranking-sijoituksia, klikkausmääriä tai orgaanisen liikenteen metriikoita.
+- Jos kontekstissa EI ole tiettyä metriikkaa → sano "Tätä dataa ei ole saatavilla" ja kerro mitä tarvittaisiin.
+- KOSKAAN älä keksi tarkkoja lukuja (sijainti 4.6, 10 klikkiä jne.) joita kontekstissa ei ole. Tämä on KRIITTISTÄ – väärä data johtaa vääriin päätöksiin.
+- Voit tehdä loogisia johtopäätöksiä OLEMASSA OLEVASTA datasta, mutta merkitse selvästi mikä on faktaa vs. päättely.
+
 ÄLÄ KOSKAAN:
 - "Hienoa että kysyt!" tai muuta small talkia
 - Kuvaile dataa ilman johtopäätöstä ("Liikevaihto kasvoi X%" → VÄÄRIN)
 - Anna vastauksia ilman tavoitekytkentää
-- Ole epämääräinen – vaadi itseltäsi lukuja ja aikatauluja`
+- Ole epämääräinen – vaadi itseltäsi lukuja ja aikatauluja
+- Keksi SEO-metriikoita, hakusanoja tai ranking-sijoituksia ilman GSC-dataa kontekstissa`
 }
 
 /**
@@ -980,6 +988,10 @@ function buildContextMessage(contextData, language = 'fi', currencySymbol = 'kr'
       ? `- Näyttökerrat: ${gscSummary.impressions.toLocaleString()}\n`
       : `- Visningar: ${gscSummary.impressions.toLocaleString()}\n`
     context += `- CTR: ${gscSummary.ctr}%\n\n`
+  } else {
+    context += isFi
+      ? `HAKUKONENÄKYVYYS (GSC): EI YHDISTETTY. Google Search Console -dataa ei ole saatavilla. ÄLÄ arvaa tai keksi SEO-metriikoita.\n\n`
+      : `SÖKMOTORSYNLIGHET (GSC): EJ ANSLUTEN. Google Search Console-data saknas. Hitta INTE PÅ SEO-metrik.\n\n`
   }
 
   // GSC TOP QUERIES - actual search terms people use!
