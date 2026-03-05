@@ -118,8 +118,12 @@ async function syncStoreGSC(tokenData, startDate, endDate) {
   const dailyRows = dailyData.rows || []
   let dailyUpserted = 0
 
-  if (dailyRows.length > 0) {
-    const dailyRecords = dailyRows.map(row => ({
+  // SAFE: Only upsert rows with actual data (clicks > 0 OR impressions > 0)
+  // GSC API can return zero-value rows when a property has issues,
+  // which would overwrite previously real data with zeros
+  const dailyRecordsWithData = dailyRows
+    .filter(row => (row.clicks || 0) > 0 || (row.impressions || 0) > 0)
+    .map(row => ({
       store_id: tokenData.store_id,
       date: row.keys[0],
       clicks: row.clicks || 0,
@@ -129,15 +133,20 @@ async function syncStoreGSC(tokenData, startDate, endDate) {
       updated_at: new Date().toISOString()
     }))
 
+  if (dailyRecordsWithData.length > 0) {
     const { error } = await supabase
       .from('gsc_daily_totals')
-      .upsert(dailyRecords, { onConflict: 'store_id,date' })
+      .upsert(dailyRecordsWithData, { onConflict: 'store_id,date' })
 
     if (error) {
       console.error('   Daily upsert error:', error.message)
     } else {
-      dailyUpserted = dailyRecords.length
+      dailyUpserted = dailyRecordsWithData.length
     }
+  }
+
+  if (dailyRows.length > 0 && dailyRecordsWithData.length === 0) {
+    console.warn(`   ⚠️ GSC returned ${dailyRows.length} rows but ALL have 0 clicks/impressions - skipping upsert (preserving existing data)`)
   }
 
   // 2. Fetch detailed data (query, page, device, country)
