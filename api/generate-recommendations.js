@@ -163,8 +163,10 @@ Svara ENDAST med JSON-array, ingen annan text.`
 - Vähän varastossa: ${context.lowStockProducts} tuotetta
 
 SEO:
-- Top avainsanat: ${context.topKeywords.map(k => `"${k.query}" (${k.clicks} klikkiä, pos ${k.position.toFixed(1)})`).join(', ')}
-- Heikot positiot: ${context.lowPositionKeywords.map(k => `"${k.query}" (pos ${k.position.toFixed(1)})`).join(', ')}
+${context.topKeywords.length > 0
+  ? `- Top avainsanat: ${context.topKeywords.map(k => `"${k.query}" (${k.clicks} klikkiä, pos ${k.position.toFixed(1)})`).join(', ')}
+- Heikot positiot: ${context.lowPositionKeywords.map(k => `"${k.query}" (pos ${k.position.toFixed(1)})`).join(', ')}`
+  : `- GSC-dataa ei saatavilla. Älä keksi SEO-metriikoita.`}
 
 Generoi 3-5 priorisointua toimenpidesuositusta JSON-arrayna.`
     : `Butikens data senaste 30 dagar:
@@ -178,8 +180,10 @@ Generoi 3-5 priorisointua toimenpidesuositusta JSON-arrayna.`
 - Lågt lager: ${context.lowStockProducts} produkter
 
 SEO:
-- Topp nyckelord: ${context.topKeywords.map(k => `"${k.query}" (${k.clicks} klick, pos ${k.position.toFixed(1)})`).join(', ')}
-- Svaga positioner: ${context.lowPositionKeywords.map(k => `"${k.query}" (pos ${k.position.toFixed(1)})`).join(', ')}
+${context.topKeywords.length > 0
+  ? `- Topp nyckelord: ${context.topKeywords.map(k => `"${k.query}" (${k.clicks} klick, pos ${k.position.toFixed(1)})`).join(', ')}
+- Svaga positioner: ${context.lowPositionKeywords.map(k => `"${k.query}" (pos ${k.position.toFixed(1)})`).join(', ')}`
+  : `- GSC-data saknas. Hitta inte på SEO-metrik.`}
 
 Generera 3-5 prioriterade åtgärdsrekommendationer som JSON-array.`
 

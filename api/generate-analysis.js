@@ -561,22 +561,28 @@ function buildUserPrompt(contextData, periodNumber, year, language = 'fi', isMon
   prompt += '\n'
 
   // 4. GSC
-  prompt += isFi ? `## HAKUKONENÄKYVYYS (GSC)\n` : `## SÖKMOTORSYNLIGHET (GSC)\n`
-  prompt += isFi
-    ? `- Klikkaukset: ${gscSummary.clicks.toLocaleString()}\n`
-    : `- Klick: ${gscSummary.clicks.toLocaleString()}\n`
-  prompt += isFi
-    ? `- Näytöt: ${gscSummary.impressions.toLocaleString()}\n`
-    : `- Visningar: ${gscSummary.impressions.toLocaleString()}\n`
-  prompt += `- CTR: ${gscSummary.ctr}%\n\n`
+  if (gscSummary.clicks > 0 || gscSummary.impressions > 0) {
+    prompt += isFi ? `## HAKUKONENÄKYVYYS (GSC)\n` : `## SÖKMOTORSYNLIGHET (GSC)\n`
+    prompt += isFi
+      ? `- Klikkaukset: ${gscSummary.clicks.toLocaleString()}\n`
+      : `- Klick: ${gscSummary.clicks.toLocaleString()}\n`
+    prompt += isFi
+      ? `- Näytöt: ${gscSummary.impressions.toLocaleString()}\n`
+      : `- Visningar: ${gscSummary.impressions.toLocaleString()}\n`
+    prompt += `- CTR: ${gscSummary.ctr}%\n\n`
 
-  // 5. TOP SEARCH QUERIES
-  if (gscTopQueries.length > 0) {
-    prompt += isFi ? `## TOP HAKUSANAT\n` : `## TOPP SÖKORD\n`
-    gscTopQueries.slice(0, 10).forEach(q => {
-      prompt += `- "${q.query}": ${q.clicks} klikkausta, pos ${parseFloat(q.position).toFixed(1)}\n`
-    })
-    prompt += '\n'
+    // 5. TOP SEARCH QUERIES
+    if (gscTopQueries.length > 0) {
+      prompt += isFi ? `## TOP HAKUSANAT\n` : `## TOPP SÖKORD\n`
+      gscTopQueries.slice(0, 10).forEach(q => {
+        prompt += `- "${q.query}": ${q.clicks} klikkausta, pos ${parseFloat(q.position).toFixed(1)}\n`
+      })
+      prompt += '\n'
+    }
+  } else {
+    prompt += isFi
+      ? `## HAKUKONENÄKYVYYS (GSC)\nEi dataa saatavilla. Google Search Console -dataa ei ole synkronoitu tälle jaksolle. ÄLÄ keksi SEO-metriikoita.\n\n`
+      : `## SÖKMOTORSYNLIGHET (GSC)\nIngen data tillgänglig. Google Search Console-data har inte synkroniserats för denna period. Hitta INTE PÅ SEO-metrik.\n\n`
   }
 
   // 6. TOP PRODUCTS
@@ -626,7 +632,7 @@ function buildUserPrompt(contextData, periodNumber, year, language = 'fi', isMon
       const revenue = parseFloat(role.total_revenue || 0)
       const units = parseInt(role.total_units || 0)
       const products = parseInt(role.product_count || 0)
-      prompt += `- ${label}: ${products} tuotetta, ${Math.round(revenue).toLocaleString()} kr, ${units} kpl\n`
+      prompt += `- ${label}: ${products} tuotetta, ${Math.round(revenue).toLocaleString()} ${currencySymbol}, ${units} kpl\n`
     })
     prompt += '\n'
   }
