@@ -70,20 +70,14 @@ export function useGrowthEngine(dateRange = null) {
   })
 
   /**
-   * Score calculation based on YoY change
-   * YoY ≥+20% = 100pts, +10-19% = 80pts, +1-9% = 60pts
-   * 0% = 50pts, -1-9% = 30pts, ≤-10% = 10pts
-   * null (no data) = 50pts (neutral score)
+   * Continuous score calculation based on YoY change
+   * Linear scale: score = 50 + (YoY% × 2.5), clamped to 10-100
+   * 0% = 50pts (neutral), +20% = 100pts (max), -16% = 10pts (min)
+   * null (no data) = 50pts (neutral)
    */
   const calculateScore = useCallback((yoyChange) => {
-    // If no comparison data available, return neutral score
     if (yoyChange === null || yoyChange === undefined) return 50
-    if (yoyChange >= 20) return 100
-    if (yoyChange >= 10) return 80
-    if (yoyChange >= 1) return 60
-    if (yoyChange >= 0) return 50
-    if (yoyChange >= -9) return 30
-    return 10
+    return Math.round(Math.min(100, Math.max(10, 50 + yoyChange * 2.5)))
   }, [])
 
   /**

@@ -847,14 +847,13 @@
     },
     "scoring": {
       "title": "Poängsättning",
-      "description": "Poäng baseras på YoY-förändring (år för år)",
+      "description": "Kontinuerlig skala: 50 + YoY% × 2.5 (begränsad 10-100)",
       "levels": {
-        "100": "≥+20% = 100 poäng",
-        "80": "+10-19% = 80 poäng",
-        "60": "+1-9% = 60 poäng",
-        "50": "0% = 50 poäng",
-        "30": "-1-9% = 30 poäng",
-        "10": "≤-10% = 10 poäng"
+        "100": "+20% eller mer = 100 poäng (toppresultat)",
+        "75": "+10% = 75 poäng (bra tillväxt)",
+        "50": "0% = 50 poäng (samma som förra året)",
+        "25": "-10% = 25 poäng (sjunkande trend)",
+        "10": "-16% eller sämre = 10 poäng (minimum)"
       }
     },
     "target": {

@@ -818,7 +818,7 @@ function GrowthKPIDetail({ areaKey, data, onClose, effectiveDateRange, t }) {
       <div className="mt-4 pt-4 border-t border-border">
         <p className="text-foreground-subtle text-xs">
           <span className="font-medium text-foreground-muted">Pisteytys:</span>{' '}
-          YoY ≥+20% = 100, +10-19% = 80, +1-9% = 60, 0% = 50, -1-9% = 30, ≤-10% = 10
+          Jatkuva skaalaus: 0% YoY = 50 pistettä, +20% = 100, -16% = 10. Pisteet = 50 + YoY% × 2.5
         </p>
       </div>
     </div>
