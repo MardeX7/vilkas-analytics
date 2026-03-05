@@ -56,7 +56,8 @@ export function useGSC(dateRange = null, comparisonMode = 'mom') {
     riskRadar: {
       decliningPages: [],      // Top 20 pages with clicks↓ & position↓ (2 weeks in a row)
       snippetProblems: [],     // CTR drop without position drop = title/description issue
-      competitorThreats: []    // Position drop without impressions drop = competitor/relevance
+      competitorThreats: [],   // Position drop without impressions drop = competitor/relevance
+      siteWideTrends: []       // Site-wide YoY trends (clicks/impressions decline)
     }
   })
 
@@ -475,6 +476,73 @@ export function useGSC(dateRange = null, comparisonMode = 'mom') {
         }
       })
 
+      // === SITE-WIDE YoY TREND DETECTION ===
+      // Uses gsc_daily_totals (complete data) to detect aggregate declines
+      // that page-level analysis misses
+      const siteWideTrends = []
+
+      const fourWeeksAgoDate = new Date(today)
+      fourWeeksAgoDate.setDate(fourWeeksAgoDate.getDate() - 28)
+      const fourWeeksAgoStr = fourWeeksAgoDate.toISOString().split('T')[0]
+      const todayStr = today.toISOString().split('T')[0]
+
+      // Same period last year
+      const yoyStartDate = new Date(fourWeeksAgoDate)
+      yoyStartDate.setFullYear(yoyStartDate.getFullYear() - 1)
+      const yoyEndDate = new Date(today)
+      yoyEndDate.setFullYear(yoyEndDate.getFullYear() - 1)
+      const yoyStartStr = yoyStartDate.toISOString().split('T')[0]
+      const yoyEndStr = yoyEndDate.toISOString().split('T')[0]
+
+      const [currentTotals, previousTotals] = await Promise.all([
+        supabase
+          .from('gsc_daily_totals')
+          .select('clicks, impressions')
+          .eq('store_id', storeId)
+          .gte('date', fourWeeksAgoStr)
+          .lte('date', todayStr),
+        supabase
+          .from('gsc_daily_totals')
+          .select('clicks, impressions')
+          .eq('store_id', storeId)
+          .gte('date', yoyStartStr)
+          .lte('date', yoyEndStr)
+      ])
+
+      const curClicks = (currentTotals.data || []).reduce((s, r) => s + (r.clicks || 0), 0)
+      const curImpressions = (currentTotals.data || []).reduce((s, r) => s + (r.impressions || 0), 0)
+      const prevClicks = (previousTotals.data || []).reduce((s, r) => s + (r.clicks || 0), 0)
+      const prevImpressions = (previousTotals.data || []).reduce((s, r) => s + (r.impressions || 0), 0)
+
+      // Only alert if we have data from both periods
+      if (prevClicks > 0 && curClicks > 0) {
+        const clicksChangeYoY = ((curClicks - prevClicks) / prevClicks) * 100
+
+        if (clicksChangeYoY < -20) {
+          siteWideTrends.push({
+            metric: 'clicks',
+            current: curClicks,
+            previous: prevClicks,
+            change: clicksChangeYoY,
+            severity: clicksChangeYoY < -40 ? 'critical' : 'warning'
+          })
+        }
+      }
+
+      if (prevImpressions > 0 && curImpressions > 0) {
+        const impressionsChangeYoY = ((curImpressions - prevImpressions) / prevImpressions) * 100
+
+        if (impressionsChangeYoY < -20) {
+          siteWideTrends.push({
+            metric: 'impressions',
+            current: curImpressions,
+            previous: prevImpressions,
+            change: impressionsChangeYoY,
+            severity: impressionsChangeYoY < -40 ? 'critical' : 'warning'
+          })
+        }
+      }
+
       // Sort and limit to top 20
       const riskRadar = {
         decliningPages: decliningPages
@@ -485,7 +553,8 @@ export function useGSC(dateRange = null, comparisonMode = 'mom') {
           .slice(0, 20),
         competitorThreats: competitorThreats
           .sort((a, b) => b.positionChange - a.positionChange)
-          .slice(0, 20)
+          .slice(0, 20),
+        siteWideTrends
       }
 
       setData({

@@ -373,7 +373,9 @@
       "position": "position",
       "ctr": "CTR",
       "impressions": "visningar",
-      "weeks": "veckor"
+      "weeks": "veckor",
+      "siteWideTrend": "Webbplatsomfattande nedgång upptäckt",
+      "last28days": "senaste 28 d vs. förra året"
     }
   },
   "ga4": {

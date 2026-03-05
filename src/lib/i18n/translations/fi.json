@@ -373,7 +373,9 @@
       "position": "sijainti",
       "ctr": "CTR",
       "impressions": "näytöt",
-      "weeks": "viikkoa"
+      "weeks": "viikkoa",
+      "siteWideTrend": "Koko sivuston lasku havaittu",
+      "last28days": "viim. 28 pv vs. vuosi sitten"
     }
   },
   "ga4": {

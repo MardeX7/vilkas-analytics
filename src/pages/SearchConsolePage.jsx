@@ -10,7 +10,7 @@ import {
   GSCDeviceChart,
   GSCCountryChart
 } from '@/components/GSCCharts'
-import { Search, RefreshCw, Download, AlertTriangle, TrendingDown, FileWarning, Users } from 'lucide-react'
+import { Search, RefreshCw, Download, AlertTriangle, TrendingDown, FileWarning, Users, Activity } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { DataLoadingScreen } from '@/components/ui/DataLoadingScreen'
 import { useTranslation } from '@/lib/i18n'
@@ -330,6 +330,32 @@ export function SearchConsolePage() {
                   <h2 className="text-lg font-semibold text-foreground">{t('gsc.riskRadar.title')}</h2>
                   <span className="text-sm text-foreground-muted">— {t('gsc.riskRadar.subtitle')}</span>
                 </div>
+
+                {/* Site-Wide YoY Trends Alert */}
+                {riskRadar?.siteWideTrends?.length > 0 && (
+                  <div className="mb-4 p-4 bg-red-500/10 border border-red-500/30 rounded-xl">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Activity className="w-4 h-4 text-red-500" />
+                      <h3 className="text-sm font-semibold text-red-500">{t('gsc.riskRadar.siteWideTrend')}</h3>
+                    </div>
+                    <div className="space-y-2">
+                      {riskRadar.siteWideTrends.map((trend, i) => (
+                        <div key={i} className="flex items-center gap-3 text-sm">
+                          <TrendingDown className={`w-4 h-4 ${trend.severity === 'critical' ? 'text-red-500' : 'text-yellow-500'}`} />
+                          <span className="text-foreground">
+                            {trend.metric === 'clicks' ? t('gsc.riskRadar.clicks') : t('gsc.riskRadar.impressions')}:
+                          </span>
+                          <span className={`font-semibold ${trend.severity === 'critical' ? 'text-red-500' : 'text-yellow-500'}`}>
+                            {trend.change.toFixed(1)}% YoY
+                          </span>
+                          <span className="text-foreground-muted text-xs">
+                            ({trend.previous.toLocaleString()} → {trend.current.toLocaleString()}, {t('gsc.riskRadar.last28days')})
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                   {/* Declining Pages */}

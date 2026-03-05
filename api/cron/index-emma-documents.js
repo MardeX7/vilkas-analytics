@@ -168,9 +168,10 @@ async function indexInventoryMetrics(storeId, shopId, currency) {
 async function indexGSCMetrics(storeId, shopId) {
   const thirtyDaysAgo = new Date()
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+  const dateStr = thirtyDaysAgo.toISOString().split('T')[0]
 
-  const { data: gscData } = await supabase.from('v_gsc_daily_summary').select('*').eq('store_id', storeId).gte('date', thirtyDaysAgo.toISOString().split('T')[0])
-  const { data: queries } = await supabase.from('gsc_search_analytics').select('query, clicks, impressions, ctr, position').eq('store_id', storeId).gte('date', thirtyDaysAgo.toISOString().split('T')[0]).order('clicks', { ascending: false }).limit(30)
+  const { data: gscData } = await supabase.from('v_gsc_daily_summary').select('*').eq('store_id', storeId).gte('date', dateStr)
+  const { data: queries } = await supabase.from('gsc_search_analytics').select('query, clicks, impressions, ctr, position').eq('store_id', storeId).gte('date', dateStr).order('clicks', { ascending: false }).limit(100)
 
   if (!gscData?.length) return 0
 
@@ -178,13 +179,42 @@ async function indexGSCMetrics(storeId, shopId) {
   const totalImpressions = gscData.reduce((sum, d) => sum + (d.total_impressions || 0), 0)
   const avgCTR = totalImpressions > 0 ? ((totalClicks / totalImpressions) * 100).toFixed(2) : 0
 
-  await upsertDocument(shopId, 'metric', 'gsc_clicks', 'seo', { name_fi: 'Klikkaukset (GSC)', value: totalClicks, unit: 'kpl', period: '30d' }, `Google-klikkaukset (GSC): ${totalClicks.toLocaleString()} viimeisen 30 päivän aikana. Orgaaninen liikenne, SEO.`, 8)
-  await upsertDocument(shopId, 'metric', 'gsc_impressions', 'seo', { name_fi: 'Näyttökerrat (GSC)', value: totalImpressions, unit: 'kpl', period: '30d' }, `Google-näytöt (GSC): ${totalImpressions.toLocaleString()}. SEO-näkyvyys.`, 6)
+  // YoY comparison for richer context
+  const prevStart = new Date(thirtyDaysAgo)
+  prevStart.setFullYear(prevStart.getFullYear() - 1)
+  const prevEnd = new Date()
+  prevEnd.setFullYear(prevEnd.getFullYear() - 1)
+  const { data: prevData } = await supabase.from('v_gsc_daily_summary').select('*').eq('store_id', storeId).gte('date', prevStart.toISOString().split('T')[0]).lte('date', prevEnd.toISOString().split('T')[0])
+
+  const prevClicks = (prevData || []).reduce((sum, d) => sum + (d.total_clicks || 0), 0)
+  const prevImpressions = (prevData || []).reduce((sum, d) => sum + (d.total_impressions || 0), 0)
+  const clicksYoY = prevClicks > 0 ? (((totalClicks - prevClicks) / prevClicks) * 100).toFixed(1) : null
+  const impYoY = prevImpressions > 0 ? (((totalImpressions - prevImpressions) / prevImpressions) * 100).toFixed(1) : null
+
+  const yoyClicksNote = clicksYoY ? ` Muutos edellisvuoteen (YoY): ${clicksYoY}% (${prevClicks} -> ${totalClicks}).` : ''
+  const yoyImpNote = impYoY ? ` Muutos edellisvuoteen (YoY): ${impYoY}% (${prevImpressions} -> ${totalImpressions}).` : ''
+
+  await upsertDocument(shopId, 'metric', 'gsc_clicks', 'seo', { name_fi: 'Klikkaukset (GSC)', value: totalClicks, unit: 'kpl', period: '30d' }, `Google-klikkaukset (GSC): ${totalClicks.toLocaleString()} viimeisen 30 päivän aikana. Orgaaninen liikenne, SEO.${yoyClicksNote}`, 8)
+  await upsertDocument(shopId, 'metric', 'gsc_impressions', 'seo', { name_fi: 'Näyttökerrat (GSC)', value: totalImpressions, unit: 'kpl', period: '30d' }, `Google-näytöt (GSC): ${totalImpressions.toLocaleString()}. SEO-näkyvyys.${yoyImpNote}`, 6)
   await upsertDocument(shopId, 'metric', 'gsc_ctr', 'seo', { name_fi: 'CTR (GSC)', value: parseFloat(avgCTR), unit: '%', period: '30d' }, `Google CTR: ${avgCTR}%.`, 7)
 
   if (queries?.length > 0) {
-    const topQueriesText = queries.slice(0, 15).map(q => `"${q.query}": ${q.clicks} klikkausta, sijainti ${parseFloat(q.position).toFixed(1)}`).join('; ')
-    await upsertDocument(shopId, 'metric', 'gsc_top_queries', 'seo', { name_fi: 'Top hakusanat', queries: queries.slice(0, 15).map(q => ({ query: q.query, clicks: q.clicks, position: parseFloat(q.position).toFixed(1) })) }, `TOP HAKUSANAT: ${topQueriesText}.`, 8)
+    // Aggregate queries across dates for unique keywords
+    const qMap = new Map()
+    queries.forEach(q => {
+      if (!q.query) return
+      if (!qMap.has(q.query)) qMap.set(q.query, { query: q.query, clicks: 0, position: 0, count: 0 })
+      const m = qMap.get(q.query)
+      m.clicks += q.clicks || 0
+      m.position += q.position || 0
+      m.count++
+    })
+    const topQ = Array.from(qMap.values())
+      .map(q => ({ query: q.query, clicks: q.clicks, position: (q.position / q.count).toFixed(1) }))
+      .sort((a, b) => b.clicks - a.clicks)
+      .slice(0, 15)
+    const topQueriesText = topQ.map(q => `"${q.query}": ${q.clicks} klikkausta, sijainti ${q.position}`).join('; ')
+    await upsertDocument(shopId, 'metric', 'gsc_top_queries', 'seo', { name_fi: 'Top hakusanat', queries: topQ }, `TOP HAKUSANAT: ${topQueriesText}.`, 8)
   }
 
   return 4
