@@ -27,7 +27,7 @@ const supabase = createClient(
 /**
  * Get ISO week number
  */
-function getISOWeek(date) {
+export function getISOWeek(date) {
   const d = new Date(date)
   d.setHours(0, 0, 0, 0)
   d.setDate(d.getDate() + 4 - (d.getDay() || 7))
@@ -42,7 +42,7 @@ function getISOWeek(date) {
  * - STORE_ID: v_daily_sales, products, v_gsc_daily_summary, orders, etc.
  * - SHOP_ID: merchant_goals, context_notes, order_items (shops FK)
  */
-async function fetchContextData(dateRange, STORE_ID, SHOP_ID) {
+export async function fetchContextData(dateRange, STORE_ID, SHOP_ID) {
   const endDate = dateRange?.endDate || new Date().toISOString().split('T')[0]
   const startDate = dateRange?.startDate || new Date(new Date().setDate(new Date().getDate() - 7)).toISOString().split('T')[0]
 
@@ -337,7 +337,7 @@ async function fetchContextData(dateRange, STORE_ID, SHOP_ID) {
  * @param {string} language - 'fi' or 'sv'
  * @param {boolean} isMonthly - true for monthly analysis, false for weekly
  */
-function buildSystemPrompt(language, isMonthly = false) {
+export function buildSystemPrompt(language, isMonthly = false) {
   const periodFi = isMonthly ? 'kuukauden' : 'viikon'
   const periodSv = isMonthly ? 'månadens' : 'veckans'
   const summaryFi = isMonthly ? 'kuukauden' : 'viikon'
@@ -459,7 +459,7 @@ Inkludera OCKSÅ action_recommendations (3-5 st) i JSON:
  * @param {string} language - 'fi' or 'sv'
  * @param {boolean} isMonthly - true for monthly, false for weekly
  */
-function buildUserPrompt(contextData, periodNumber, year, language = 'fi', isMonthly = false, currencySymbol = '€') {
+export function buildUserPrompt(contextData, periodNumber, year, language = 'fi', isMonthly = false, currencySymbol = '€') {
   const {
     salesSummary, growthSnapshots, goals, contextNotes, gscSummary, gscTopQueries,
     lowStockProducts, topProducts, customerSegments, productRoles,

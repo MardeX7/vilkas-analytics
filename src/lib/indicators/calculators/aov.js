@@ -15,6 +15,9 @@ import {
   DEFAULT_THRESHOLDS
 } from '../types.js'
 
+/** Get order revenue excl VAT */
+const getNetRevenue = (o) => parseFloat(o.total_before_tax) || (parseFloat(o.grand_total) - parseFloat(o.total_tax || 0)) || 0
+
 /**
  * Calculate AOV indicator
  *
@@ -42,9 +45,9 @@ export function calculateAOV({ orders, periodEnd, periodLabel = '30d', currency 
 
   // Filter orders for each period (only orders with value > 0)
   const currentOrders = filterOrdersByPeriod(orders, periodStart, endDate)
-    .filter(o => parseFloat(o.grand_total) > 0)
+    .filter(o => getNetRevenue(o) > 0)
   const previousOrders = filterOrdersByPeriod(orders, comparisonStart, comparisonEnd)
-    .filter(o => parseFloat(o.grand_total) > 0)
+    .filter(o => getNetRevenue(o) > 0)
 
   // Calculate AOV
   const currentAOV = calculateAverage(currentOrders)
@@ -57,7 +60,7 @@ export function calculateAOV({ orders, periodEnd, periodLabel = '30d', currency 
     : null
 
   // Calculate additional metrics
-  const orderValues = currentOrders.map(o => parseFloat(o.grand_total))
+  const orderValues = currentOrders.map(o => getNetRevenue(o))
   const medianOrderValue = calculateMedian(orderValues)
   const minOrder = orderValues.length > 0 ? Math.min(...orderValues) : 0
   const maxOrder = orderValues.length > 0 ? Math.max(...orderValues) : 0
@@ -136,7 +139,7 @@ function calculateAverage(orders) {
   if (orders.length === 0) return 0
 
   const total = orders.reduce((sum, order) => {
-    return sum + (parseFloat(order.grand_total) || 0)
+    return sum + getNetRevenue(order)
   }, 0)
 
   return total / orders.length

@@ -13,6 +13,9 @@ import {
   DEFAULT_THRESHOLDS
 } from './types'
 
+/** Get order revenue excl VAT */
+const getNetRevenue = (o) => o.total_before_tax || (o.grand_total - (o.total_tax || 0)) || 0
+
 /**
  * Calculate sales trend indicator
  * @param {Object[]} orders - Orders from ePages
@@ -43,8 +46,8 @@ export function calculateSalesTrend(
   })
 
   // Calculate revenue
-  const currentRevenue = currentOrders.reduce((sum, o) => sum + (o.grand_total || 0), 0)
-  const previousRevenue = previousOrders.reduce((sum, o) => sum + (o.grand_total || 0), 0)
+  const currentRevenue = currentOrders.reduce((sum, o) => sum + getNetRevenue(o), 0)
+  const previousRevenue = previousOrders.reduce((sum, o) => sum + getNetRevenue(o), 0)
 
   // Calculate change
   const revenueChange = previousRevenue > 0
@@ -145,7 +148,7 @@ function getDailyRevenues(orders, startDate, endDate) {
   orders.forEach(order => {
     const date = new Date(order.creation_date).toISOString().split('T')[0]
     if (dailyMap.has(date)) {
-      dailyMap.set(date, dailyMap.get(date) + (order.grand_total || 0))
+      dailyMap.set(date, dailyMap.get(date) + getNetRevenue(order))
     }
   })
 

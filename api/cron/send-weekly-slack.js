@@ -117,8 +117,9 @@ function getIndexLevelEmoji(level) {
 /**
  * Build Slack message blocks for weekly report
  */
-function buildWeeklySlackMessage(data, week, year, shopName) {
+function buildWeeklySlackMessage(data, week, year, shopName, language = 'fi') {
   const { analysis, currentSnapshot, previousSnapshot, recommendations } = data
+  const isFi = language === 'fi'
 
   const currentIndex = currentSnapshot?.overall_index
   const previousIndex = previousSnapshot?.overall_index
@@ -139,13 +140,13 @@ function buildWeeklySlackMessage(data, week, year, shopName) {
     ? ` (${indexChange >= 0 ? '+' : ''}${formatNumber(indexChange, 0)} ${indexEmoji})`
     : ''
 
-  const summary = analysis?.summary || 'Ei yhteenvetoa tälle viikolle.'
+  const summary = analysis?.summary || (isFi ? 'Ei yhteenvetoa tälle viikolle.' : 'Ingen sammanfattning för denna vecka.')
 
   const bullets = analysis?.bullets || []
   const bulletText = bullets.slice(0, 5).map(b => {
     const emoji = getBulletEmoji(b.type)
     return `${emoji} ${b.text}`
-  }).join('\n') || 'Ei yksityiskohtia saatavilla.'
+  }).join('\n') || (isFi ? 'Ei yksityiskohtia saatavilla.' : 'Inga detaljer tillgängliga.')
 
   const topRecs = (recommendations || []).slice(0, 3)
   const recsText = topRecs.length > 0
@@ -153,26 +154,36 @@ function buildWeeklySlackMessage(data, week, year, shopName) {
         const emoji = getImpactEmoji(rec.impact)
         return `${i + 1}. ${emoji} *${rec.title}*\n    _${rec.why || rec.description || ''}_`
       }).join('\n')
-    : 'Ei suosituksia saatavilla.'
+    : (isFi ? 'Ei suosituksia saatavilla.' : 'Inga rekommendationer tillgängliga.')
+
+  const headerText = isFi
+    ? `:calendar: Viikkoraportti ${shopName} vk${week}/${year}`
+    : `:calendar: Veckorapport ${shopName} v${week}/${year}`
+
+  const summaryLabel = isFi ? 'Yhteenveto' : 'Sammanfattning'
+  const bulletsLabel = isFi ? 'Tärkeimmät havainnot' : 'Viktigaste observationerna'
+  const recsLabel = isFi ? ':dart: Top 3 toimenpiteet' : ':dart: Topp 3 åtgärder'
+  const openLabel = isFi ? 'Avaa Vilkas Analytics' : 'Öppna Vilkas Analytics'
+  const analysisLabel = isFi ? 'Katso koko analyysi' : 'Se hela analysen'
 
   const blocks = [
-    header(`:calendar: Viikkoraportti ${shopName} vk${week}/${year}`),
+    header(headerText),
 
     section(`*Growth Engine -indeksi* ${levelEmoji}\n${indexDisplay}${indexChangeDisplay}`),
 
     divider(),
 
-    section(`*Yhteenveto*\n${summary}`),
+    section(`*${summaryLabel}*\n${summary}`),
 
-    section(`*Tärkeimmät havainnot*\n${bulletText}`),
-
-    divider(),
-
-    section(`*:dart: Top 3 toimenpiteet*\n${recsText}`),
+    section(`*${bulletsLabel}*\n${bulletText}`),
 
     divider(),
 
-    context(`:link: <https://vilkas-analytics.vercel.app|Avaa Vilkas Analytics> | <https://vilkas-analytics.vercel.app/insights|Katso koko analyysi>`)
+    section(`*${recsLabel}*\n${recsText}`),
+
+    divider(),
+
+    context(`:link: <https://vilkas-analytics.vercel.app|${openLabel}> | <https://vilkas-analytics.vercel.app/insights|${analysisLabel}>`)
   ]
 
   return { blocks }
@@ -231,7 +242,8 @@ export default async function handler(req, res) {
 
       console.log(`${shop.name} weekly: analysis=${!!reportData.analysis}, snapshot=${!!reportData.currentSnapshot}, recs=${reportData.recommendations?.length || 0}`)
 
-      const message = buildWeeklySlackMessage(reportData, week, year, shop.name)
+      const language = shop.currency === 'SEK' ? 'sv' : 'fi'
+      const message = buildWeeklySlackMessage(reportData, week, year, shop.name, language)
       const slackResult = await sendToSlack(webhookUrl, message)
 
       results.push({

@@ -75,6 +75,8 @@ export async function calculateAllIndicators({
       .select(`
         id,
         grand_total,
+        total_before_tax,
+        total_tax,
         creation_date,
         order_line_items (
           id,

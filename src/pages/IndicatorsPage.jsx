@@ -252,53 +252,6 @@ export function IndicatorsPage() {
           </div>
         )}
 
-        {/* GSC Data Warning - shown when falling back to older period */}
-        {gscDataWarning && effectiveDateRange && (
-          <div className="bg-warning/10 border border-warning/30 rounded-lg p-4 mb-6 flex items-start gap-3">
-            <AlertTriangle className="w-5 h-5 text-warning flex-shrink-0 mt-0.5" />
-            <div>
-              <p className="text-warning font-medium text-sm">
-                {language === 'fi'
-                  ? 'Hakukone-data ei ole valmis valitulle jaksolle. Näytetään viimeisin täysi viikko.'
-                  : 'Sökmotordata är inte klar för vald period. Visar senaste hela veckan.'}
-              </p>
-              <div className="text-foreground-muted text-xs mt-2 space-y-1">
-                <p>
-                  <span className="text-foreground-subtle">{language === 'fi' ? 'Nykyinen:' : 'Aktuell:'}</span>{' '}
-                  <span className="text-foreground font-medium">
-                    {new Date(effectiveDateRange.startDate).getDate()}.{new Date(effectiveDateRange.startDate).getMonth() + 1}-{new Date(effectiveDateRange.endDate).getDate()}.{new Date(effectiveDateRange.endDate).getMonth() + 1}.{new Date(effectiveDateRange.startDate).getFullYear()}
-                  </span>
-                </p>
-                <p>
-                  <span className="text-foreground-subtle">{language === 'fi' ? 'Vertailu (YoY):' : 'Jämförelse (YoY):'}</span>{' '}
-                  <span className="text-foreground font-medium">
-                    {new Date(effectiveDateRange.startDate).getDate()}.{new Date(effectiveDateRange.startDate).getMonth() + 1}-{new Date(effectiveDateRange.endDate).getDate()}.{new Date(effectiveDateRange.endDate).getMonth() + 1}.{new Date(effectiveDateRange.startDate).getFullYear() - 1}
-                  </span>
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Current Period Incomplete Warning */}
-        {isCurrentPeriodIncomplete && hasData && (
-          <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4 mb-6 flex items-start gap-3">
-            <AlertTriangle className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
-            <div>
-              <p className="text-blue-400 font-medium text-sm">
-                {granularity === 'week'
-                  ? (language === 'fi' ? 'Viikko kesken – data ei ole vielä valmis' : 'Veckan pågår – data inte färdig ännu')
-                  : (language === 'fi' ? 'Kuukausi kesken – data ei ole vielä valmis' : 'Månaden pågår – data inte färdig ännu')}
-              </p>
-              <p className="text-foreground-subtle text-xs mt-1">
-                {language === 'fi'
-                  ? 'Suosittelemme tarkastelemaan edellisen jakson dataa luotettavampien tulosten saamiseksi.'
-                  : 'Vi rekommenderar att granska föregående periods data för mer tillförlitliga resultat.'}
-              </p>
-            </div>
-          </div>
-        )}
-
         {/* No Data State */}
         {!hasData && !isLoading && (
           <NoDataState onCalculate={triggerCalculation} t={t} />

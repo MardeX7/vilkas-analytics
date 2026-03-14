@@ -111,16 +111,19 @@ async function calculateGrowthEngine(supabase, storeId, startDate, endDate) {
 
   // Orders data
   const [{ data: currentOrders }, { data: prevOrders }, { data: products }] = await Promise.all([
-    supabase.from('orders').select('id, grand_total, order_line_items (quantity, total_price, product_number)').eq('store_id', storeId).neq('status', 'cancelled').gte('creation_date', startDate).lte('creation_date', endDate + 'T23:59:59'),
-    supabase.from('orders').select('id, grand_total, order_line_items (quantity, total_price, product_number)').eq('store_id', storeId).neq('status', 'cancelled').gte('creation_date', prevStartStr).lte('creation_date', prevEndStr + 'T23:59:59'),
+    supabase.from('orders').select('id, grand_total, total_before_tax, total_tax, order_line_items (quantity, total_price, product_number)').eq('store_id', storeId).neq('status', 'cancelled').gte('creation_date', startDate).lte('creation_date', endDate + 'T23:59:59'),
+    supabase.from('orders').select('id, grand_total, total_before_tax, total_tax, order_line_items (quantity, total_price, product_number)').eq('store_id', storeId).neq('status', 'cancelled').gte('creation_date', prevStartStr).lte('creation_date', prevEndStr + 'T23:59:59'),
     supabase.from('products').select('product_number, cost_price').eq('store_id', storeId)
   ])
 
   const costMap = new Map()
   products?.forEach(p => { if (p.product_number && p.cost_price) costMap.set(p.product_number, p.cost_price) })
 
+  // Use total_before_tax (excl. VAT) consistent with v_daily_sales view
+  const getRevenueExclVat = (o) => o.total_before_tax ?? (o.grand_total - (o.total_tax || 0))
+
   const currentOrderCount = currentOrders?.length || 0
-  const currentRevenue = currentOrders?.reduce((s, o) => s + (o.grand_total || 0), 0) || 0
+  const currentRevenue = currentOrders?.reduce((s, o) => s + (getRevenueExclVat(o) || 0), 0) || 0
   const currentAOV = currentOrderCount > 0 ? currentRevenue / currentOrderCount : 0
 
   let currentCost = 0
@@ -129,7 +132,7 @@ async function calculateGrowthEngine(supabase, storeId, startDate, endDate) {
   const currentMarginPerOrder = currentOrderCount > 0 ? (currentRevenue - currentCost) / currentOrderCount : 0
 
   const prevOrderCount = prevOrders?.length || 0
-  const prevRevenue = prevOrders?.reduce((s, o) => s + (o.grand_total || 0), 0) || 0
+  const prevRevenue = prevOrders?.reduce((s, o) => s + (getRevenueExclVat(o) || 0), 0) || 0
   const prevAOV = prevOrderCount > 0 ? prevRevenue / prevOrderCount : 0
 
   let prevCost = 0

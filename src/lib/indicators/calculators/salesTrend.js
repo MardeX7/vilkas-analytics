@@ -15,6 +15,9 @@ import {
   DEFAULT_THRESHOLDS
 } from '../types.js'
 
+/** Get order revenue excl VAT */
+const getNetRevenue = (o) => parseFloat(o.total_before_tax) || (parseFloat(o.grand_total) - parseFloat(o.total_tax || 0)) || 0
+
 /**
  * Calculate sales trend indicator
  *
@@ -156,8 +159,7 @@ function filterOrdersByPeriod(orders, startDate, endDate) {
  */
 function sumRevenue(orders) {
   return orders.reduce((sum, order) => {
-    const amount = parseFloat(order.grand_total) || 0
-    return sum + amount
+    return sum + getNetRevenue(order)
   }, 0)
 }
 
@@ -180,7 +182,7 @@ function calculateDailyRevenues(orders, startDate, endDate) {
     const orderDate = new Date(order.creation_date || order.created_at)
     const dateKey = orderDate.toISOString().split('T')[0]
     const currentValue = dailyMap.get(dateKey) || 0
-    dailyMap.set(dateKey, currentValue + (parseFloat(order.grand_total) || 0))
+    dailyMap.set(dateKey, currentValue + getNetRevenue(order))
   }
 
   return Array.from(dailyMap.values())

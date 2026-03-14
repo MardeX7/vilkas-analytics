@@ -13,6 +13,9 @@ import {
   DEFAULT_THRESHOLDS
 } from './types'
 
+/** Get order revenue excl VAT */
+const getNetRevenue = (o) => o.total_before_tax || (o.grand_total - (o.total_tax || 0)) || 0
+
 /**
  * Calculate AOV indicator
  * @param {Object[]} orders - Orders from ePages
@@ -44,8 +47,8 @@ export function calculateAOV(
   })
 
   // Calculate AOV
-  const currentValues = currentOrders.map(o => o.grand_total || 0).filter(v => v > 0)
-  const previousValues = previousOrders.map(o => o.grand_total || 0).filter(v => v > 0)
+  const currentValues = currentOrders.map(o => getNetRevenue(o)).filter(v => v > 0)
+  const previousValues = previousOrders.map(o => getNetRevenue(o)).filter(v => v > 0)
 
   const currentAOV = currentValues.length > 0
     ? currentValues.reduce((sum, v) => sum + v, 0) / currentValues.length

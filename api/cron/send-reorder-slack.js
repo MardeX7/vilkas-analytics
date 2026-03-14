@@ -25,6 +25,12 @@ const REORDER_THRESHOLD_DAYS = 14
 // Suggest ordering enough for 30 days
 const TARGET_STOCK_DAYS = 30
 
+// Bundle/package products don't have own stock — skip them
+const BUNDLE_NAME_PATTERN = /paket|paketet|bundle/i
+function isBundle(product) {
+  return BUNDLE_NAME_PATTERN.test(product?.name || '')
+}
+
 const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
@@ -71,6 +77,7 @@ async function fetchReorderProducts(supabase, storeId) {
   })
 
   const reorderProducts = products
+    .filter(p => !isBundle(p))
     .map(p => {
       const soldQty = sales[p.product_number] || 0
       const dailySales = soldQty / 30
@@ -96,15 +103,17 @@ async function fetchReorderProducts(supabase, storeId) {
 /**
  * Build Slack message
  */
-function buildReorderSlackMessage(products, shopName) {
+function buildReorderSlackMessage(products, shopName, language = 'fi') {
+  const isFi = language === 'fi'
+
   const blocks = [
-    header(`:shopping_cart: Viikon tilauslista – ${shopName}`)
+    header(`:shopping_cart: ${isFi ? 'Viikon tilauslista' : 'Veckans beställningslista'} – ${shopName}`)
   ]
 
   if (products.length === 0) {
-    blocks.push(section(`:white_check_mark: Ei tuotteita tilattavaksi tällä viikolla!`))
+    blocks.push(section(`:white_check_mark: ${isFi ? 'Ei tuotteita tilattavaksi tällä viikolla!' : 'Inga produkter att beställa denna vecka!'}`))
     blocks.push(divider())
-    blocks.push(context(`:link: <https://vilkas-analytics.vercel.app/inventory|Avaa Varastonäkymä>`))
+    blocks.push(context(`:link: <https://vilkas-analytics.vercel.app/inventory|${isFi ? 'Avaa Varastonäkymä' : 'Öppna Lageröversikt'}>`))
     return { blocks }
   }
 
@@ -112,16 +121,25 @@ function buildReorderSlackMessage(products, shopName) {
   const soon = products.filter(p => p.daysOfStock > 3 && p.daysOfStock <= 7)
   const plan = products.filter(p => p.daysOfStock > 7)
 
-  blocks.push(section(`*${products.length} tuotetta* tilattavaksi\n:rotating_light: ${urgent.length} kiireellinen | :warning: ${soon.length} pian | :calendar: ${plan.length} suunnittele`))
+  const unit = isFi ? 'kpl' : 'st'
+  const summaryText = isFi
+    ? `*${products.length} tuotetta* tilattavaksi\n:rotating_light: ${urgent.length} kiireellinen | :warning: ${soon.length} pian | :calendar: ${plan.length} suunnittele`
+    : `*${products.length} produkter* att beställa\n:rotating_light: ${urgent.length} brådskande | :warning: ${soon.length} snart | :calendar: ${plan.length} planera`
+
+  blocks.push(section(summaryText))
 
   if (urgent.length > 0) {
     blocks.push(divider())
-    blocks.push(section(`:rotating_light: *KIIREELLINEN (0-3 päivää)*`))
+    blocks.push(section(`:rotating_light: *${isFi ? 'KIIREELLINEN (0-3 päivää)' : 'BRÅDSKANDE (0-3 dagar)'}*`))
 
     const urgentText = urgent.slice(0, 8).map(p => {
       const shortName = p.name.length > 30 ? p.name.substring(0, 28) + '..' : p.name
-      const daysText = p.daysOfStock <= 0 ? 'LOPPU' : `${p.daysOfStock}pv`
-      return `:red_circle: ${shortName}\n   Varasto: *${p.stock_level}* (${daysText}) → Tilaa *${p.suggestedOrder} kpl*`
+      const outLabel = isFi ? 'LOPPU' : 'SLUT'
+      const daysLabel = isFi ? 'pv' : 'd'
+      const daysText = p.daysOfStock <= 0 ? outLabel : `${p.daysOfStock}${daysLabel}`
+      const stockLabel = isFi ? 'Varasto' : 'Lager'
+      const orderLabel = isFi ? 'Tilaa' : 'Beställ'
+      return `:red_circle: ${shortName}\n   ${stockLabel}: *${p.stock_level}* (${daysText}) → ${orderLabel} *${p.suggestedOrder} ${unit}*`
     }).join('\n\n')
 
     blocks.push(section(urgentText))
@@ -129,11 +147,12 @@ function buildReorderSlackMessage(products, shopName) {
 
   if (soon.length > 0) {
     blocks.push(divider())
-    blocks.push(section(`:warning: *PIAN (4-7 päivää)*`))
+    blocks.push(section(`:warning: *${isFi ? 'PIAN (4-7 päivää)' : 'SNART (4-7 dagar)'}*`))
 
+    const daysLabel = isFi ? 'pv' : 'd'
     const soonText = soon.slice(0, 8).map(p => {
       const shortName = p.name.length > 30 ? p.name.substring(0, 28) + '..' : p.name
-      return `:large_orange_circle: ${shortName} | ${p.stock_level} kpl (~${p.daysOfStock}pv) → *${p.suggestedOrder} kpl*`
+      return `:large_orange_circle: ${shortName} | ${p.stock_level} ${unit} (~${p.daysOfStock}${daysLabel}) → *${p.suggestedOrder} ${unit}*`
     }).join('\n')
 
     blocks.push(section(soonText))
@@ -141,22 +160,23 @@ function buildReorderSlackMessage(products, shopName) {
 
   if (plan.length > 0) {
     blocks.push(divider())
-    blocks.push(section(`:calendar: *SUUNNITTELE (8-14 päivää)*`))
+    blocks.push(section(`:calendar: *${isFi ? 'SUUNNITTELE (8-14 päivää)' : 'PLANERA (8-14 dagar)'}*`))
 
+    const daysLabel = isFi ? 'pv' : 'd'
     const planText = plan.slice(0, 8).map(p => {
       const shortName = p.name.length > 30 ? p.name.substring(0, 28) + '..' : p.name
-      return `:large_blue_circle: ${shortName} | ${p.stock_level} kpl (~${p.daysOfStock}pv) → *${p.suggestedOrder} kpl*`
+      return `:large_blue_circle: ${shortName} | ${p.stock_level} ${unit} (~${p.daysOfStock}${daysLabel}) → *${p.suggestedOrder} ${unit}*`
     }).join('\n')
 
     blocks.push(section(planText))
 
     if (plan.length > 8) {
-      blocks.push(section(`_...ja ${plan.length - 8} lisää_`))
+      blocks.push(section(`_...${isFi ? 'ja' : 'och'} ${plan.length - 8} ${isFi ? 'lisää' : 'till'}_`))
     }
   }
 
   blocks.push(divider())
-  blocks.push(context(`:link: <https://vilkas-analytics.vercel.app/inventory|Avaa Varastonäkymä>`))
+  blocks.push(context(`:link: <https://vilkas-analytics.vercel.app/inventory|${isFi ? 'Avaa Varastonäkymä' : 'Öppna Lageröversikt'}>`))
 
   return { blocks }
 }
@@ -210,7 +230,8 @@ export default async function handler(req, res) {
 
       console.log(`${shop.name}: ${products.length} products need reordering`)
 
-      const message = buildReorderSlackMessage(products, shop.name)
+      const language = shop.currency === 'SEK' ? 'sv' : 'fi'
+      const message = buildReorderSlackMessage(products, shop.name, language)
       const slackResult = await sendToSlack(webhookUrl, message)
 
       results.push({

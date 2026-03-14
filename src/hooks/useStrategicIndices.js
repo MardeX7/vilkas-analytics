@@ -226,7 +226,7 @@ export function useStrategicIndices({ granularity = 'week' } = {}) {
         const { data: currentOrders, error: currentError } = await supabase
           .from('orders')
           .select(`
-            id, grand_total, total_before_tax, creation_date,
+            id, grand_total, total_before_tax, total_tax, creation_date,
             billing_email, customer_id
           `)
           .eq('store_id', storeId)
@@ -239,7 +239,7 @@ export function useStrategicIndices({ granularity = 'week' } = {}) {
         const { data: yoyOrders, error: yoyError } = await supabase
           .from('orders')
           .select(`
-            id, grand_total, total_before_tax, creation_date,
+            id, grand_total, total_before_tax, total_tax, creation_date,
             billing_email, customer_id
           `)
           .eq('store_id', storeId)
@@ -333,7 +333,7 @@ export function useStrategicIndices({ granularity = 'week' } = {}) {
       }
     }
 
-    const revenue = orders.reduce((sum, o) => sum + (o.grand_total || 0), 0)
+    const revenue = orders.reduce((sum, o) => sum + (o.total_before_tax || (o.grand_total - (o.total_tax || 0)) || 0), 0)
 
     // Calculate gross profit from line items
     let totalCost = 0

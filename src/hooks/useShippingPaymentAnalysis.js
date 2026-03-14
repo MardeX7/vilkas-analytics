@@ -2,6 +2,9 @@ import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useCurrentShop } from '@/config/storeConfig'
 
+/** Get order revenue excl VAT */
+const getNetRevenue = (o) => o.total_before_tax || (o.grand_total - (o.total_tax || 0)) || 0
+
 /**
  * useShippingPaymentAnalysis - Hook for shipping and payment method cross-analysis
  *
@@ -37,7 +40,7 @@ export function useShippingPaymentAnalysis(dateRange = null) {
       // Fetch orders with shipping and payment info
       let query = supabase
         .from('orders')
-        .select('id, grand_total, shipping_method, payment_method, creation_date')
+        .select('id, grand_total, total_before_tax, total_tax, shipping_method, payment_method, creation_date')
         .eq('store_id', storeId)
         .neq('status', 'cancelled')
 
@@ -76,7 +79,7 @@ export function useShippingPaymentAnalysis(dateRange = null) {
       const shippingMap = new Map()
       orders.forEach(o => {
         const method = o.shipping_method || 'Tuntematon'
-        const bucket = getOrderSizeBucket(o.grand_total)
+        const bucket = getOrderSizeBucket(getNetRevenue(o))
         const key = `${method}|${bucket}`
 
         if (!shippingMap.has(key)) {
@@ -89,7 +92,7 @@ export function useShippingPaymentAnalysis(dateRange = null) {
         }
         const entry = shippingMap.get(key)
         entry.count++
-        entry.totalValue += o.grand_total || 0
+        entry.totalValue += getNetRevenue(o)
       })
 
       const shippingByOrderSize = Array.from(shippingMap.values())
@@ -107,7 +110,7 @@ export function useShippingPaymentAnalysis(dateRange = null) {
       const paymentMap = new Map()
       orders.forEach(o => {
         const method = o.payment_method || 'Tuntematon'
-        const bucket = getOrderSizeBucket(o.grand_total)
+        const bucket = getOrderSizeBucket(getNetRevenue(o))
         const key = `${method}|${bucket}`
 
         if (!paymentMap.has(key)) {
@@ -120,7 +123,7 @@ export function useShippingPaymentAnalysis(dateRange = null) {
         }
         const entry = paymentMap.get(key)
         entry.count++
-        entry.totalValue += o.grand_total || 0
+        entry.totalValue += getNetRevenue(o)
       })
 
       const paymentByOrderSize = Array.from(paymentMap.values())
@@ -151,7 +154,7 @@ export function useShippingPaymentAnalysis(dateRange = null) {
         }
         const entry = crossMap.get(key)
         entry.count++
-        entry.totalValue += o.grand_total || 0
+        entry.totalValue += getNetRevenue(o)
       })
 
       const crossAnalysis = Array.from(crossMap.values())
@@ -171,9 +174,10 @@ export function useShippingPaymentAnalysis(dateRange = null) {
         }
         const entry = shippingSummaryMap.get(method)
         entry.count++
-        entry.totalValue += o.grand_total || 0
-        entry.minValue = Math.min(entry.minValue, o.grand_total || 0)
-        entry.maxValue = Math.max(entry.maxValue, o.grand_total || 0)
+        const rev = getNetRevenue(o)
+        entry.totalValue += rev
+        entry.minValue = Math.min(entry.minValue, rev)
+        entry.maxValue = Math.max(entry.maxValue, rev)
       })
 
       const shippingSummary = Array.from(shippingSummaryMap.values())
@@ -193,9 +197,10 @@ export function useShippingPaymentAnalysis(dateRange = null) {
         }
         const entry = paymentSummaryMap.get(method)
         entry.count++
-        entry.totalValue += o.grand_total || 0
-        entry.minValue = Math.min(entry.minValue, o.grand_total || 0)
-        entry.maxValue = Math.max(entry.maxValue, o.grand_total || 0)
+        const rev = getNetRevenue(o)
+        entry.totalValue += rev
+        entry.minValue = Math.min(entry.minValue, rev)
+        entry.maxValue = Math.max(entry.maxValue, rev)
       })
 
       const paymentSummary = Array.from(paymentSummaryMap.values())
@@ -234,7 +239,7 @@ export function useShippingPaymentAnalysis(dateRange = null) {
 
       // Large orders shipping preference
       const largeOrderShipping = orders
-        .filter(o => o.grand_total >= 2000)
+        .filter(o => getNetRevenue(o) >= 2000)
         .reduce((acc, o) => {
           const method = o.shipping_method || 'Tuntematon'
           acc[method] = (acc[method] || 0) + 1
@@ -243,7 +248,7 @@ export function useShippingPaymentAnalysis(dateRange = null) {
       const topLargeOrderShipping = Object.entries(largeOrderShipping)
         .sort((a, b) => b[1] - a[1])[0]
       if (topLargeOrderShipping) {
-        const largeOrderCount = orders.filter(o => o.grand_total >= 2000).length
+        const largeOrderCount = orders.filter(o => getNetRevenue(o) >= 2000).length
         const percentage = (topLargeOrderShipping[1] / largeOrderCount) * 100
         insights.push({
           type: 'large_order_shipping',

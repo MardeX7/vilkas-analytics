@@ -35,6 +35,10 @@
       "schedule": "0 7 * * 1"
     },
     {
+      "path": "/api/cron/generate-weekly-analyses",
+      "schedule": "15 7 * * 1"
+    },
+    {
       "path": "/api/cron/send-weekly-slack",
       "schedule": "30 7 * * 1"
     }

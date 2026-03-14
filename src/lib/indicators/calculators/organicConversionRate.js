@@ -16,6 +16,9 @@ import {
   DEFAULT_THRESHOLDS
 } from '../types.js'
 
+/** Get order revenue excl VAT */
+const getNetRevenue = (o) => parseFloat(o.total_before_tax) || (parseFloat(o.grand_total) - parseFloat(o.total_tax || 0)) || 0
+
 /**
  * Calculate organic conversion rate indicator
  *
@@ -62,8 +65,8 @@ export function calculateOrganicConversionRate({
   // More sophisticated attribution would use UTM parameters or session tracking
   const ORGANIC_ATTRIBUTION_RATE = 0.35 // Estimate 35% of orders come from organic
 
-  const currentOrderCount = currentOrders.filter(o => parseFloat(o.grand_total) > 0).length
-  const previousOrderCount = previousOrders.filter(o => parseFloat(o.grand_total) > 0).length
+  const currentOrderCount = currentOrders.filter(o => getNetRevenue(o) > 0).length
+  const previousOrderCount = previousOrders.filter(o => getNetRevenue(o) > 0).length
 
   const currentAttributedOrders = Math.round(currentOrderCount * ORGANIC_ATTRIBUTION_RATE)
   const previousAttributedOrders = Math.round(previousOrderCount * ORGANIC_ATTRIBUTION_RATE)
@@ -196,7 +199,7 @@ function calculateByPageType(gscData, orders) {
     other: 0.5
   }
 
-  const totalOrders = orders.filter(o => parseFloat(o.grand_total) > 0).length
+  const totalOrders = orders.filter(o => getNetRevenue(o) > 0).length
   const totalClicks = Object.values(pageTypes).reduce((sum, t) => sum + t.clicks, 0)
   const baseCR = totalClicks > 0 ? (totalOrders * 0.35 / totalClicks) * 100 : 0
 

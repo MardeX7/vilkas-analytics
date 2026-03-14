@@ -15,6 +15,9 @@ import {
   DEFAULT_THRESHOLDS
 } from './types'
 
+/** Get order revenue excl VAT */
+const getNetRevenue = (o) => o.total_before_tax || (o.grand_total - (o.total_tax || 0)) || 0
+
 /**
  * Calculate organic conversion rate
  * @param {Object[]} gscData - GSC data with clicks per page
@@ -110,7 +113,7 @@ export function calculateOrganicConversionRate(
       total_orders: totalOrders,
       overall_conversion_rate: Math.round(overallCR * 100) / 100,
       revenue_per_click: totalClicks > 0
-        ? Math.round(periodOrders.reduce((sum, o) => sum + (o.grand_total || 0), 0) / totalClicks)
+        ? Math.round(periodOrders.reduce((sum, o) => sum + getNetRevenue(o), 0) / totalClicks)
         : 0
     },
 
