@@ -19,6 +19,7 @@ import {
   AlertTriangle,
   MousePointer
 } from 'lucide-react'
+import { useCurrentShop } from '@/config/storeConfig'
 import { BrowseAnalysisCard } from '@/components/BrowseAnalysisCard'
 import { TopProductsGA4 } from '@/components/TopProductsGA4'
 import { TrafficChart } from '@/components/TrafficChart'
@@ -69,6 +70,7 @@ export function GA4Page() {
   const [dateRange, setDateRange] = useState(() => createDefaultDateRange())
   const [syncing, setSyncing] = useState(false)
   const [comparisonMode, setComparisonMode] = useState('yoy') // Default YoY
+  const { currencySymbol } = useCurrentShop()
 
   const {
     dailySummary = [],
@@ -524,7 +526,7 @@ export function GA4Page() {
                 <div className="mt-8">
                   <ConversionFunnel
                     productFunnel={productFunnel}
-                    currency="kr"
+                    currency={currencySymbol}
                   />
                 </div>
 

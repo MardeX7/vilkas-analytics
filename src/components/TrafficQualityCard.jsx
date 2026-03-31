@@ -61,8 +61,8 @@ export function TrafficQualityCard({
     .filter(s => s.sessions > 10) // Minimum sessions for relevance
     .map(s => ({
       ...s,
-      engagementRate: s.engagedSessions && s.sessions
-        ? (s.engagedSessions / s.sessions) * 100
+      engagementRate: (s.engaged_sessions || s.engagedSessions) && s.sessions
+        ? ((s.engaged_sessions || s.engagedSessions) / s.sessions) * 100
         : 0
     }))
     .sort((a, b) => b.engagementRate - a.engagementRate)

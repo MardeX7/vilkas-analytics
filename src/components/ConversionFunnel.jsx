@@ -72,8 +72,8 @@ export function ConversionFunnel({
     }
   ]
 
-  // No data state
-  if (totalViews === 0) {
+  // No data state - only show if there's truly no data at all
+  if (totalViews === 0 && totalAddToCart === 0 && totalPurchased === 0) {
     return (
       <div className="bg-background-elevated rounded-lg border border-card-border p-5">
         <div className="flex items-center gap-2 mb-4">
@@ -181,10 +181,10 @@ export function ConversionFunnel({
             </span>
           </div>
           <p className="text-lg font-bold text-foreground">
-            {currency}{totalRevenue.toLocaleString('sv-SE', {
-              minimumFractionDigits: 0,
-              maximumFractionDigits: 0
-            })}
+            {currency === '€'
+              ? `${totalRevenue.toLocaleString('fi-FI', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} €`
+              : `${totalRevenue.toLocaleString('sv-SE', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} kr`
+            }
           </p>
         </div>
 
@@ -197,10 +197,10 @@ export function ConversionFunnel({
             </span>
           </div>
           <p className="text-lg font-bold text-foreground">
-            {currency}{avgOrderValue.toLocaleString('sv-SE', {
-              minimumFractionDigits: 0,
-              maximumFractionDigits: 0
-            })}
+            {currency === '€'
+              ? `${avgOrderValue.toLocaleString('fi-FI', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} €`
+              : `${avgOrderValue.toLocaleString('sv-SE', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} kr`
+            }
           </p>
         </div>
 
