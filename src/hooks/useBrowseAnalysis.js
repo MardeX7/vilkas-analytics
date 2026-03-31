@@ -42,9 +42,22 @@ export function useBrowseAnalysis(dateRange = null) {
       if (startDate) query = query.gte('date', startDate)
       if (endDate) query = query.lte('date', endDate)
 
-      const { data: ga4Data, error: ga4Error } = await query
+      let { data: ga4Data, error: ga4Error } = await query
 
       if (ga4Error) throw ga4Error
+
+      // Fallback: if no data found with date range, fetch ALL available data
+      // (same pattern as useGA4Ecommerce)
+      if (!ga4Data || ga4Data.length === 0) {
+        const { data: allData, error: allError } = await supabase
+          .from('ga4_ecommerce')
+          .select('item_id, item_name, item_category, items_viewed, items_added_to_cart, items_purchased, item_revenue')
+          .eq('store_id', shopId)
+
+        if (!allError && allData && allData.length > 0) {
+          ga4Data = allData
+        }
+      }
 
       if (!ga4Data || ga4Data.length === 0) {
         setData({

@@ -189,7 +189,8 @@ export function useInventory() {
           : p.stock_level > 0 ? 999 : 0
         // Use cost_price if available, otherwise estimate at 60% of price_amount
         const unitCost = p.cost_price || (p.price_amount ? p.price_amount * 0.6 : 0)
-        const stockValue = (p.stock_level || 0) * unitCost
+        // GREATEST(0) prevents negative stock values from corrupting totals
+        const stockValue = Math.max(p.stock_level || 0, 0) * unitCost
         const revenue30d = salesLast30Days * (p.price_amount || 0)
         const lastYearData = lastYearSalesByProduct[p.product_number] || { quantity: 0, revenue: 0 }
 
@@ -466,11 +467,13 @@ export function useInventory() {
 
       if (!historyError && historyData) {
         // Map RPC result to expected format
+        // Allow all values (including low/zero) to keep chart continuous
+        // Negative snapshots are cleaned up in DB migration
         const validHistory = historyData
-          .filter(h => h.total_value > 0)
+          .filter(h => h.total_value != null)
           .map(h => ({
             date: h.snapshot_date,
-            totalValue: Number(h.total_value),
+            totalValue: Math.max(Number(h.total_value), 0),
             productCount: Number(h.product_count)
           }))
 
