@@ -159,6 +159,8 @@ VilkasAnalytics/
 | `/search-console` | Haku | GSC: positiot, klikkaukset, impressiot |
 | `/analytics` | Analytiikka | GA4: liikennelahteet, kayttaytyminen |
 | `/inventory` | Varasto | Varastotasot, halytykset, taydennyssuositukset |
+| `/paste-inventory` | Savytysvarasto | Savytyspastojen erillinen varasto (Automaalit) |
+| `/support` | Asiakaspalvelu | Jira-tiketit, SLA, backlog (Automaalit) |
 | `/indicators/:id` | Indikaattori | Yksittaisen KPI:n syvaanalyysi |
 | `/settings` | Asetukset | Kaupan konfiguraatio |
 
@@ -193,7 +195,7 @@ const { STORE_ID, SHOP_ID, getStoreIdForTable } = require('./scripts/db.cjs')
 | Taulut | Kayttaa |
 |--------|---------|
 | `orders`, `products`, `gsc_*`, `ga4_tokens`, `order_line_items` | `STORE_ID` |
-| `shops`, `ga4_ecommerce`, `weekly_analyses`, `chat_sessions`, `merchant_goals` | `SHOP_ID` |
+| `shops`, `ga4_ecommerce`, `weekly_analyses`, `chat_sessions`, `merchant_goals`, `support_*`, `paste_*` | `SHOP_ID` |
 
 **Ala koskaan kovakoodaa UUID:ta suoraan koodiin!**
 
@@ -221,6 +223,11 @@ const { STORE_ID, SHOP_ID, getStoreIdForTable } = require('./scripts/db.cjs')
 | `growth_engine_snapshots` | Kasvumoottori-snapshotit |
 | `action_recommendations` | Toimenpidesuositukset |
 | `emma_rag_documents` | Emma RAG -dokumentit |
+| `support_tickets` | Jira-tiketit |
+| `support_daily_stats` | Tukipalvelun paivittaiset tilastot |
+| `paste_products` | Savytyspastojen nykysaldot (CSV) |
+| `paste_orders` | Savytyspastojen tilaukset/menekki (XML) |
+| `paste_snapshots` | Pastavaraston arvokehitys |
 
 ### RPC-funktiot
 
