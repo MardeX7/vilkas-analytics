@@ -9,6 +9,7 @@ import { IndicatorsPage } from '@/pages/IndicatorsPage'
 import { IndicatorDetailPage } from '@/pages/IndicatorDetailPage'
 import { CustomersPage } from '@/pages/CustomersPage'
 import { SupportPage } from '@/pages/SupportPage'
+import { PasteInventoryPage } from '@/pages/PasteInventoryPage'
 import { SettingsPage } from '@/pages/SettingsPage'
 import { LoginPage } from '@/components/auth/LoginPage'
 import { AuthCallback } from '@/components/auth/AuthCallback'
@@ -41,6 +42,7 @@ function App() {
           <Route path="/analytics" element={<GA4Page />} />
           <Route path="/inventory" element={<InventoryPage />} />
           <Route path="/support" element={<SupportPage />} />
+          <Route path="/paste-inventory" element={<PasteInventoryPage />} />
 
           {/* Tuki-sivut */}
           <Route path="/indicators/:indicatorId" element={<IndicatorDetailPage />} />

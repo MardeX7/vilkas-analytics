@@ -17,7 +17,8 @@ import {
   Warehouse,
   Users,
   ChevronsUpDown,
-  Headphones
+  Headphones,
+  Palette
 } from 'lucide-react'
 import { useTranslation } from '@/lib/i18n'
 import { useAuth } from '@/contexts/AuthContext'
@@ -30,6 +31,7 @@ export function MobileNav() {
   const { currentShop, shops, switchShop } = useAuth()
 
   const hasJira = !!currentShop?.jira_host
+  const hasPasteInventory = currentShop?.domain === 'automaalit.net'
 
   const navItems = [
     { to: '/', icon: Target, label: t('nav.overview') },
@@ -37,6 +39,7 @@ export function MobileNav() {
     { to: '/sales', icon: BarChart3, label: t('nav.sales') },
     { to: '/customers', icon: Users, label: t('nav.customers') },
     { to: '/inventory', icon: Warehouse, label: t('nav.inventory') },
+    ...(hasPasteInventory ? [{ to: '/paste-inventory', icon: Palette, label: t('nav.pasteInventory') }] : []),
     { to: '/search-console', icon: Search, label: t('nav.searchConsole') },
     { to: '/analytics', icon: Activity, label: t('nav.analytics') },
     ...(hasJira ? [{ to: '/support', icon: Headphones, label: t('nav.support') }] : []),
