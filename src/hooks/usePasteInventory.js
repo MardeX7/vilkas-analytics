@@ -201,21 +201,84 @@ export function usePasteInventory() {
         .sort((a, b) => b.consumption - a.consumption)
       setCategories(cats)
 
-      // --- Monthly orders aggregation ---
+      // --- Monthly orders aggregation with MoM, YoY and category breakdown ---
       const monthMap = new Map()
+      const monthCategoryMap = new Map() // "YYYY-MM|category" → quantity
       for (const o of (orderData || [])) {
         const month = o.order_date.substring(0, 7) // YYYY-MM
         if (!monthMap.has(month)) {
-          monthMap.set(month, { month, orderValue: 0, quantity: 0, uniqueProducts: new Set() })
+          monthMap.set(month, { month, orderValue: 0, quantity: 0, uniqueProducts: new Set(), orderCount: new Set() })
         }
         const m = monthMap.get(month)
         m.orderValue += o.total_price || 0
         m.quantity += o.quantity || 0
         m.uniqueProducts.add(o.external_id)
+        m.orderCount.add(`${month}-${o.external_id}`) // approximate order count
+
+        // Category breakdown per month
+        // Find category from enriched products or extract from name
+        const prod = enriched.find(p => p.external_id === o.external_id)
+        const cat = prod?.category_prefix || 'Muut'
+        const catKey = `${month}|${cat}`
+        monthCategoryMap.set(catKey, (monthCategoryMap.get(catKey) || 0) + (o.quantity || 0))
       }
-      const monthly = Array.from(monthMap.values())
-        .map(m => ({ ...m, uniqueProducts: m.uniqueProducts.size }))
+
+      const monthlyRaw = Array.from(monthMap.values())
+        .map(m => ({ ...m, uniqueProducts: m.uniqueProducts.size, orderCount: m.orderCount.size }))
         .sort((a, b) => a.month.localeCompare(b.month))
+
+      // Calculate MoM and YoY changes + category shares
+      const totalQtyAllMonths = monthlyRaw.reduce((s, m) => s + m.quantity, 0)
+      const monthly = monthlyRaw.map((m, idx) => {
+        // MoM
+        const prev = idx > 0 ? monthlyRaw[idx - 1] : null
+        const momChange = prev ? m.quantity - prev.quantity : null
+        const momPct = prev && prev.quantity > 0
+          ? Math.round(((m.quantity - prev.quantity) / prev.quantity) * 100)
+          : null
+
+        // YoY - find same month previous year
+        const [y, mo] = m.month.split('-')
+        const yoyMonth = `${parseInt(y) - 1}-${mo}`
+        const yoyData = monthlyRaw.find(x => x.month === yoyMonth)
+        const yoyChange = yoyData ? m.quantity - yoyData.quantity : null
+        const yoyPct = yoyData && yoyData.quantity > 0
+          ? Math.round(((m.quantity - yoyData.quantity) / yoyData.quantity) * 100)
+          : null
+
+        // Share of total
+        const shareOfTotal = totalQtyAllMonths > 0
+          ? Math.round((m.quantity / totalQtyAllMonths) * 1000) / 10
+          : 0
+
+        // Avg per order
+        const avgPerOrder = m.uniqueProducts > 0
+          ? Math.round((m.quantity / m.uniqueProducts) * 10) / 10
+          : 0
+
+        // Top categories this month
+        const catBreakdown = []
+        for (const [key, qty] of monthCategoryMap) {
+          if (key.startsWith(m.month + '|')) {
+            const cat = key.split('|')[1]
+            catBreakdown.push({ category: cat, quantity: qty })
+          }
+        }
+        catBreakdown.sort((a, b) => b.quantity - a.quantity)
+        const topCategory = catBreakdown[0]?.category || null
+
+        return {
+          ...m,
+          momChange,
+          momPct,
+          yoyChange,
+          yoyPct,
+          shareOfTotal,
+          avgPerOrder,
+          topCategory,
+          categoryBreakdown: catBreakdown.slice(0, 5),
+        }
+      })
       setMonthlyOrders(monthly)
 
       // --- Value history ---

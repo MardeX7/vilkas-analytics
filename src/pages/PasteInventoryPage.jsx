@@ -372,14 +372,19 @@ export function PasteInventoryPage() {
           </div>
         </div>
 
-        {/* Monthly orders chart */}
+        {/* Monthly consumption analysis */}
         {monthlyOrders.length > 0 && (
           <div className="mb-8 bg-card rounded-xl border border-card-border p-5">
             <div className="flex items-center gap-2 mb-4">
               <BarChart3 className="w-5 h-5 text-primary" />
               <h2 className="text-base font-semibold text-foreground">Kuukausittainen menekki</h2>
+              <span className="text-xs text-foreground-muted">
+                — Yht. {formatNumber(monthlyOrders.reduce((s, m) => s + m.quantity, 0))} kpl / {fmtCurrency(monthlyOrders.reduce((s, m) => s + m.orderValue, 0))}
+              </span>
             </div>
-            <ResponsiveContainer width="100%" height={250}>
+
+            {/* Chart */}
+            <ResponsiveContainer width="100%" height={220}>
               <BarChart data={monthlyOrders}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
                 <XAxis
@@ -400,13 +405,121 @@ export function PasteInventoryPage() {
                   ]}
                   labelFormatter={(v) => {
                     const [y, m] = v.split('-')
-                    const months = ['', 'Tammi', 'Helmi', 'Maalis', 'Huhti', 'Touko', 'Kesä', 'Heinä', 'Elo', 'Syys', 'Loka', 'Marras', 'Joulu']
-                    return `${months[parseInt(m)]} ${y}`
+                    const MONTHS = ['', 'Tammi', 'Helmi', 'Maalis', 'Huhti', 'Touko', 'Kesä', 'Heinä', 'Elo', 'Syys', 'Loka', 'Marras', 'Joulu']
+                    return `${MONTHS[parseInt(m)]} ${y}`
                   }}
                 />
                 <Bar dataKey="quantity" fill="#00b4e9" radius={[4, 4, 0, 0]} name="quantity" />
               </BarChart>
             </ResponsiveContainer>
+
+            {/* Monthly details table */}
+            <div className="mt-5 overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-foreground-muted border-b border-card-border">
+                    <th className="pb-2 pr-3">Kuukausi</th>
+                    <th className="pb-2 pr-3 text-right">Määrä</th>
+                    <th className="pb-2 pr-3 text-right">Arvo</th>
+                    <th className="pb-2 pr-3 text-right">MoM</th>
+                    <th className="pb-2 pr-3 text-right">YoY</th>
+                    <th className="pb-2 pr-3 text-right">%-osuus</th>
+                    <th className="pb-2 pr-3 text-right">Tuotteita</th>
+                    <th className="pb-2 pr-3">Top kategoria</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[...monthlyOrders].reverse().map(m => {
+                    const [y, mo] = m.month.split('-')
+                    const MONTHS = ['', 'Tammi', 'Helmi', 'Maalis', 'Huhti', 'Touko', 'Kesä', 'Heinä', 'Elo', 'Syys', 'Loka', 'Marras', 'Joulu']
+                    return (
+                      <tr key={m.month} className="border-b border-card-border/50 hover:bg-background-subtle transition-colors">
+                        <td className="py-2 pr-3 font-medium text-foreground">{MONTHS[parseInt(mo)]} {y}</td>
+                        <td className="py-2 pr-3 text-right text-foreground">{formatNumber(m.quantity)} kpl</td>
+                        <td className="py-2 pr-3 text-right text-foreground-muted">{fmtCurrency(m.orderValue)}</td>
+                        <td className="py-2 pr-3 text-right">
+                          {m.momPct !== null ? (
+                            <span className={cn(
+                              'font-medium',
+                              m.momPct > 0 ? 'text-success' : m.momPct < 0 ? 'text-destructive' : 'text-foreground-muted'
+                            )}>
+                              {m.momPct > 0 ? '+' : ''}{m.momPct}%
+                            </span>
+                          ) : <span className="text-foreground-muted">—</span>}
+                        </td>
+                        <td className="py-2 pr-3 text-right">
+                          {m.yoyPct !== null ? (
+                            <span className={cn(
+                              'font-medium',
+                              m.yoyPct > 0 ? 'text-success' : m.yoyPct < 0 ? 'text-destructive' : 'text-foreground-muted'
+                            )}>
+                              {m.yoyPct > 0 ? '+' : ''}{m.yoyPct}%
+                            </span>
+                          ) : <span className="text-foreground-muted">—</span>}
+                        </td>
+                        <td className="py-2 pr-3 text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            <div className="w-16 h-1.5 bg-background-subtle rounded-full overflow-hidden">
+                              <div
+                                className="h-full bg-primary rounded-full"
+                                style={{ width: `${Math.min(m.shareOfTotal * 3, 100)}%` }}
+                              />
+                            </div>
+                            <span className="text-foreground-muted text-xs w-10 text-right">{m.shareOfTotal}%</span>
+                          </div>
+                        </td>
+                        <td className="py-2 pr-3 text-right text-foreground-muted">{m.uniqueProducts}</td>
+                        <td className="py-2 pr-3 text-foreground-muted">{m.topCategory || '—'}</td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr className="border-t border-card-border font-medium text-foreground">
+                    <td className="pt-3 pr-3">Yhteensä / Keskim.</td>
+                    <td className="pt-3 pr-3 text-right">{formatNumber(monthlyOrders.reduce((s, m) => s + m.quantity, 0))} kpl</td>
+                    <td className="pt-3 pr-3 text-right">{fmtCurrency(monthlyOrders.reduce((s, m) => s + m.orderValue, 0))}</td>
+                    <td className="pt-3 pr-3 text-right text-foreground-muted">
+                      {(() => {
+                        const moms = monthlyOrders.filter(m => m.momPct !== null).map(m => m.momPct)
+                        return moms.length > 0 ? `${Math.round(moms.reduce((s, v) => s + v, 0) / moms.length)}%` : '—'
+                      })()}
+                    </td>
+                    <td className="pt-3 pr-3 text-right text-foreground-muted">—</td>
+                    <td className="pt-3 pr-3 text-right">100%</td>
+                    <td className="pt-3 pr-3 text-right text-foreground-muted">
+                      {Math.round(monthlyOrders.reduce((s, m) => s + m.uniqueProducts, 0) / monthlyOrders.length)}
+                    </td>
+                    <td className="pt-3 pr-3 text-foreground-muted">
+                      {monthlyOrders.length > 0 ? monthlyOrders[monthlyOrders.length - 1].topCategory : '—'}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+
+            {/* Trend summary */}
+            {monthlyOrders.length >= 3 && (() => {
+              const recent3 = monthlyOrders.slice(-3)
+              const earlier3 = monthlyOrders.slice(-6, -3)
+              if (earlier3.length < 3) return null
+              const recentAvg = recent3.reduce((s, m) => s + m.quantity, 0) / 3
+              const earlierAvg = earlier3.reduce((s, m) => s + m.quantity, 0) / 3
+              const trendPct = earlierAvg > 0 ? Math.round(((recentAvg - earlierAvg) / earlierAvg) * 100) : 0
+              const trendDir = trendPct > 5 ? 'nouseva' : trendPct < -5 ? 'laskeva' : 'vakaa'
+              const trendColor = trendPct > 5 ? 'text-success' : trendPct < -5 ? 'text-warning' : 'text-foreground-muted'
+              return (
+                <div className="mt-4 pt-3 border-t border-card-border flex items-center gap-4 text-sm">
+                  <span className="text-foreground-muted">3kk trendi:</span>
+                  <span className={cn('font-medium', trendColor)}>
+                    {trendDir} ({trendPct > 0 ? '+' : ''}{trendPct}%)
+                  </span>
+                  <span className="text-foreground-muted">
+                    Keskim. {Math.round(recentAvg)} kpl/kk vs. {Math.round(earlierAvg)} kpl/kk (ed. 3kk)
+                  </span>
+                </div>
+              )
+            })()}
           </div>
         )}
 
