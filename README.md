@@ -105,18 +105,20 @@ VilkasAnalytics/
 │   ├── gsc/                      # GSC connect & sync
 │   │   ├── connect.js
 │   │   └── sync.js
-│   ├── cron/                     # Ajastetut taustatyot (9 kpl)
-│   │   ├── sync-data.js          # Paasynkronointi
+│   ├── cron/                     # Ajastetut taustatyot
+│   │   ├── sync-data.js          # Paasynkronointi (ePages + inventory)
+│   │   ├── sync-gsc.js           # Google Search Console
+│   │   ├── sync-jira.js          # Jira-tiketit
+│   │   ├── sync-pastes.js        # Savytyspastojen CSV-saldot
 │   │   ├── sync-products.js
-│   │   ├── calculate-kpi.js
+│   │   ├── sync-epages.js
 │   │   ├── save-growth-snapshot.js
+│   │   ├── generate-weekly-analyses.js
 │   │   ├── index-emma-documents.js
-│   │   ├── send-orders-slack.js
-│   │   ├── send-stock-slack.js
-│   │   ├── send-lowstock-slack.js
+│   │   ├── send-morning-brief-slack.js
 │   │   ├── send-reorder-slack.js
-│   │   ├── send-daily-slack.js
 │   │   └── send-weekly-slack.js
+│   ├── paste-orders-import.js    # Savytyspastojen XML-tuonti
 │   ├── chat.js                   # Emma AI chat endpoint
 │   ├── generate-analysis.js      # AI-analyysi
 │   ├── generate-recommendations.js
@@ -132,17 +134,17 @@ VilkasAnalytics/
 │   │   └── MobileNav.jsx         # Mobiilinavigaatio
 │   ├── config/
 │   │   └── storeConfig.js        # Kaupan ID-konfiguraatio
-│   ├── hooks/                    # Custom hookit (~25 kpl)
+│   ├── hooks/                    # Custom hookit (~28 kpl)
 │   ├── lib/
 │   │   ├── supabase.js           # Supabase client
 │   │   ├── csvExport.js          # CSV-vienti
 │   │   └── i18n/translations/    # Kaannokset (fi, sv)
-│   ├── pages/                    # Sivut (9 kpl)
+│   ├── pages/                    # Sivut (11 kpl)
 │   └── main.jsx                  # Entry point
 ├── scripts/                      # Node.js apuskriptit
 │   └── db.cjs                    # Supabase client (skripteille)
 ├── supabase/
-│   └── migrations/               # SQL-migraatiot (~45 kpl)
+│   └── migrations/               # SQL-migraatiot (~53 kpl)
 ├── docs/                         # Tekninen dokumentaatio
 ├── vercel.json                   # Cron-ajastukset + rewrite-saannot
 └── package.json
@@ -242,15 +244,15 @@ Kaikki ajat UTC (Suomen aika = UTC + 2/3).
 
 | Aika (UTC) | Endpoint | Kuvaus |
 |------------|----------|--------|
-| 05:00 | `send-orders-slack` | Eilisen tilaukset Slackiin |
-| 05:15 | `send-stock-slack` | Varastohalytys |
-| 05:30 | `send-lowstock-slack` | Matalat varastotasot |
-| 06:00 | `sync-data` | **Paasynkronointi** (ePages, GA4, GSC, KPI) |
-| 06:15 ma | `send-reorder-slack` | Taydennyssuositukset (viikoittain) |
-| 06:30 | `send-daily-slack` | Paivittainen yhteenveto |
-| 06:45 | `index-emma-documents` | Emma RAG -dokumenttien indeksointi |
-| 07:00 ma | `save-growth-snapshot` | Kasvumoottori-snapshot (viikoittain) |
-| 07:30 ma | `send-weekly-slack` | Viikkoyhteenveto |
+| 06:00 | `sync-data` | **Paasynkronointi** (ePages + inventory snapshot) |
+| 06:05 | `sync-gsc` | Google Search Console |
+| 06:08 | `sync-jira` | Jira-tiketit |
+| 06:15 | `send-morning-brief-slack` | Aamubrief per kauppa |
+| 06:30 ma | `send-reorder-slack` | Viikkotilausehdotukset |
+| 06:45 | `index-emma-documents` | Emma RAG -indeksointi |
+| 07:00 ma | `save-growth-snapshot` | Growth Engine snapshot |
+| 07:15 ma | `generate-weekly-analyses` | Deepseek AI -viikkoanalyysi |
+| 07:30 ma | `send-weekly-slack` | Viikkoyhteenveto Slackiin |
 
 ## Skriptit
 
