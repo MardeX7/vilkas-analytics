@@ -72,11 +72,23 @@ export function usePasteInventory() {
       if (histError) throw histError
 
       // 4. Fetch monthly order aggregates
-      const { data: orderData, error: orderError } = await supabase
-        .from('paste_orders')
-        .select('order_date, quantity, total_price, external_id')
-        .eq('shop_id', shopId)
-        .order('order_date', { ascending: true })
+      // Fetch ALL order data (Supabase default limit is 1000, we have 1669+)
+      let orderData = []
+      let orderOffset = 0
+      const ORDER_PAGE_SIZE = 1000
+      while (true) {
+        const { data: batch, error: batchErr } = await supabase
+          .from('paste_orders')
+          .select('order_date, quantity, total_price, external_id')
+          .eq('shop_id', shopId)
+          .order('order_date', { ascending: true })
+          .range(orderOffset, orderOffset + ORDER_PAGE_SIZE - 1)
+        if (batchErr) throw batchErr
+        orderData = orderData.concat(batch || [])
+        if (!batch || batch.length < ORDER_PAGE_SIZE) break
+        orderOffset += ORDER_PAGE_SIZE
+      }
+      const orderError = null
 
       if (orderError) throw orderError
 
