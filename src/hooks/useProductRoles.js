@@ -30,7 +30,7 @@ async function fetchProductRolesSummary(storeId, startDate, endDate) {
     .eq('store_id', storeId)
     .order('calculated_at', { ascending: false })
     .limit(1)
-    .single()
+    .maybeSingle()
 
   return {
     roles: data || [],

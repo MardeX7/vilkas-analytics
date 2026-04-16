@@ -29,24 +29,56 @@ export function useCategoryMargin(dateRange = null) {
     setLoading(true)
     setError(null)
 
+    // Helper: paginate a query to get all rows beyond Supabase 1000-row limit
+    async function fetchAllRows(queryFn) {
+      let allRows = []
+      let from = 0
+      const pageSize = 1000
+      while (true) {
+        const { data, error } = await queryFn(from, from + pageSize - 1)
+        if (error) throw error
+        allRows = allRows.concat(data || [])
+        if (!data || data.length < pageSize) break
+        from += pageSize
+      }
+      return allRows
+    }
+
+    // Helper: batch .in() queries to avoid URL length limits
+    async function fetchWithBatchedIn(table, selectCols, filterCol, filterValues, extraFilters = {}) {
+      const batchSize = 200
+      let allRows = []
+      for (let i = 0; i < filterValues.length; i += batchSize) {
+        const batch = filterValues.slice(i, i + batchSize)
+        let query = supabase.from(table).select(selectCols).in(filterCol, batch)
+        for (const [col, val] of Object.entries(extraFilters)) {
+          query = query.eq(col, val)
+        }
+        const { data, error } = await query
+        if (error) throw error
+        allRows = allRows.concat(data || [])
+      }
+      return allRows
+    }
+
     try {
       const startDate = dateRange?.startDate
       const endDate = dateRange?.endDate
 
-      // 1. Get orders for the period
-      let ordersQuery = supabase
-        .from('orders')
-        .select('id')
-        .eq('store_id', storeId)
-        .neq('status', 'cancelled')
+      // 1. Get orders for the period (paginated)
+      const orders = await fetchAllRows((from, to) => {
+        let q = supabase
+          .from('orders')
+          .select('id')
+          .eq('store_id', storeId)
+          .neq('status', 'cancelled')
+          .range(from, to)
+        if (startDate) q = q.gte('creation_date', startDate)
+        if (endDate) q = q.lte('creation_date', endDate + 'T23:59:59')
+        return q
+      })
 
-      if (startDate) ordersQuery = ordersQuery.gte('creation_date', startDate)
-      if (endDate) ordersQuery = ordersQuery.lte('creation_date', endDate + 'T23:59:59')
-
-      const { data: orders, error: ordersError } = await ordersQuery
-      if (ordersError) throw ordersError
-
-      if (!orders || orders.length === 0) {
+      if (orders.length === 0) {
         setData({
           categoryMargins: [],
           totalMargin: { revenue: 0, cost: 0, profit: 0, percent: 0 },
@@ -59,29 +91,37 @@ export function useCategoryMargin(dateRange = null) {
 
       const orderIds = orders.map(o => o.id)
 
-      // 2. Get order items for those orders
-      const { data: items, error: itemsError } = await supabase
-        .from('order_items')
-        .select('sku, name, quantity, line_total')
-        .eq('shop_id', shopId)
-        .in('order_id', orderIds)
+      // 2. Get order items — try order_items (has shop_id), fall back to order_line_items
+      let items = await fetchWithBatchedIn(
+        'order_items', 'sku, name, quantity, line_total',
+        'order_id', orderIds, { shop_id: shopId }
+      )
 
-      if (itemsError) throw itemsError
+      // If order_items is empty, use order_line_items (different column names)
+      if (items.length === 0) {
+        const rawItems = await fetchWithBatchedIn(
+          'order_line_items', 'product_number, product_name, quantity, total_price',
+          'order_id', orderIds
+        )
+        items = rawItems.map(r => ({
+          sku: r.product_number,
+          name: r.product_name,
+          quantity: r.quantity,
+          line_total: r.total_price
+        }))
+      }
 
-      // 3. Get products with cost_price
-      const { data: products, error: prodError } = await supabase
-        .from('products')
-        .select('id, product_number, cost_price')
-        .eq('store_id', storeId)
+      // 3. Get products with cost_price (paginated)
+      const products = await fetchAllRows((from, to) =>
+        supabase.from('products').select('id, product_number, cost_price')
+          .eq('store_id', storeId).range(from, to)
+      )
 
-      if (prodError) throw prodError
-
-      // 4. Get product -> category mappings (with position for sorting)
-      const { data: productCategories, error: pcError } = await supabase
-        .from('product_categories')
-        .select('product_id, category_id, position')
-
-      if (pcError) throw pcError
+      // 4. Get product -> category mappings (paginated)
+      const productCategories = await fetchAllRows((from, to) =>
+        supabase.from('product_categories').select('product_id, category_id, position')
+          .range(from, to)
+      )
 
       // 5. Get categories with level3 names
       const { data: categories, error: catError } = await supabase

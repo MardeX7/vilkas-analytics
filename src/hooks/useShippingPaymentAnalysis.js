@@ -37,19 +37,27 @@ export function useShippingPaymentAnalysis(dateRange = null) {
       const startDate = dateRange?.startDate
       const endDate = dateRange?.endDate
 
-      // Fetch orders with shipping and payment info
-      let query = supabase
-        .from('orders')
-        .select('id, grand_total, total_before_tax, total_tax, shipping_method, payment_method, creation_date')
-        .eq('store_id', storeId)
-        .neq('status', 'cancelled')
+      // Fetch orders with shipping and payment info (paginated)
+      let orders = []
+      let from = 0
+      const pageSize = 1000
+      while (true) {
+        let query = supabase
+          .from('orders')
+          .select('id, grand_total, total_before_tax, total_tax, shipping_method, payment_method, creation_date')
+          .eq('store_id', storeId)
+          .neq('status', 'cancelled')
+          .range(from, from + pageSize - 1)
 
-      if (startDate) query = query.gte('creation_date', startDate)
-      if (endDate) query = query.lte('creation_date', endDate + 'T23:59:59')
+        if (startDate) query = query.gte('creation_date', startDate)
+        if (endDate) query = query.lte('creation_date', endDate + 'T23:59:59')
 
-      const { data: orders, error: ordError } = await query
-
-      if (ordError) throw ordError
+        const { data, error: ordError } = await query
+        if (ordError) throw ordError
+        orders = orders.concat(data || [])
+        if (!data || data.length < pageSize) break
+        from += pageSize
+      }
 
       if (!orders || orders.length === 0) {
         setData({
