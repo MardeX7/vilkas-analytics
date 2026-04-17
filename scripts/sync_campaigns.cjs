@@ -1,36 +1,50 @@
 /**
- * Sync Campaigns from ePages Orders
+ * Sync Campaigns from ePages Orders (Multi-tenant)
  *
  * Scans orders for coupon usage and syncs campaign data to database.
+ * Works for all stores in the shops table.
+ *
+ * Usage:
+ *   node scripts/sync_campaigns.cjs              # All stores
+ *   node scripts/sync_campaigns.cjs automaalit   # Specific store by epages_shop_id
  */
 
-const { supabase, STORE_ID } = require('./db.cjs')
+const { supabase, printProjectInfo } = require('./db.cjs')
 
-const EPAGES_API = 'https://www.billackering.eu/rs/shops/billackering'
-
-async function syncCampaigns() {
-  console.log('🔄 Starting campaign sync...\n')
-
-  const { data: store } = await supabase
-    .from('stores')
-    .select('access_token')
-    .single()
-
-  if (!store?.access_token) {
-    console.error('❌ No access token found')
-    return
+async function fetchWithRetry(url, options, retries = 3) {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const res = await fetch(url, options)
+      return res
+    } catch (err) {
+      if (i === retries - 1) throw err
+      const delay = 2000 * (i + 1)
+      process.stdout.write(`\n  ⚠️ Connection error, retrying in ${delay / 1000}s...\n`)
+      await new Promise(r => setTimeout(r, delay))
+    }
   }
+}
+
+async function syncCampaignsForStore(store) {
+  const domainWithoutWww = store.domain.replace(/^www\./, '')
+  const apiUrl = `https://www.${domainWithoutWww}/rs/shops/${store.epages_shop_id}`
+  const currencySymbol = store.currency === 'SEK' ? 'kr' : '€'
+
+  console.log(`\n${'='.repeat(60)}`)
+  console.log(`🏪 ${store.name} (${store.domain})`)
+  console.log(`   API: ${apiUrl}`)
+  console.log('='.repeat(60))
 
   // Step 1: Collect all campaign usage from orders
-  console.log('📦 Scanning orders for coupon usage...')
+  console.log('\n📦 Scanning orders for coupon usage...')
 
   const campaignStats = new Map()
   let page = 1
   let totalOrders = 0
   let ordersWithCoupons = 0
 
-  while (page <= 20) { // Check up to 1000 orders
-    const pageRes = await fetch(`${EPAGES_API}/orders?resultsPerPage=50&page=${page}`, {
+  while (true) {
+    const pageRes = await fetchWithRetry(`${apiUrl}/orders?resultsPerPage=50&page=${page}&sortBy=creationDate&sortDirection=desc`, {
       headers: { 'Authorization': `Bearer ${store.access_token}` }
     })
     const pageData = await pageRes.json()
@@ -40,7 +54,7 @@ async function syncCampaigns() {
     for (const orderSummary of pageData.items) {
       totalOrders++
 
-      const fullRes = await fetch(`${EPAGES_API}/orders/${orderSummary.orderId}`, {
+      const fullRes = await fetchWithRetry(`${apiUrl}/orders/${orderSummary.orderId}`, {
         headers: { 'Authorization': `Bearer ${store.access_token}` }
       })
       const order = await fullRes.json()
@@ -84,6 +98,11 @@ async function syncCampaigns() {
   console.log(`\n\n✅ Scanned ${totalOrders} orders, ${ordersWithCoupons} had coupons`)
   console.log(`📊 Found ${campaignStats.size} unique campaigns\n`)
 
+  if (campaignStats.size === 0) {
+    console.log('ℹ️  No campaigns found for this store')
+    return
+  }
+
   // Step 2: Fetch campaign details from API
   console.log('🔍 Fetching campaign details from API...\n')
 
@@ -91,22 +110,18 @@ async function syncCampaigns() {
 
   for (const [campaignId, stats] of campaignStats) {
     try {
-      const res = await fetch(`${EPAGES_API}/coupon-campaigns/${campaignId}`, {
+      const res = await fetchWithRetry(`${apiUrl}/coupon-campaigns/${campaignId}`, {
         headers: { 'Authorization': `Bearer ${store.access_token}` }
       })
 
       if (res.ok) {
         const campaign = await res.json()
 
-        // Determine campaign type
         let campaignType = 'discount'
-        if (campaign.type?.name === 'PERCENT') {
-          campaignType = 'discount'
-        } else if (campaign.type?.shippingCostsIncluded) {
+        if (campaign.type?.shippingCostsIncluded) {
           campaignType = 'free_shipping'
         }
 
-        // Determine discount type
         let discountType = 'percentage'
         let discountValue = 0
         if (campaign.type?.percentage) {
@@ -118,7 +133,7 @@ async function syncCampaigns() {
         }
 
         campaigns.push({
-          store_id: STORE_ID,
+          store_id: store.id,
           epages_campaign_id: campaignId,
           name: campaign.name || campaign.identifier,
           coupon_code: campaign.identifier,
@@ -131,14 +146,13 @@ async function syncCampaigns() {
           orders_count: stats.orders.length,
           revenue: stats.totalRevenue,
           discount_given: stats.totalDiscount,
-          is_active: false // Past campaigns
+          is_active: false
         })
 
-        console.log(`  ✅ ${campaign.identifier} (${campaign.name}): ${stats.orders.length} orders, ${stats.totalDiscount.toFixed(0)} kr discounts`)
+        console.log(`  ✅ ${campaign.identifier} (${campaign.name}): ${stats.orders.length} orders, ${stats.totalDiscount.toFixed(0)} ${currencySymbol} discounts`)
       } else {
-        // API didn't return details, use what we have
         campaigns.push({
-          store_id: STORE_ID,
+          store_id: store.id,
           epages_campaign_id: campaignId,
           name: `Campaign ${campaignId.slice(0, 8)}`,
           coupon_code: null,
@@ -164,29 +178,28 @@ async function syncCampaigns() {
   console.log('\n💾 Saving to database...\n')
 
   for (const campaign of campaigns) {
-    // First try to find existing
     const { data: existing } = await supabase
       .from('campaigns')
       .select('id')
       .eq('store_id', campaign.store_id)
       .eq('epages_campaign_id', campaign.epages_campaign_id)
-      .single()
+      .maybeSingle()
 
     let error
     if (existing) {
-      // Update existing
       const { error: updateError } = await supabase
         .from('campaigns')
         .update({
           orders_count: campaign.orders_count,
           revenue: campaign.revenue,
           discount_given: campaign.discount_given,
+          start_date: campaign.start_date,
+          end_date: campaign.end_date,
           updated_at: new Date().toISOString()
         })
         .eq('id', existing.id)
       error = updateError
     } else {
-      // Insert new
       const { error: insertError } = await supabase
         .from('campaigns')
         .insert(campaign)
@@ -200,17 +213,53 @@ async function syncCampaigns() {
     }
   }
 
-  // Step 4: Summary
-  console.log('\n' + '='.repeat(50))
-  console.log('📊 CAMPAIGN SYNC SUMMARY')
-  console.log('='.repeat(50))
+  // Summary
+  console.log('\n' + '-'.repeat(50))
+  console.log(`📊 ${store.name} SUMMARY`)
+  console.log('-'.repeat(50))
   console.log(`Total orders scanned: ${totalOrders}`)
-  console.log(`Orders with coupons: ${ordersWithCoupons} (${(ordersWithCoupons/totalOrders*100).toFixed(1)}%)`)
+  console.log(`Orders with coupons: ${ordersWithCoupons} (${(ordersWithCoupons / totalOrders * 100).toFixed(1)}%)`)
   console.log(`Unique campaigns: ${campaigns.length}`)
   const totalDiscounts = campaigns.reduce((sum, c) => sum + (c.discount_given || 0), 0)
   const totalRevenue = campaigns.reduce((sum, c) => sum + (c.revenue || 0), 0)
-  console.log(`Total discounts given: ${totalDiscounts.toFixed(0)} kr`)
-  console.log(`Total campaign revenue: ${totalRevenue.toFixed(0)} kr`)
+  console.log(`Total discounts given: ${totalDiscounts.toFixed(0)} ${currencySymbol}`)
+  console.log(`Total campaign revenue: ${totalRevenue.toFixed(0)} ${currencySymbol}`)
 }
 
-syncCampaigns().catch(console.error)
+async function main() {
+  printProjectInfo()
+
+  const filter = process.argv[2] // Optional: epages_shop_id to filter
+
+  const { data: stores, error } = await supabase
+    .from('stores')
+    .select('id, name, domain, epages_shop_id, access_token, currency')
+
+  if (error) {
+    console.error('❌ Failed to fetch stores:', error.message)
+    return
+  }
+
+  const targetStores = filter
+    ? stores.filter(s => s.epages_shop_id === filter || s.domain.includes(filter))
+    : stores
+
+  if (targetStores.length === 0) {
+    console.error(`❌ No stores found${filter ? ` matching "${filter}"` : ''}`)
+    return
+  }
+
+  console.log(`🎯 Syncing campaigns for ${targetStores.length} store(s)`)
+
+  for (const store of targetStores) {
+    if (!store.access_token || !store.epages_shop_id) {
+      console.log(`⏭️  Skipping ${store.name} — no ePages connection`)
+      continue
+    }
+    await syncCampaignsForStore(store)
+  }
+
+  console.log('\n✅ Campaign sync complete!')
+}
+
+main().catch(console.error)
