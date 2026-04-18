@@ -8,23 +8,17 @@
 import { Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import { useTranslation } from '@/lib/i18n'
-import { Loader2, ShieldX } from 'lucide-react'
+import { ShieldX } from 'lucide-react'
+import { DataLoadingScreen } from '@/components/ui/DataLoadingScreen'
 
 export function ProtectedRoute({ children, requireAdmin = false }) {
   const { t } = useTranslation()
   const { isAuthenticated, loading, shops, currentShop, isAdmin } = useAuth()
   const location = useLocation()
 
-  // Show loading spinner while checking auth
+  // Show loading screen while checking auth
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
-        <div className="text-center">
-          <Loader2 className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-4" />
-          <p className="text-gray-600 dark:text-gray-400">{t('common.loading')}</p>
-        </div>
-      </div>
-    )
+    return <DataLoadingScreen message={t('common.loading')} />
   }
 
   // Not authenticated → redirect to login
