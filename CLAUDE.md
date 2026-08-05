@@ -1,4 +1,6 @@
-# VilkasAnalytics - Claude Code Context
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Kieli
 
@@ -6,10 +8,31 @@ Kommunikoi suomeksi. Koodikommentit ja commit-viestit englanniksi.
 
 ## Projektin kuvaus
 
-VilkasAnalytics on multi-tenant verkkokauppa-analytiikkatyökalu kahdelle automaaliliikkeelle. Se yhdistää ePages-verkkokaupan, Google Search Consolen, GA4:n ja Jiran dataa yhteen dashboardiin, ja tarjoaa AI-pohjaisia analyyseja ja suosituksia.
+VilkasAnalytics on multi-tenant verkkokauppa-analytiikkatyökalu kahdelle automaalien verkkokaupalla. Suomessa verkkokauppa on www.automaalit.net ja Ruotsissa www.billackering.eu. Molemmat ovat samaa yritystä. 
 
-**Stack:** React 19 + Vite 7 + Supabase + Vercel serverless + Tailwind CSS + Recharts
+Sovellus yhdistää ePages-verkkokaupan, Google Search Consolen, GA4:n ja Jiran dataa yhteen dashboardiin, ja tarjoaa AI-pohjaisia analyyseja ja suosituksia.
+
+**Stack:** React 19 + React Router 7 + Vite 7 + Supabase (Postgres + RLS + Google OAuth) + Vercel serverless/cron + Tailwind 3 + shadcn/ui + Framer Motion + Recharts + TanStack Query v5
 **URL:** https://vilkas-analytics.vercel.app
+**Supabase project:** `tlothekaphtiwvusgwzh` (ÄLÄ sekoita VilkasInsightin `abbwfjishojcbifbruia`-DB:hen tai ParasX:n `dkqbzsphgqorstfcqthx`-DB:hen)
+
+## Komennot
+
+```bash
+npm run dev       # Vite dev server (http://localhost:5173)
+npm run build     # Tuotantobuildi -> dist/
+npm run preview   # Esikatselu buildista
+npm run lint      # ESLint koko projektille
+npm run deploy    # = npx vercel --prod --yes
+```
+
+**Tärkeää deploymentista:** Pelkkä `git push` EI aina triggeröi Vercel-deployta. Aja `npm run deploy` muutosten jälkeen. Tarkista: `npx vercel list | head -5`.
+
+Ei testikehystä konfiguroituna — tämä on dev-only-projekti ilman automaattisia testejä. Manuaaliset apuskriptit löytyvät `scripts/`-kansiosta (`.cjs`/`.js`), ajetaan `node scripts/<nimi>`.
+
+## Path alias
+
+`@/` → `src/` (konfiguroitu sekä `vite.config.js`:ssä että `jsconfig.json`:ssa). Esim. `import { STORE_ID } from '@/config/storeConfig'`.
 
 ## Kaupat
 
@@ -25,6 +48,28 @@ VilkasAnalytics on multi-tenant verkkokauppa-analytiikkatyökalu kahdelle automa
 
 Käytä `useCurrentShop()` hookia — se palauttaa molemmat. Konfiguraatio: `src/config/storeConfig.js`.
 
+## Auth ja multi-tenant-flow
+
+Frontend: Supabase Auth (Google OAuth) → `AuthContext.jsx` lataa käyttäjän kaupat `get_user_shops()` RPC:llä → `currentShop` (storeId, shopId, currency, domain) on saatavilla `useCurrentShop()`:n kautta jokaisessa hookissa ja sivussa. Backend (cron): iteroi `shops`-taulun palvelinpuolella service_role_keyllä, ei hardkoodattuja ID:itä.
+
+## Reitit (App.jsx)
+
+| Polku | Sivu | Huomiot |
+| --- | --- | --- |
+| `/` | IndicatorsPage | Oletusnäkymä — KPI-indikaattorit |
+| `/insights` | InsightsPage | AI-viikkoanalyysi, Emma-chat |
+| `/sales` | Dashboard | ePages-myyntidata, top-tuotteet |
+| `/customers` | CustomersPage | RFM, segmentit, marginaali |
+| `/search-console` | SearchConsolePage | GSC |
+| `/analytics` | GA4Page | GA4 (vain behavioral) |
+| `/inventory` | InventoryPage | Varasto + täydennys |
+| `/paste-inventory` | PasteInventoryPage | Vain `automaalit.net` |
+| `/support` | SupportPage | Vain `hasJira`-kaupat |
+| `/indicators/:indicatorId` | IndicatorDetailPage | KPI-syvänäkymä |
+| `/settings` | SettingsPage | Kaupan asetukset |
+
+Suojaus: kaikki paitsi `/login` ja `/auth/callback` `ProtectedRoute`-wrapperin alla.
+
 ## Data Mastership -periaate
 
 1. **ePages API = MASTER** — kaikki rahalliset metriikat (liikevaihto, tilaukset, tuotteet, asiakkaat)
@@ -38,12 +83,17 @@ Käytä `useCurrentShop()` hookia — se palauttaa molemmat. Konfiguraatio: `src
 ```
 src/config/storeConfig.js     — useCurrentShop(), getStoreIdForTable()
 src/config/shopLogos.js       — Logo-mapping per kauppa
+src/contexts/AuthContext.jsx  — Auth + currentShop (get_user_shops RPC)
 src/App.jsx                   — Kaikki reitit
 src/components/Sidebar.jsx    — Navigaatio (ehdolliset itemit)
+src/lib/indicators/           — Indicator Engine: aov, salesTrend, positionChange, organicConversionRate (engine.js orkestroi)
+src/lib/kpi/                  — KPI-normalisointi
 src/lib/i18n/translations/    — fi.json, sv.json käännökset
-api/cron/                     — Kaikki cron-jobit
+api/cron/                     — Kaikki cron-jobit (Bearer ${CRON_SECRET})
+api/chat.js                   — Emma AI -chat-endpoint
 api/lib/slack.js              — Slack-webhookhelper
 scripts/db.cjs                — Supabase-yhteys skripteille
+supabase/migrations/          — ~50+ SQL-migraatiota
 ```
 
 ## Cron-aikataulu (UTC)
@@ -65,11 +115,13 @@ scripts/db.cjs                — Supabase-yhteys skripteille
 - **Multi-tenant:** Kaikki cron-jobit iteroivat `shops`-taulun. Ei hardkoodattuja store_id:itä.
 - **Ehdolliset sivut:** Jira-support näkyy vain `hasJira`-kaupoilla, Sävytysvarasto vain `automaalit.net`:llä
 - **Valuuttatietoinen:** FI ALV 24%, SE 25%. EUR/SEK symbolit dynaamisesti.
-- **Hookit:** useState + useEffect -malli (ei TanStack Query varasto/paste-sivuilla)
+- **Hookit:** TanStack Query useimmissa data-hookeissa (`useIndicators`, `useKPIDashboard`, `useCustomerSegments`, ...). useState + useEffect -malli varasto- ja paste-sivuilla (ks. `useInventory`, `usePasteInventory`).
 - **Kaaviot:** Recharts (LineChart, BarChart, PieChart). Värit: brand blue #00b4e9
 - **CSV-export:** Puolipiste-erotin (eurooppalainen Excel), UTF-8 BOM. Ks. `src/lib/csvExport.js`
 - **RLS:** Kaikki taulut käyttävät Row Level Security. Cron-jobit käyttävät service_role_key.
+- **Cron-auth:** Jokainen cron-handler tarkistaa `Authorization: Bearer ${CRON_SECRET}`. Manuaaliseen testaukseen lähetä header mukana.
 - **Supabasen 1000 rivin raja:** Paginoi `.range()`:lla kun dataa voi olla yli 1000 riviä.
+- **Vercel Pro 5 min:** Serverless-funktioiden maksimi `maxDuration: 300`. Pitkät synkat chunkkeina (esim. ePages historia 5 päivän paloissa).
 
 ## Sävytysvarasto (Paste Inventory)
 
@@ -94,6 +146,26 @@ OPENAI_API_KEY             — Emma AI chat
 DEEPSEEK_API_KEY           — Viikkoanalyysit
 SLACK_WEBHOOK_URL          — Fallback Slack webhook
 ```
+
+## Verifiointi (LOCKED)
+
+**1. Verifiointisuunnitelma ennen rakentamista.** Ennen monivaiheista toteutusta kirjaa ensin arviointikriteerit: mikä on "valmis" ja mistä sen tunnistaa. Ei kriteerejä → ei rakentamista.
+
+**2. Lainaussääntö.** Kanoninen teksti: `ParasX2/CLAUDE.md` § `Verifiointi (LOCKED)`.
+
+> **Ennen kuin väität dokumentin sanovan jotain, avaa se ja lainaa kohta sanatarkasti. Jos et voi lainata, et voi väittää.**
+>
+> Käytännössä: sitaatti tai rivinumero jokaiseen väitteeseen. Jos lähde on koodia, tarkista onko se ajossa ennen kuin siteeraat sitä.
+
+Grep todistaa että merkkijono on olemassa. Se ei todista että koodi ajaa. 4.8.2026 tämä ero tuotti sisarrepossa neljä itsevarmaa virhepäätelmää — kuollut generaattori, yhdeksän kuollutta käännösavainta, importoimaton komponentti ja rekisteröimätön cron. Kaikki neljä luettiin oikein.
+
+Havainto voi olla oikea vaikka perustelu on väärä. **Väärällä perustelulla oikeaan tulokseen päätyminen on onnea, ei menetelmä.**
+
+**3. Toisen mallin katselmointi on pakollinen**, kun tuotos sisältää lähdeviittauksia tai faktaväitteitä, koskee kaksi-ID-järjestelmää tai multi-tenant-rajaa, tai muuttaa Data Mastership -sääntöjä, cron-ajoja tai mittarien laskentaa. Reititä `superpowers:code-reviewer` tai `/code-review`.
+
+Saman mallin itsearviointi ei täytä tätä. 4.8.2026 `hallucination-detector` antoi kolmelle väärälle lähdeviittaukselle 100/100 — se ei epäonnistunut, se luki samasta kirjastosta.
+
+**Ulkoinen signaali ratkaisee tasatilanteen** — CI, hookit, ajettu kysely — ei mallin oma varmuus.
 
 ## Älä tee
 
