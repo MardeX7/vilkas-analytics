@@ -11,12 +11,29 @@
 import OpenAI from 'openai'
 import { createClient } from '@supabase/supabase-js'
 import { getISOWeek, getISOWeekDateRange, fetchContextData, buildSystemPrompt, buildUserPrompt, sanitizeAnalysisContent } from '../generate-analysis.js'
+import { sendToSlack, section } from '../lib/slack.js'
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
 export const config = {
   maxDuration: 300,
+}
+
+/**
+ * A lost week is invisible otherwise: nothing is saved and the cron never
+ * targets that week again.
+ */
+async function alertFailure(shop, reason) {
+  const webhookUrl = shop.slack_webhook_url || process.env.SLACK_WEBHOOK_URL
+  if (!webhookUrl) return
+  await sendToSlack(webhookUrl, {
+    text: `⚠️ Viikkoanalyysi epäonnistui — ${shop.name}`,
+    blocks: [
+      section(`⚠️ *Viikkoanalyysi epäonnistui — ${shop.name}*`),
+      section(`${reason}\n\nAnalyysia ei tallennettu eikä cron yritä tätä viikkoa uudelleen. Aja tarvittaessa käsin: \`POST /api/generate-analysis\`.`)
+    ]
+  })
 }
 
 export default async function handler(req, res) {
@@ -44,7 +61,7 @@ export default async function handler(req, res) {
   // Fetch all shops
   const { data: shops, error: shopsError } = await supabase
     .from('shops')
-    .select('id, name, store_id, currency')
+    .select('id, name, store_id, currency, slack_webhook_url')
 
   if (shopsError || !shops?.length) {
     console.error('Failed to fetch shops:', shopsError?.message)
@@ -98,34 +115,43 @@ export default async function handler(req, res) {
       const systemPrompt = buildSystemPrompt(language, false)
       const userPrompt = buildUserPrompt(contextData, targetWeek, targetYear, language, false, currencySymbol)
 
-      // Call Deepseek
-      const response = await deepseek.chat.completions.create({
-        model: 'deepseek-chat',
-        max_tokens: 4000,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt }
-        ]
-      })
+      // A truncated or malformed reply is never saved, and the cron only ever
+      // targets last week — so without a retry the shop loses that week for good.
+      let analysisContent = null
+      let lastError = null
+      let response = null
 
-      // Refuse to save truncated/malformed responses — skip this shop and continue.
-      const finishReason = response.choices[0].finish_reason
-      if (finishReason === 'length') {
-        console.error(`${shop.name}: AI response truncated (finish_reason=length) — skipping`)
-        results.push({ shop: shop.name, success: false, error: 'AI response truncated' })
-        continue
+      for (let attempt = 1; attempt <= 2 && !analysisContent; attempt++) {
+        response = await deepseek.chat.completions.create({
+          model: 'deepseek-chat',
+          max_tokens: 4000,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt }
+          ]
+        })
+
+        if (response.choices[0].finish_reason === 'length') {
+          lastError = 'AI response truncated (finish_reason=length)'
+          console.error(`${shop.name}: ${lastError} — attempt ${attempt}/2`)
+          continue
+        }
+
+        try {
+          let responseText = response.choices[0].message.content
+          responseText = responseText.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '')
+          const jsonMatch = responseText.match(/\{[\s\S]*\}/)
+          if (!jsonMatch) throw new Error('No JSON object found in AI response')
+          analysisContent = JSON.parse(jsonMatch[0])
+        } catch (parseError) {
+          lastError = `Invalid JSON: ${parseError.message}`
+          console.error(`${shop.name}: ${lastError} — attempt ${attempt}/2`)
+        }
       }
 
-      let analysisContent
-      try {
-        let responseText = response.choices[0].message.content
-        responseText = responseText.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '')
-        const jsonMatch = responseText.match(/\{[\s\S]*\}/)
-        if (!jsonMatch) throw new Error('No JSON object found in AI response')
-        analysisContent = JSON.parse(jsonMatch[0])
-      } catch (parseError) {
-        console.error(`${shop.name}: failed to parse AI response:`, parseError.message)
-        results.push({ shop: shop.name, success: false, error: `Invalid JSON: ${parseError.message}` })
+      if (!analysisContent) {
+        await alertFailure(shop, `viikko ${targetWeek}/${targetYear}: ${lastError}`)
+        results.push({ shop: shop.name, success: false, error: lastError })
         continue
       }
 
@@ -150,6 +176,7 @@ export default async function handler(req, res) {
 
       if (saveError) {
         console.error(`${shop.name}: failed to save analysis:`, saveError.message)
+        await alertFailure(shop, `viikko ${targetWeek}/${targetYear}: tallennus epäonnistui — ${saveError.message}`)
         results.push({ shop: shop.name, success: false, error: saveError.message })
         continue
       }
@@ -179,6 +206,7 @@ export default async function handler(req, res) {
 
     } catch (error) {
       console.error(`${shop.name} analysis error:`, error.message)
+      await alertFailure(shop, `viikko ${targetWeek}/${targetYear}: ${error.message}`)
       results.push({ shop: shop.name, success: false, error: error.message })
     }
   }

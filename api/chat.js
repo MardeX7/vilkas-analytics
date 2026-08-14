@@ -449,15 +449,26 @@ async function fetchContextData(dateRange, storeId, shopId) {
   let inventoryMetrics = null
 
   try {
-    const { data: allOrders } = await supabase
-      .from('orders')
-      .select('id, billing_email, is_b2b, is_b2b_soft, creation_date, grand_total, total_before_tax')
-      .eq('store_id', storeId)
-      .neq('status', 'cancelled')
-      .order('creation_date', { ascending: true })
-      .limit(5000)
+    // Supabase caps responses at 1000 rows regardless of .limit(), so paginate.
+    // Sort by id (unique) to keep page boundaries stable, then order by date in
+    // memory because the first-order logic below depends on chronology.
+    const allOrders = []
+    for (let from = 0; ; from += 1000) {
+      const { data, error } = await supabase
+        .from('orders')
+        .select('id, billing_email, is_b2b, is_b2b_soft, creation_date, grand_total, total_before_tax')
+        .eq('store_id', storeId)
+        .neq('status', 'cancelled')
+        .order('id', { ascending: true })
+        .range(from, from + 999)
+      if (error) throw error
+      if (!data?.length) break
+      allOrders.push(...data)
+      if (data.length < 1000) break
+    }
+    allOrders.sort((a, b) => (a.creation_date || '').localeCompare(b.creation_date || ''))
 
-    if (allOrders && allOrders.length > 0) {
+    if (allOrders.length > 0) {
       // Find first order per customer
       const customerFirstOrder = {}
       const customerMap = {}

@@ -221,7 +221,9 @@ export async function fetchContextData(dateRange, STORE_ID, SHOP_ID) {
         .select('id, billing_email, is_b2b, is_b2b_soft, creation_date, grand_total, total_before_tax, total_tax')
         .eq('store_id', STORE_ID)
         .neq('status', 'cancelled')
-        .order('creation_date', { ascending: true })
+        // Unique sort key: ties on creation_date could duplicate or drop rows
+        // at a page boundary.
+        .order('id', { ascending: true })
     )
 
     const isB2B = (o) => !!(o.is_b2b || o.is_b2b_soft)
@@ -260,16 +262,13 @@ export async function fetchContextData(dateRange, STORE_ID, SHOP_ID) {
       const b2cRevenue = periodB2C.reduce((sum, o) => sum + netOf(o), 0)
 
       const periodEmails = [...new Set(periodOrders.map(emailOf).filter(Boolean))]
-      // A period customer counts as returning if their lifetime order count exceeds
-      // the orders they placed during this period.
-      const periodOrderCount = {}
-      periodOrders.forEach(o => {
-        const email = emailOf(o)
-        if (email) periodOrderCount[email] = (periodOrderCount[email] || 0) + 1
-      })
-      const returningInPeriod = periodEmails.filter(
-        e => (lifetimeByEmail[e]?.orders || 0) > periodOrderCount[e]
+      // A period customer counts as returning only if they bought BEFORE the period.
+      // Comparing against lifetime totals would count later orders too, which
+      // silently inflates the figure whenever a past period is re-analysed.
+      const boughtBefore = new Set(
+        allOrders.filter(o => dayOf(o) < startDate).map(emailOf).filter(Boolean)
       )
+      const returningInPeriod = periodEmails.filter(e => boughtBefore.has(e))
 
       const share = (n) => (periodOrders.length > 0 ? Math.round((n / periodOrders.length) * 100) : 0)
 
@@ -299,7 +298,11 @@ export async function fetchContextData(dateRange, STORE_ID, SHOP_ID) {
         lifetime: {
           customers: lifetimeCustomers.length,
           ordersAnalyzed: allOrders.length,
-          firstOrderDate: dayOf(allOrders[0]),
+          // Rows are sorted by id, not date — take the actual minimum.
+          firstOrderDate: allOrders.reduce(
+            (min, o) => (dayOf(o) && (!min || dayOf(o) < min) ? dayOf(o) : min),
+            null
+          ),
           b2bLtv: avgRevenue(lifetimeB2B),
           b2cLtv: avgRevenue(lifetimeB2C)
         }
@@ -348,8 +351,11 @@ export async function fetchContextData(dateRange, STORE_ID, SHOP_ID) {
         const annualizedSales = dailyVelocity * 365
         const turnoverRate = p.stock_level > 0 ? annualizedSales / p.stock_level : 0
         const unitCost = p.cost_price || (p.price_amount ? p.price_amount * 0.6 : 0)
-        const stockValue = (p.stock_level || 0) * unitCost
-        return { ...p, salesLast30Days, turnoverRate: Math.round(turnoverRate * 10) / 10, stockValue }
+        // Clamp negatives, matching useInventory.js — a negative stock level is a
+        // data fault, not negative value. The faults are reported separately below
+        // instead of silently netting against the total.
+        const stockValue = Math.max(p.stock_level || 0, 0) * unitCost
+        return { ...p, salesLast30Days, turnoverRate: Math.round(turnoverRate * 10) / 10, stockValue, unitCost }
       })
 
       const productsWithTurnover = enrichedProducts.filter(p => p.turnoverRate > 0)
@@ -357,10 +363,20 @@ export async function fetchContextData(dateRange, STORE_ID, SHOP_ID) {
         ? productsWithTurnover.reduce((sum, p) => sum + p.turnoverRate, 0) / productsWithTurnover.length
         : 0
 
+      const negativeStock = enrichedProducts.filter(p => (p.stock_level || 0) < 0)
+
       inventoryMetrics = {
         avgTurnover: Math.round(avgTurnover * 10) / 10,
         totalStockValue: Math.round(enrichedProducts.reduce((sum, p) => sum + p.stockValue, 0)),
         productsWithStock: enrichedProducts.filter(p => p.stock_level > 0).length,
+        negativeStock: {
+          count: negativeStock.length,
+          value: Math.round(negativeStock.reduce((sum, p) => sum + p.stock_level * p.unitCost, 0)),
+          products: negativeStock
+            .sort((a, b) => a.stock_level - b.stock_level)
+            .slice(0, 5)
+            .map(p => ({ name: p.name, stock: p.stock_level }))
+        },
         fastMovers: [...productsWithTurnover].sort((a, b) => b.turnoverRate - a.turnoverRate).slice(0, 5).map(p => ({ name: p.name, turnover: p.turnoverRate, sales30d: p.salesLast30Days })),
         slowMovers: [...productsWithTurnover].filter(p => p.stockValue > 100).sort((a, b) => a.turnoverRate - b.turnoverRate).slice(0, 5).map(p => ({ name: p.name, turnover: p.turnoverRate, stockValue: Math.round(p.stockValue) }))
       }
@@ -421,10 +437,13 @@ export async function fetchContextData(dateRange, STORE_ID, SHOP_ID) {
  * @param {string} language - 'fi' or 'sv'
  * @param {boolean} isMonthly - true for monthly analysis, false for weekly
  */
-// key_metrics.biggest_impact must be one of these; WeeklyAnalysisCard.KPI_AREA_TRANSLATIONS
-// only knows these 4 values. Other strings (e.g. "inventory") get rendered through t()
-// and resolve to namespace objects → React error #31 → blank app.
-export const VALID_IMPACT_AREAS = ['sales_efficiency', 'demand_growth', 'traffic_quality', 'product_leverage']
+// key_metrics.biggest_impact must be a key WeeklyAnalysisCard.KPI_AREA_TRANSLATIONS
+// knows — it accepts both snake_case and camelCase. Any other string (e.g. "inventory")
+// gets rendered through t() and resolves to a namespace object → React error #31 → blank app.
+export const VALID_IMPACT_AREAS = [
+  'sales_efficiency', 'demand_growth', 'traffic_quality', 'product_leverage',
+  'salesEfficiency', 'demandGrowth', 'trafficQuality', 'productLeverage'
+]
 
 export function sanitizeAnalysisContent(content) {
   if (!content?.key_metrics || typeof content.key_metrics !== 'object') return content
@@ -770,6 +789,13 @@ export function buildUserPrompt(contextData, periodNumber, year, language = 'fi'
     prompt += isFi
       ? `- Tuotteita varastossa: ${inventoryMetrics.productsWithStock}\n\n`
       : `- Produkter i lager: ${inventoryMetrics.productsWithStock}\n\n`
+
+    if (inventoryMetrics.negativeStock?.count > 0) {
+      const ns = inventoryMetrics.negativeStock
+      prompt += isFi
+        ? `⚠️ DATAVIRHE: ${ns.count} tuotteella on negatiivinen varastosaldo (yhteensä ${ns.value} ${currencySymbol}). Ne on laskettu nollana varaston arvossa. Esim: ${ns.products.map(p => `${p.name} (${p.stock})`).join(', ')}. Mainitse tämä datalaadun ongelmana.\n\n`
+        : `⚠️ DATAFEL: ${ns.count} produkter har negativt lagersaldo (totalt ${ns.value} ${currencySymbol}). De räknas som noll i lagervärdet. T.ex: ${ns.products.map(p => `${p.name} (${p.stock})`).join(', ')}. Nämn detta som ett datakvalitetsproblem.\n\n`
+    }
 
     if (inventoryMetrics.fastMovers?.length > 0) {
       prompt += isFi ? `Nopeimmin liikkuvat:\n` : `Snabbast rörliga:\n`
