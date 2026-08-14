@@ -37,6 +37,44 @@ export function getISOWeek(date) {
 }
 
 /**
+ * ISO-8601 date range (Monday-Sunday) for a given week number.
+ *
+ * Week 1 is the week containing January 4th - NOT the week containing January 1st.
+ * These differ whenever Jan 1 falls on Fri/Sat/Sun (2027, 2028, 2033, 2034, ...),
+ * in which case a Jan-1 anchor shifts every week of the year by 7 days while the
+ * week number in the report title stays correct.
+ */
+export function getISOWeekDateRange(weekNumber, year) {
+  const jan4 = new Date(year, 0, 4)
+  const daysFromMonday = (jan4.getDay() + 6) % 7
+  const weekStart = new Date(jan4)
+  weekStart.setDate(jan4.getDate() - daysFromMonday + (weekNumber - 1) * 7)
+  const weekEnd = new Date(weekStart)
+  weekEnd.setDate(weekStart.getDate() + 6)
+  const toLocalISO = (d) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  return { startDate: toLocalISO(weekStart), endDate: toLocalISO(weekEnd) }
+}
+
+/**
+ * Supabase/PostgREST caps every response at 1000 rows regardless of .limit().
+ * Paginate explicitly whenever a query can exceed that.
+ */
+const PAGE_SIZE = 1000
+
+async function fetchAllRows(buildQuery) {
+  const rows = []
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data, error } = await buildQuery().range(from, from + PAGE_SIZE - 1)
+    if (error) throw error
+    if (!data?.length) break
+    rows.push(...data)
+    if (data.length < PAGE_SIZE) break
+  }
+  return rows
+}
+
+/**
  * Fetch all context data for analysis - SAME AS EMMA!
  * NOTE: Different tables use different store IDs!
  * - STORE_ID: v_daily_sales, products, v_gsc_daily_summary, orders, etc.
@@ -175,55 +213,95 @@ export async function fetchContextData(dateRange, STORE_ID, SHOP_ID) {
   let inventoryMetrics = null
 
   try {
-    const { data: allOrders } = await supabase
-      .from('orders')
-      .select('id, billing_email, is_b2b, is_b2b_soft, creation_date, grand_total')
-      .eq('store_id', STORE_ID)
-      .neq('status', 'cancelled')
-      .order('creation_date', { ascending: true })
-      .limit(5000)
+    // Full order history, paginated. LTV and "has bought before" are lifetime
+    // properties and cannot be derived from the report period alone.
+    const allOrders = await fetchAllRows(() =>
+      supabase
+        .from('orders')
+        .select('id, billing_email, is_b2b, is_b2b_soft, creation_date, grand_total, total_before_tax, total_tax')
+        .eq('store_id', STORE_ID)
+        .neq('status', 'cancelled')
+        .order('creation_date', { ascending: true })
+    )
 
-    if (allOrders && allOrders.length > 0) {
-      const customerMap = {}
+    const isB2B = (o) => !!(o.is_b2b || o.is_b2b_soft)
+    const emailOf = (o) => (o.billing_email || '').toLowerCase()
+    const dayOf = (o) => (o.creation_date || '').slice(0, 10)
+    // Same basis as v_daily_sales.total_revenue (excl. VAT) so that the B2B/B2C
+    // split cannot exceed the period revenue reported in the sales section.
+    const netOf = (o) => o.total_before_tax ?? ((o.grand_total || 0) - (o.total_tax || 0))
+
+    if (allOrders.length > 0) {
+      // Lifetime aggregates per customer -> LTV, prior-purchase flag
+      const lifetimeByEmail = {}
       allOrders.forEach(order => {
-        const email = (order.billing_email || '').toLowerCase()
-        if (email) {
-          if (!customerMap[email]) {
-            customerMap[email] = { orders: 0, revenue: 0, isB2B: order.is_b2b || order.is_b2b_soft }
-          }
-          customerMap[email].orders++
-          customerMap[email].revenue += order.grand_total || 0
+        const email = emailOf(order)
+        if (!email) return
+        if (!lifetimeByEmail[email]) {
+          lifetimeByEmail[email] = { orders: 0, revenue: 0, isB2B: isB2B(order) }
         }
+        lifetimeByEmail[email].orders++
+        lifetimeByEmail[email].revenue += netOf(order)
       })
+      const lifetimeCustomers = Object.values(lifetimeByEmail)
+      const lifetimeB2B = lifetimeCustomers.filter(c => c.isB2B)
+      const lifetimeB2C = lifetimeCustomers.filter(c => !c.isB2B)
+      const avgRevenue = (list) =>
+        list.length > 0 ? Math.round(list.reduce((sum, c) => sum + c.revenue, 0) / list.length) : 0
 
-      const customers = Object.values(customerMap)
-      const b2bCustomers = customers.filter(c => c.isB2B)
-      const b2cCustomers = customers.filter(c => !c.isB2B)
-      const returningCust = customers.filter(c => c.orders > 1)
+      // Everything else describes THIS report period only.
+      const periodOrders = allOrders.filter(o => {
+        const day = dayOf(o)
+        return day >= startDate && day <= endDate
+      })
+      const periodB2B = periodOrders.filter(isB2B)
+      const periodB2C = periodOrders.filter(o => !isB2B(o))
+      const b2bRevenue = periodB2B.reduce((sum, o) => sum + netOf(o), 0)
+      const b2cRevenue = periodB2C.reduce((sum, o) => sum + netOf(o), 0)
 
-      const b2bOrders = allOrders.filter(o => o.is_b2b || o.is_b2b_soft)
-      const b2cOrders = allOrders.filter(o => !o.is_b2b && !o.is_b2b_soft)
-      const b2bRevenue = b2bOrders.reduce((sum, o) => sum + (o.grand_total || 0), 0)
-      const b2cRevenue = b2cOrders.reduce((sum, o) => sum + (o.grand_total || 0), 0)
+      const periodEmails = [...new Set(periodOrders.map(emailOf).filter(Boolean))]
+      // A period customer counts as returning if their lifetime order count exceeds
+      // the orders they placed during this period.
+      const periodOrderCount = {}
+      periodOrders.forEach(o => {
+        const email = emailOf(o)
+        if (email) periodOrderCount[email] = (periodOrderCount[email] || 0) + 1
+      })
+      const returningInPeriod = periodEmails.filter(
+        e => (lifetimeByEmail[e]?.orders || 0) > periodOrderCount[e]
+      )
+
+      const share = (n) => (periodOrders.length > 0 ? Math.round((n / periodOrders.length) * 100) : 0)
 
       customerAnalytics = {
-        uniqueCustomers: customers.length,
-        returnRate: customers.length > 0 ? Math.round((returningCust.length / customers.length) * 100) : 0,
+        periodStart: startDate,
+        periodEnd: endDate,
+        orders: periodOrders.length,
+        uniqueCustomers: periodEmails.length,
+        returnRate: periodEmails.length > 0
+          ? Math.round((returningInPeriod.length / periodEmails.length) * 100)
+          : 0,
         b2b: {
-          orders: b2bOrders.length,
+          orders: periodB2B.length,
           revenue: b2bRevenue,
-          aov: b2bOrders.length > 0 ? Math.round(b2bRevenue / b2bOrders.length) : 0,
-          customers: b2bCustomers.length,
-          percentage: Math.round((b2bOrders.length / allOrders.length) * 100),
-          ltv: b2bCustomers.length > 0 ? Math.round(b2bCustomers.reduce((sum, c) => sum + c.revenue, 0) / b2bCustomers.length) : 0
+          aov: periodB2B.length > 0 ? Math.round(b2bRevenue / periodB2B.length) : 0,
+          customers: new Set(periodB2B.map(emailOf).filter(Boolean)).size,
+          percentage: share(periodB2B.length)
         },
         b2c: {
-          orders: b2cOrders.length,
+          orders: periodB2C.length,
           revenue: b2cRevenue,
-          aov: b2cOrders.length > 0 ? Math.round(b2cRevenue / b2cOrders.length) : 0,
-          customers: b2cCustomers.length,
-          percentage: Math.round((b2cOrders.length / allOrders.length) * 100),
-          ltv: b2cCustomers.length > 0 ? Math.round(b2cCustomers.reduce((sum, c) => sum + c.revenue, 0) / b2cCustomers.length) : 0
+          aov: periodB2C.length > 0 ? Math.round(b2cRevenue / periodB2C.length) : 0,
+          customers: new Set(periodB2C.map(emailOf).filter(Boolean)).size,
+          percentage: share(periodB2C.length)
+        },
+        // Lifetime figures, explicitly labelled as such in the prompt.
+        lifetime: {
+          customers: lifetimeCustomers.length,
+          ordersAnalyzed: allOrders.length,
+          firstOrderDate: dayOf(allOrders[0]),
+          b2bLtv: avgRevenue(lifetimeB2B),
+          b2cLtv: avgRevenue(lifetimeB2C)
         }
       }
     }
@@ -233,31 +311,37 @@ export async function fetchContextData(dateRange, STORE_ID, SHOP_ID) {
 
   // Inventory turnover metrics
   try {
-    const { data: products } = await supabase
-      .from('products')
-      .select('id, name, product_number, stock_level, cost_price, price_amount, for_sale')
-      .eq('store_id', STORE_ID)
-      .eq('for_sale', true)
+    const products = await fetchAllRows(() =>
+      supabase
+        .from('products')
+        .select('id, name, product_number, stock_level, cost_price, price_amount, for_sale')
+        .eq('store_id', STORE_ID)
+        .eq('for_sale', true)
+        .order('id', { ascending: true })
+    )
 
     const thirtyDaysAgo = new Date()
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
 
-    const { data: salesVelocity } = await supabase
-      .from('order_line_items')
-      .select(`product_number, quantity, orders!inner(creation_date, status, store_id)`)
-      .eq('orders.store_id', STORE_ID)
-      .gte('orders.creation_date', thirtyDaysAgo.toISOString().split('T')[0])
-      .neq('orders.status', 'cancelled')
+    // Paginated: a busy store easily exceeds 1000 line items in 30 days, and a
+    // truncated result silently understates every turnover figure below.
+    const salesVelocity = await fetchAllRows(() =>
+      supabase
+        .from('order_line_items')
+        .select(`product_number, quantity, orders!inner(creation_date, status, store_id)`)
+        .eq('orders.store_id', STORE_ID)
+        .gte('orders.creation_date', thirtyDaysAgo.toISOString().split('T')[0])
+        .neq('orders.status', 'cancelled')
+        .order('id', { ascending: true })
+    )
 
     const salesByProduct = {}
-    if (salesVelocity) {
-      salesVelocity.forEach(item => {
-        const sku = item.product_number
-        if (sku) salesByProduct[sku] = (salesByProduct[sku] || 0) + (item.quantity || 1)
-      })
-    }
+    salesVelocity.forEach(item => {
+      const sku = item.product_number
+      if (sku) salesByProduct[sku] = (salesByProduct[sku] || 0) + (item.quantity || 1)
+    })
 
-    if (products && products.length > 0) {
+    if (products.length > 0) {
       const enrichedProducts = products.map(p => {
         const salesLast30Days = salesByProduct[p.product_number] || 0
         const dailyVelocity = salesLast30Days / 30
@@ -337,6 +421,21 @@ export async function fetchContextData(dateRange, STORE_ID, SHOP_ID) {
  * @param {string} language - 'fi' or 'sv'
  * @param {boolean} isMonthly - true for monthly analysis, false for weekly
  */
+// key_metrics.biggest_impact must be one of these; WeeklyAnalysisCard.KPI_AREA_TRANSLATIONS
+// only knows these 4 values. Other strings (e.g. "inventory") get rendered through t()
+// and resolve to namespace objects → React error #31 → blank app.
+export const VALID_IMPACT_AREAS = ['sales_efficiency', 'demand_growth', 'traffic_quality', 'product_leverage']
+
+export function sanitizeAnalysisContent(content) {
+  if (!content?.key_metrics || typeof content.key_metrics !== 'object') return content
+  const bi = content.key_metrics.biggest_impact
+  if (bi && !VALID_IMPACT_AREAS.includes(bi)) {
+    console.warn(`AI returned invalid biggest_impact="${bi}" — stripping. Allowed: ${VALID_IMPACT_AREAS.join(', ')}`)
+    delete content.key_metrics.biggest_impact
+  }
+  return content
+}
+
 export function buildSystemPrompt(language, isMonthly = false) {
   const periodFi = isMonthly ? 'kuukauden' : 'viikon'
   const periodSv = isMonthly ? 'månadens' : 'veckans'
@@ -371,7 +470,7 @@ Palauta JSON seuraavalla rakenteella:
   "full_analysis": "Pidempi analyysiteksti (2-3 kappaletta)",
   "key_metrics": {
     "overall_index": { "current": 64, "previous": 58, "change": 10 },
-    "biggest_impact": "sales_efficiency|demand_growth|traffic_quality|product_leverage",
+    "biggest_impact": "<EXACTLY ONE OF: sales_efficiency, demand_growth, traffic_quality, product_leverage>",
     "is_seasonal": true|false
   }
 }
@@ -382,6 +481,7 @@ TÄRKEÄÄ:
 - Jos vertailudataa (edellinen kuukausi/vuosi) EI OLE annettu, ÄLÄ mainitse vertailuja
 - Jos dataa puuttuu, sano se rehellisesti: "Vertailudataa ei ole saatavilla"
 - Käytä VAIN promptissa annettuja lukuja
+- key_metrics.biggest_impact ON oltava täsmälleen yksi merkkijonoista: "sales_efficiency", "demand_growth", "traffic_quality" tai "product_leverage". ÄLÄ käytä mitään muuta arvoa (älä esim. "inventory", "marketing", "pricing" tms.). Jos mikään näistä ei sovi, jätä kenttä pois.
 
 Sisällytä MYÖS action_recommendations (3-5 kpl) JSON:iin:
 "action_recommendations": [
@@ -426,7 +526,7 @@ Returnera JSON med följande struktur:
   "full_analysis": "Längre analystext (2-3 stycken)",
   "key_metrics": {
     "overall_index": { "current": 64, "previous": 58, "change": 10 },
-    "biggest_impact": "sales_efficiency|demand_growth|traffic_quality|product_leverage",
+    "biggest_impact": "<EXACTLY ONE OF: sales_efficiency, demand_growth, traffic_quality, product_leverage>",
     "is_seasonal": true|false
   }
 }
@@ -435,6 +535,7 @@ VIKTIGT:
 - Basera ALLA påståenden på data som ges
 - Om data saknas, säg det ärligt
 - Jämför alltid med YoY (Year-over-Year) för att justera för säsong
+- key_metrics.biggest_impact MÅSTE vara exakt en av strängarna: "sales_efficiency", "demand_growth", "traffic_quality" eller "product_leverage". ANVÄND INGET annat värde (t.ex. inte "inventory", "marketing", "pricing" osv.). Om ingen av dessa passar, utelämna fältet.
 
 Inkludera OCKSÅ action_recommendations (3-5 st) i JSON:
 "action_recommendations": [
@@ -596,26 +697,46 @@ export function buildUserPrompt(contextData, periodNumber, year, language = 'fi'
 
   // 7. CUSTOMER ANALYTICS
   if (customerAnalytics) {
-    prompt += isFi ? `## ASIAKASANALYYSI\n` : `## KUNDANALYS\n`
-    prompt += isFi
-      ? `- Uniikkeja asiakkaita: ${customerAnalytics.uniqueCustomers}\n`
-      : `- Unika kunder: ${customerAnalytics.uniqueCustomers}\n`
-    prompt += isFi
-      ? `- Palaavien osuus: ${customerAnalytics.returnRate}%\n\n`
-      : `- Återkommande: ${customerAnalytics.returnRate}%\n\n`
+    const { b2b, b2c, lifetime } = customerAnalytics
+    const periodLabel = `${customerAnalytics.periodStart} - ${customerAnalytics.periodEnd}`
 
-    const { b2b, b2c } = customerAnalytics
+    prompt += isFi
+      ? `## ASIAKASANALYYSI (vain jakso ${periodLabel})\n`
+      : `## KUNDANALYS (endast perioden ${periodLabel})\n`
+    prompt += isFi
+      ? `- Tilauksia jaksolla: ${customerAnalytics.orders}\n`
+      : `- Ordrar under perioden: ${customerAnalytics.orders}\n`
+    prompt += isFi
+      ? `- Uniikkeja asiakkaita jaksolla: ${customerAnalytics.uniqueCustomers}\n`
+      : `- Unika kunder under perioden: ${customerAnalytics.uniqueCustomers}\n`
+    prompt += isFi
+      ? `- Heistä aiemmin ostaneita: ${customerAnalytics.returnRate}%\n\n`
+      : `- Varav som handlat tidigare: ${customerAnalytics.returnRate}%\n\n`
+
     prompt += `B2B:\n`
     prompt += isFi
-      ? `- ${b2b.orders} tilausta (${b2b.percentage}%), ${Math.round(b2b.revenue).toLocaleString()} ${currencySymbol}\n`
-      : `- ${b2b.orders} ordrar (${b2b.percentage}%), ${Math.round(b2b.revenue).toLocaleString()} ${currencySymbol}\n`
-    prompt += `- AOV: ${b2b.aov} ${currencySymbol}, LTV: ${b2b.ltv} ${currencySymbol}\n\n`
+      ? `- ${b2b.orders} tilausta (${b2b.percentage}% jakson tilauksista), ${Math.round(b2b.revenue).toLocaleString()} ${currencySymbol}\n`
+      : `- ${b2b.orders} ordrar (${b2b.percentage}% av periodens ordrar), ${Math.round(b2b.revenue).toLocaleString()} ${currencySymbol}\n`
+    prompt += `- AOV: ${b2b.aov} ${currencySymbol}\n\n`
 
     prompt += `B2C:\n`
     prompt += isFi
-      ? `- ${b2c.orders} tilausta (${b2c.percentage}%), ${Math.round(b2c.revenue).toLocaleString()} ${currencySymbol}\n`
-      : `- ${b2c.orders} ordrar (${b2c.percentage}%), ${Math.round(b2c.revenue).toLocaleString()} ${currencySymbol}\n`
-    prompt += `- AOV: ${b2c.aov} ${currencySymbol}, LTV: ${b2c.ltv} ${currencySymbol}\n\n`
+      ? `- ${b2c.orders} tilausta (${b2c.percentage}% jakson tilauksista), ${Math.round(b2c.revenue).toLocaleString()} ${currencySymbol}\n`
+      : `- ${b2c.orders} ordrar (${b2c.percentage}% av periodens ordrar), ${Math.round(b2c.revenue).toLocaleString()} ${currencySymbol}\n`
+    prompt += `- AOV: ${b2c.aov} ${currencySymbol}\n\n`
+
+    if (lifetime) {
+      prompt += isFi
+        ? `### Elinkaariarvo (KOKO HISTORIA ${lifetime.firstOrderDate} alkaen, EI tämä jakso)\n`
+        : `### Livstidsvärde (HELA HISTORIKEN från ${lifetime.firstOrderDate}, INTE denna period)\n`
+      prompt += isFi
+        ? `- Asiakkaita yhteensä: ${lifetime.customers} (${lifetime.ordersAnalyzed} tilausta)\n`
+        : `- Kunder totalt: ${lifetime.customers} (${lifetime.ordersAnalyzed} ordrar)\n`
+      prompt += `- B2B LTV: ${lifetime.b2bLtv} ${currencySymbol}, B2C LTV: ${lifetime.b2cLtv} ${currencySymbol}\n`
+      prompt += isFi
+        ? `(ÄLÄ esitä LTV-lukuja jakson lukuina äläkä vertaa niitä jakson AOV:hen muutoksena.)\n\n`
+        : `(Presentera INTE LTV-siffrorna som periodens siffror och jämför dem inte med periodens AOV som en förändring.)\n\n`
+    }
   }
 
   // 8. PRODUCT ROLES
@@ -765,17 +886,8 @@ export default async function handler(req, res) {
       }
       console.log(`Monthly analysis for ${targetMonth}/${targetYear}: ${effectiveDateRange.startDate} - ${effectiveDateRange.endDate}`)
     } else if (!isMonthly && targetWeek && targetYear) {
-      // For weekly: calculate week start (Monday) and end (Sunday)
-      const jan1 = new Date(targetYear, 0, 1)
-      const daysToMonday = (jan1.getDay() + 6) % 7 // Days from Monday
-      const firstMonday = new Date(jan1)
-      firstMonday.setDate(jan1.getDate() - daysToMonday + (targetWeek - 1) * 7)
-      const weekEnd = new Date(firstMonday)
-      weekEnd.setDate(firstMonday.getDate() + 6)
-      effectiveDateRange = {
-        startDate: firstMonday.toISOString().split('T')[0],
-        endDate: weekEnd.toISOString().split('T')[0]
-      }
+      // For weekly: ISO-8601 week start (Monday) and end (Sunday)
+      effectiveDateRange = getISOWeekDateRange(targetWeek, targetYear)
       console.log(`Weekly analysis for week ${targetWeek}/${targetYear}: ${effectiveDateRange.startDate} - ${effectiveDateRange.endDate}`)
     }
 
@@ -794,49 +906,44 @@ export default async function handler(req, res) {
     // Call Deepseek API (OpenAI-compatible)
     const response = await deepseek.chat.completions.create({
       model: 'deepseek-chat',
-      max_tokens: 2000,
+      max_tokens: 4000,
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt }
       ]
     })
 
-    // Parse response (OpenAI format)
+    // Refuse to save truncated/malformed responses — better to return an error and
+    // let the user retry than to persist a half-baked JSON blob that renders as
+    // raw text in the UI.
+    const finishReason = response.choices[0].finish_reason
+    if (finishReason === 'length') {
+      console.error(`AI response truncated (finish_reason=length, max_tokens=4000)`)
+      return res.status(502).json({
+        error: 'AI response truncated — please retry. Consider shortening the analysis scope or increasing max_tokens.'
+      })
+    }
+
     let analysisContent
     try {
       let responseText = response.choices[0].message.content
-
       // Strip markdown code block markers (```json ... ```)
       responseText = responseText.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '')
-
-      // Try to extract JSON from response
       const jsonMatch = responseText.match(/\{[\s\S]*\}/)
-      if (jsonMatch) {
-        analysisContent = JSON.parse(jsonMatch[0])
-      } else {
-        // Fallback: create structure from text
-        analysisContent = {
-          summary: responseText.substring(0, 200),
-          bullets: [{ type: 'info', text: responseText }],
-          full_analysis: responseText,
-          key_metrics: null
-        }
-      }
+      if (!jsonMatch) throw new Error('No JSON object found in AI response')
+      analysisContent = JSON.parse(jsonMatch[0])
     } catch (parseError) {
-      console.error('Failed to parse AI response:', parseError)
-      let fallbackText = response.choices[0].message.content
-      // Also strip markdown from fallback
-      fallbackText = fallbackText.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '')
-      analysisContent = {
-        summary: fallbackText.substring(0, 200),
-        bullets: [{ type: 'info', text: fallbackText }],
-        full_analysis: fallbackText,
-        key_metrics: null
-      }
+      console.error('Failed to parse AI response:', parseError.message)
+      return res.status(502).json({
+        error: `AI response was not valid JSON (${parseError.message}). Please retry.`
+      })
     }
 
     // Add language to content
     analysisContent.language = language
+
+    // Defense in depth: strip hallucinated biggest_impact values before saving.
+    sanitizeAnalysisContent(analysisContent)
 
     // Save analysis to database - uses SHOP_ID (FK to shops)
     // Use manual check-then-insert/update for partial unique indexes

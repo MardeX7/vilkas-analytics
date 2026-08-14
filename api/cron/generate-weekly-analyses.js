@@ -10,29 +10,13 @@
 
 import OpenAI from 'openai'
 import { createClient } from '@supabase/supabase-js'
-import { getISOWeek, fetchContextData, buildSystemPrompt, buildUserPrompt } from '../generate-analysis.js'
+import { getISOWeek, getISOWeekDateRange, fetchContextData, buildSystemPrompt, buildUserPrompt, sanitizeAnalysisContent } from '../generate-analysis.js'
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
 export const config = {
   maxDuration: 300,
-}
-
-/**
- * Calculate ISO week date range (Monday to Sunday)
- */
-function getWeekDateRange(weekNumber, year) {
-  const jan1 = new Date(year, 0, 1)
-  const daysToMonday = (jan1.getDay() + 6) % 7
-  const firstMonday = new Date(jan1)
-  firstMonday.setDate(jan1.getDate() - daysToMonday + (weekNumber - 1) * 7)
-  const weekEnd = new Date(firstMonday)
-  weekEnd.setDate(firstMonday.getDate() + 6)
-  return {
-    startDate: firstMonday.toISOString().split('T')[0],
-    endDate: weekEnd.toISOString().split('T')[0]
-  }
 }
 
 export default async function handler(req, res) {
@@ -72,7 +56,7 @@ export default async function handler(req, res) {
   const lastWeekDate = new Date(now)
   lastWeekDate.setDate(now.getDate() - 7)
   const { week: targetWeek, year: targetYear } = getISOWeek(lastWeekDate)
-  const dateRange = getWeekDateRange(targetWeek, targetYear)
+  const dateRange = getISOWeekDateRange(targetWeek, targetYear)
 
   console.log(`Generating analyses for week ${targetWeek}/${targetYear} (${dateRange.startDate} - ${dateRange.endDate})`)
 
@@ -117,41 +101,38 @@ export default async function handler(req, res) {
       // Call Deepseek
       const response = await deepseek.chat.completions.create({
         model: 'deepseek-chat',
-        max_tokens: 2000,
+        max_tokens: 4000,
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt }
         ]
       })
 
-      // Parse response
+      // Refuse to save truncated/malformed responses — skip this shop and continue.
+      const finishReason = response.choices[0].finish_reason
+      if (finishReason === 'length') {
+        console.error(`${shop.name}: AI response truncated (finish_reason=length) — skipping`)
+        results.push({ shop: shop.name, success: false, error: 'AI response truncated' })
+        continue
+      }
+
       let analysisContent
       try {
         let responseText = response.choices[0].message.content
         responseText = responseText.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '')
         const jsonMatch = responseText.match(/\{[\s\S]*\}/)
-        if (jsonMatch) {
-          analysisContent = JSON.parse(jsonMatch[0])
-        } else {
-          analysisContent = {
-            summary: responseText.substring(0, 200),
-            bullets: [{ type: 'info', text: responseText }],
-            full_analysis: responseText,
-            key_metrics: null
-          }
-        }
+        if (!jsonMatch) throw new Error('No JSON object found in AI response')
+        analysisContent = JSON.parse(jsonMatch[0])
       } catch (parseError) {
         console.error(`${shop.name}: failed to parse AI response:`, parseError.message)
-        const fallbackText = response.choices[0].message.content.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '')
-        analysisContent = {
-          summary: fallbackText.substring(0, 200),
-          bullets: [{ type: 'info', text: fallbackText }],
-          full_analysis: fallbackText,
-          key_metrics: null
-        }
+        results.push({ shop: shop.name, success: false, error: `Invalid JSON: ${parseError.message}` })
+        continue
       }
 
       analysisContent.language = language
+
+      // Defense in depth: strip hallucinated biggest_impact values before saving.
+      sanitizeAnalysisContent(analysisContent)
 
       // Save analysis
       const { error: saveError } = await supabase
