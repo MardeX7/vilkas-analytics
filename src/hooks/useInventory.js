@@ -13,6 +13,25 @@ function isBundle(product) {
 }
 
 /**
+ * Supabase caps every response at 1000 rows regardless of .limit(), so any query
+ * that can exceed that must paginate. Sort by a unique key: ties on a non-unique
+ * column can duplicate or drop rows at a page boundary.
+ */
+async function fetchAllRows(buildQuery, orderColumn = 'id') {
+  const rows = []
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await buildQuery()
+      .order(orderColumn, { ascending: true })
+      .range(from, from + 999)
+    if (error) throw error
+    if (!data?.length) break
+    rows.push(...data)
+    if (data.length < 1000) break
+  }
+  return rows
+}
+
+/**
  * useInventory - Hook for inventory data and analytics
  *
  * Returns:
@@ -69,6 +88,12 @@ export function useInventory() {
 
   // Stock value by category
   const [categoryBreakdown, setCategoryBreakdown] = useState([])
+  // How much of the catalogue actually has a category assignment
+  const [categoryCoverage, setCategoryCoverage] = useState({
+    total: 0, categorized: 0, percent: 0, valueCovered: 0, valueTotal: 0
+  })
+  // Products with a negative stock level — a data fault, counted as zero in value
+  const [negativeStock, setNegativeStock] = useState({ count: 0, value: 0, products: [] })
 
   // Stockout history
   const [stockoutHistory, setStockoutHistory] = useState([])
@@ -86,14 +111,16 @@ export function useInventory() {
   })
 
   // Value changes over time periods
+  const emptyChange = { value: 0, change: 0, changePercent: 0, noData: false, anomaly: null }
   const [valueChanges, setValueChanges] = useState({
-    day1: { value: 0, change: 0, changePercent: 0 },
-    day7: { value: 0, change: 0, changePercent: 0 },
-    day30: { value: 0, change: 0, changePercent: 0 },
-    day90: { value: 0, change: 0, changePercent: 0 },
-    day180: { value: 0, change: 0, changePercent: 0 },
-    day360: { value: 0, change: 0, changePercent: 0 }
+    day1: emptyChange,
+    day7: emptyChange,
+    day30: emptyChange,
+    day90: emptyChange,
+    day180: emptyChange,
+    day360: emptyChange
   })
+  const [oldestSnapshotDate, setOldestSnapshotDate] = useState(null)
 
   const fetchInventoryData = useCallback(async () => {
     if (!ready || !storeId) return
@@ -103,33 +130,32 @@ export function useInventory() {
 
     try {
       // 1. Fetch all products with stock data
-      const { data: products, error: productsError } = await supabase
-        .from('products')
-        .select('id, name, product_number, stock_level, min_stock_level, cost_price, price_amount, for_sale, stock_tracked')
-        .eq('store_id', storeId)
-        .eq('for_sale', true)
-        .neq('stock_tracked', false)
-        .order('stock_level', { ascending: true })
-
-      if (productsError) throw productsError
+      const products = await fetchAllRows(() =>
+        supabase
+          .from('products')
+          .select('id, name, product_number, stock_level, min_stock_level, cost_price, price_amount, for_sale, stock_tracked')
+          .eq('store_id', storeId)
+          .eq('for_sale', true)
+          .neq('stock_tracked', false)
+      )
 
       // 2. Fetch sales velocity (last 30 days) per product
       const thirtyDaysAgo = new Date()
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
       const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split('T')[0]
 
-      const { data: salesData, error: salesError } = await supabase
-        .from('order_line_items')
-        .select(`
-          product_number,
-          quantity,
-          orders!inner(creation_date, status, store_id)
-        `)
-        .eq('orders.store_id', storeId)
-        .gte('orders.creation_date', thirtyDaysAgoStr)
-        .neq('orders.status', 'cancelled')
-
-      if (salesError) throw salesError
+      const salesData = await fetchAllRows(() =>
+        supabase
+          .from('order_line_items')
+          .select(`
+            product_number,
+            quantity,
+            orders!inner(creation_date, status, store_id)
+          `)
+          .eq('orders.store_id', storeId)
+          .gte('orders.creation_date', thirtyDaysAgoStr)
+          .neq('orders.status', 'cancelled')
+      )
 
       // 2b. Fetch last year same period sales (for seasonal forecast)
       const lastYearStart = new Date()
@@ -139,18 +165,20 @@ export function useInventory() {
       const lastYearStartStr = lastYearStart.toISOString().split('T')[0]
       const lastYearEndStr = lastYearEnd.toISOString().split('T')[0]
 
-      const { data: lastYearSalesData } = await supabase
-        .from('order_line_items')
-        .select(`
-          product_number,
-          quantity,
-          total_price,
-          orders!inner(creation_date, status, store_id)
-        `)
-        .eq('orders.store_id', storeId)
-        .gte('orders.creation_date', lastYearStartStr)
-        .lte('orders.creation_date', lastYearEndStr)
-        .neq('orders.status', 'cancelled')
+      const lastYearSalesData = await fetchAllRows(() =>
+        supabase
+          .from('order_line_items')
+          .select(`
+            product_number,
+            quantity,
+            total_price,
+            orders!inner(creation_date, status, store_id)
+          `)
+          .eq('orders.store_id', storeId)
+          .gte('orders.creation_date', lastYearStartStr)
+          .lte('orders.creation_date', lastYearEndStr)
+          .neq('orders.status', 'cancelled')
+      )
 
       // Build last year sales map
       const lastYearSalesByProduct = {}
@@ -168,6 +196,33 @@ export function useInventory() {
           }
         })
       }
+
+      // 2c. Real category assignments.
+      // NOTE: categories/product_categories are NOT synced by any cron — they come
+      // from a one-off CSV import (Billackering, 2026-01-06). Automaalit has none.
+      // Products without an assignment are reported separately rather than being
+      // bucketed under a guess.
+      const categoryRows = await fetchAllRows(() =>
+        supabase.from('categories').select('id, display_name, level2, category_path').eq('store_id', storeId)
+      )
+      const categoryById = Object.fromEntries(categoryRows.map(c => [c.id, c]))
+      const productLinks = categoryRows.length > 0
+        ? await fetchAllRows(() =>
+            supabase.from('product_categories').select('product_id, category_id, position_category')
+          )
+        : []
+      // One product can sit in several categories; pick a single primary one so
+      // stock value is never counted twice.
+      const primaryCategory = {}
+      productLinks
+        .filter(l => categoryById[l.category_id])
+        .sort((a, b) => (a.position_category ?? 9999) - (b.position_category ?? 9999))
+        .forEach(l => {
+          if (!primaryCategory[l.product_id]) {
+            const c = categoryById[l.category_id]
+            primaryCategory[l.product_id] = c.level2 || c.display_name || c.category_path
+          }
+        })
 
       // Calculate sales velocity per product (by SKU)
       const salesByProduct = {}
@@ -209,8 +264,7 @@ export function useInventory() {
           lastYearQty: lastYearData.quantity,
           lastYearRevenue: lastYearData.revenue,
           turnoverRate: Math.round(turnoverRate * 10) / 10,
-          // Extract category from product name (first word or brand)
-          category: (p.name || '').split(' ')[0] || 'Uncategorized'
+          category: primaryCategory[p.id] || null
         }
       })
 
@@ -218,6 +272,31 @@ export function useInventory() {
 
       // 4. Calculate summary metrics
       const totalValue = enrichedProducts.reduce((sum, p) => sum + p.stockValue, 0)
+
+      // Negative stock levels are clamped to zero in stockValue above, so without
+      // this they would vanish silently instead of being flagged.
+      const negatives = enrichedProducts.filter(p => (p.stock_level || 0) < 0)
+      const negValue = (list) => Math.round(list.reduce(
+        (sum, p) => sum + p.stock_level * (p.cost_price || (p.price_amount ? p.price_amount * 0.6 : 0)), 0
+      ))
+      // Bundles have no stock of their own — ePages decrements a level that was
+      // never set, so they drift negative as they sell. Separated because the fix
+      // differs from a genuine stock discrepancy.
+      const negativeBundles = negatives.filter(isBundle)
+      setNegativeStock({
+        count: negatives.length,
+        value: negValue(negatives),
+        bundleCount: negativeBundles.length,
+        bundleValue: negValue(negativeBundles),
+        products: negatives
+          .sort((a, b) => a.stock_level - b.stock_level)
+          .map(p => ({
+            name: p.name,
+            productNumber: p.product_number,
+            stock: p.stock_level,
+            isBundle: isBundle(p)
+          }))
+      })
       const productsInStock = enrichedProducts.filter(p => p.stock_level > 0).length
       const outOfStockCount = enrichedProducts.filter(p => p.stock_level === 0 && p.salesLast30Days > 0).length
       const lowStockCount = enrichedProducts.filter(p =>
@@ -334,9 +413,12 @@ export function useInventory() {
         .sort((a, b) => a.turnoverRate - b.turnoverRate)
         .slice(0, 5)
 
-      // 10. Category breakdown with turnover calculation
+      // 10. Category breakdown with turnover calculation.
+      // Only products with a real category assignment take part — the rest are
+      // counted in categoryCoverage so the UI can say what is missing.
+      const categorized = enrichedProducts.filter(p => p.category)
       const categoryMap = {}
-      enrichedProducts.forEach(p => {
+      categorized.forEach(p => {
         const cat = p.category
         if (!categoryMap[cat]) {
           categoryMap[cat] = {
@@ -369,6 +451,16 @@ export function useInventory() {
       const categoryList = Object.values(categoryMap)
         .sort((a, b) => b.stockValue - a.stockValue)
         .slice(0, 10)
+
+      setCategoryCoverage({
+        total: enrichedProducts.length,
+        categorized: categorized.length,
+        percent: enrichedProducts.length > 0
+          ? Math.round((categorized.length / enrichedProducts.length) * 100)
+          : 0,
+        valueCovered: Math.round(categorized.reduce((sum, p) => sum + p.stockValue, 0)),
+        valueTotal: Math.round(enrichedProducts.reduce((sum, p) => sum + p.stockValue, 0))
+      })
 
       // Top 5 categories by turnover (best)
       const fastCategories = Object.values(categoryMap)
@@ -526,6 +618,30 @@ export function useInventory() {
           return match?.totalValue || null
         }
 
+        // Detect a single largest day-over-day jump within the last `daysAgo` days.
+        // Used to flag periods where snapshot history straddles a discontinuity
+        // (e.g. cost_price CSV import retroactively changed valuation basis).
+        const ANOMALY_THRESHOLD = 0.30
+        const detectAnomaly = (daysAgo) => {
+          const startDate = new Date(now)
+          startDate.setDate(startDate.getDate() - daysAgo)
+          const startStr = startDate.toISOString().split('T')[0]
+          const inPeriod = validHistory.filter(h => h.date >= startStr)
+
+          let biggest = null
+          for (let i = 1; i < inPeriod.length; i++) {
+            const prev = inPeriod[i - 1].totalValue
+            const curr = inPeriod[i].totalValue
+            if (prev <= 0) continue
+            const dayPct = (curr - prev) / prev
+            if (Math.abs(dayPct) >= ANOMALY_THRESHOLD &&
+                (biggest === null || Math.abs(dayPct) > Math.abs(biggest.percentChange / 100))) {
+              biggest = { date: inPeriod[i].date, percentChange: Math.round(dayPct * 1000) / 10 }
+            }
+          }
+          return biggest
+        }
+
         const calculateChange = (daysAgo) => {
           // For short periods (1-7 days), require exact date match to avoid misleading data
           // For longer periods (30+ days), allow closest date match
@@ -533,7 +649,7 @@ export function useInventory() {
           const pastValue = useExactMatch ? getExactValueAtDaysAgo(daysAgo) : getValueAtDaysAgo(daysAgo)
 
           if (pastValue === null || pastValue === 0) {
-            return { value: pastValue, change: 0, changePercent: 0 }
+            return { value: pastValue, change: 0, changePercent: 0, noData: true, anomaly: null }
           }
 
           // For short periods, compare snapshot to snapshot (not calculated to snapshot)
@@ -545,7 +661,9 @@ export function useInventory() {
           return {
             value: pastValue,
             change: Math.round(change),
-            changePercent: Math.round(changePercent * 10) / 10
+            changePercent: Math.round(changePercent * 10) / 10,
+            noData: false,
+            anomaly: detectAnomaly(daysAgo)
           }
         }
 
@@ -557,6 +675,7 @@ export function useInventory() {
           day180: calculateChange(180),
           day360: calculateChange(360)
         })
+        setOldestSnapshotDate(validHistory.length > 0 ? validHistory[0].date : null)
       }
 
     } catch (err) {
@@ -581,10 +700,13 @@ export function useInventory() {
     abcAnalysis,
     turnoverMetrics,
     categoryBreakdown,
+    categoryCoverage,
+    negativeStock,
     stockoutHistory,
     orderRecommendations,
     seasonalForecast,
     valueChanges,
+    oldestSnapshotDate,
     loading,
     error,
     refresh: fetchInventoryData

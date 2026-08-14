@@ -17,14 +17,51 @@ import {
   FolderOpen,
   PackageX,
   ClipboardList,
-  Info
+  Info,
+  Upload
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useCurrentShop } from '@/config/storeConfig'
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, LineChart, Line, XAxis, YAxis, CartesianGrid } from 'recharts'
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { exportToCSV, INVENTORY_COLUMNS } from '@/lib/csvExport'
 import { Download } from 'lucide-react'
+
+// Parse an ePages product export (semicolon CSV) into [{ product_number, cost }].
+// Handles quoted fields with embedded newlines; reads only the two columns we need.
+function parseCostCSV(text) {
+  text = text.replace(/^﻿/, '')
+  const rows = []
+  let row = [], field = '', inQuotes = false
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i]
+    if (inQuotes) {
+      if (c === '"') { if (text[i + 1] === '"') { field += '"'; i++ } else inQuotes = false }
+      else field += c
+    } else {
+      if (c === '"') inQuotes = true
+      else if (c === ';') { row.push(field); field = '' }
+      else if (c === '\n') { row.push(field); rows.push(row); row = []; field = '' }
+      else if (c === '\r') { /* skip */ }
+      else field += c
+    }
+  }
+  if (field !== '' || row.length) { row.push(field); rows.push(row) }
+  if (!rows.length) return []
+  const header = rows[0]
+  const iAlias = header.findIndex(h => h.includes('[Alias]'))
+  const iCost = header.findIndex(h => h.includes('[GBasePurchasePrice]'))
+  if (iAlias < 0 || iCost < 0) return []
+  const out = []
+  for (let r = 1; r < rows.length; r++) {
+    const cols = rows[r]
+    const pn = (cols[iAlias] || '').trim()
+    if (!pn) continue
+    const cost = parseFloat((cols[iCost] || '').replace(/\s/g, '').replace(',', '.'))
+    if (Number.isFinite(cost) && cost > 0) out.push({ product_number: pn, cost })
+  }
+  return out
+}
 
 // Format currency
 function formatCurrency(value, currency) {
@@ -39,6 +76,20 @@ function formatCurrency(value, currency) {
 // Format number
 function formatNumber(value) {
   return new Intl.NumberFormat('fi-FI').format(value)
+}
+
+// Format ISO date (YYYY-MM-DD) as DD.MM.YYYY
+function formatDate(iso) {
+  if (!iso) return ''
+  const [y, m, d] = iso.split('-')
+  return `${parseInt(d, 10)}.${parseInt(m, 10)}.${y}`
+}
+
+// Add N days to ISO date string, return ISO date
+function addDays(iso, days) {
+  const dt = new Date(iso)
+  dt.setDate(dt.getDate() + days)
+  return dt.toISOString().split('T')[0]
 }
 
 // Colors for charts - Billackering brand palette
@@ -80,9 +131,42 @@ function InfoTooltip({ text }) {
 
 export function InventoryPage() {
   const { t } = useTranslation()
-  const { currency, currencySymbol } = useCurrentShop()
+  const { currency, currencySymbol, storeId } = useCurrentShop()
   const fmtCurrency = (value) => formatCurrency(value, currency)
   const [stockHistoryRange, setStockHistoryRange] = useState(14)
+  const costFileRef = useRef(null)
+  const [importingCosts, setImportingCosts] = useState(false)
+  const [costResult, setCostResult] = useState(null)
+
+  // Upload an ePages product export and update cost_price for the current shop
+  async function handleCostUpload(e) {
+    const file = e.target.files?.[0]
+    if (costFileRef.current) costFileRef.current.value = ''
+    if (!file) return
+    if (!storeId) { setCostResult({ error: 'Valitse ensin kauppa.' }); return }
+    setImportingCosts(true)
+    setCostResult(null)
+    try {
+      const text = await file.text()
+      const costs = parseCostCSV(text)
+      if (!costs.length) {
+        throw new Error('Tiedostosta ei löytynyt ostohintoja. Varmista että vienti sisältää sarakkeet [Alias] ja [GBasePurchasePrice].')
+      }
+      const resp = await fetch('/api/cost-prices-import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ store_id: storeId, costs }),
+      })
+      const data = await resp.json()
+      if (!resp.ok) throw new Error(data.error || 'Tuonti epäonnistui.')
+      setCostResult(data)
+      if (data.success) refresh()
+    } catch (err) {
+      setCostResult({ error: err.message })
+    } finally {
+      setImportingCosts(false)
+    }
+  }
   const {
     summary,
     reorderAlerts,
@@ -92,9 +176,12 @@ export function InventoryPage() {
     abcAnalysis,
     turnoverMetrics,
     categoryBreakdown,
+    categoryCoverage,
+    negativeStock,
     stockoutHistory,
     orderRecommendations,
     valueChanges,
+    oldestSnapshotDate,
     loading,
     error,
     refresh
@@ -144,21 +231,74 @@ export function InventoryPage() {
             </div>
           </div>
 
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={refresh}
-            disabled={loading}
-            className="gap-2"
-          >
-            <RefreshCw className={cn('w-4 h-4', loading && 'animate-spin')} />
-            {t('common.refresh')}
-          </Button>
+          <div className="flex items-center gap-2">
+            <input
+              ref={costFileRef}
+              type="file"
+              accept=".csv"
+              className="hidden"
+              onChange={handleCostUpload}
+            />
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => costFileRef.current?.click()}
+              disabled={importingCosts || !storeId}
+              className="gap-2"
+              title="Lataa ePagesin tuote-export, niin ostohinnat päivittyvät tähän kauppaan"
+            >
+              {importingCosts
+                ? <Loader2 className="w-4 h-4 animate-spin" />
+                : <Upload className="w-4 h-4" />}
+              Tuo ostohinnat
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={refresh}
+              disabled={loading}
+              className="gap-2"
+            >
+              <RefreshCw className={cn('w-4 h-4', loading && 'animate-spin')} />
+              {t('common.refresh')}
+            </Button>
+          </div>
         </div>
 
         {error && (
           <div className="mb-6 p-4 bg-destructive/10 border border-destructive/30 rounded-xl">
             <p className="text-destructive text-sm">{error}</p>
+          </div>
+        )}
+
+        {costResult && (
+          <div className={cn(
+            'mb-6 p-4 rounded-xl border',
+            (costResult.error || costResult.wrongFile)
+              ? 'bg-destructive/10 border-destructive/30'
+              : 'bg-primary/10 border-primary/30'
+          )}>
+            {costResult.error ? (
+              <p className="text-destructive text-sm">{costResult.error}</p>
+            ) : costResult.wrongFile ? (
+              <p className="text-destructive text-sm">{costResult.message}</p>
+            ) : (
+              <div className="text-sm text-foreground space-y-1">
+                <p>
+                  <strong>{costResult.updated}</strong> ostohintaa päivitetty
+                  {' · '}{costResult.unchanged} ennallaan
+                  {costResult.errors ? ` · ${costResult.errors} virhettä` : ''}.
+                </p>
+                {costResult.costGtPriceCount > 0 && (
+                  <p className="text-amber-500">
+                    Huom: {costResult.costGtPriceCount} tuotetta, joilla ostohinta on myyntihintaa suurempi – tarkista hinnoittelu
+                    {costResult.costGtPrice?.length
+                      ? ` (${costResult.costGtPrice.slice(0, 5).map(x => x.product_number).join(', ')}${costResult.costGtPriceCount > 5 ? ' …' : ''})`
+                      : ''}.
+                  </p>
+                )}
+              </div>
+            )}
           </div>
         )}
 
@@ -187,6 +327,43 @@ export function InventoryPage() {
           />
         </MetricCardGroup>
 
+        {/* Negative stock levels are clamped to zero in the value above, so they
+            would otherwise disappear without a trace. */}
+        {negativeStock.count > 0 && (
+          <div className="bg-warning/10 border border-warning/30 rounded-xl p-4 mb-8">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="w-5 h-5 text-warning shrink-0 mt-0.5" />
+              <div className="min-w-0">
+                <h3 className="text-sm font-semibold text-foreground mb-1">{t('inventory.negativeStockTitle')}</h3>
+                <p className="text-xs text-foreground-muted">
+                  {t('inventory.negativeStockDesc', {
+                    count: negativeStock.count,
+                    value: fmtCurrency(negativeStock.value)
+                  })}
+                </p>
+                {negativeStock.bundleCount > 0 && (
+                  <p className="text-xs text-foreground-muted mt-1">
+                    {t('inventory.negativeStockBundles', {
+                      count: negativeStock.bundleCount,
+                      value: fmtCurrency(negativeStock.bundleValue)
+                    })}
+                  </p>
+                )}
+                <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
+                  {negativeStock.products.slice(0, 5).map(p => (
+                    <span key={p.productNumber || p.name} className="text-xs text-foreground-muted">
+                      <span className="text-warning font-medium">{p.stock}</span> {p.name}
+                    </span>
+                  ))}
+                  {negativeStock.count > 5 && (
+                    <span className="text-xs text-foreground-muted">+{negativeStock.count - 5}</span>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Value Changes Card */}
         <div className="bg-background-elevated rounded-xl border border-card-border p-4 mb-8">
           <div className="flex items-center gap-2 mb-4">
@@ -197,30 +374,45 @@ export function InventoryPage() {
 
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
             {[
-              { key: 'day1', label: '1 pv' },
-              { key: 'day7', label: '7 pv' },
-              { key: 'day30', label: '30 pv' },
-              { key: 'day90', label: '90 pv' },
-              { key: 'day180', label: '180 pv' },
-              { key: 'day360', label: '360 pv' }
-            ].map(({ key, label }) => {
+              { key: 'day1', label: '1 pv', days: 1 },
+              { key: 'day7', label: '7 pv', days: 7 },
+              { key: 'day30', label: '30 pv', days: 30 },
+              { key: 'day90', label: '90 pv', days: 90 },
+              { key: 'day180', label: '180 pv', days: 180 },
+              { key: 'day360', label: '360 pv', days: 360 }
+            ].map(({ key, label, days }) => {
               const data = valueChanges[key]
-              const hasData = data?.value !== null && data?.value !== 0
+              const noData = data?.noData === true
+              const hasData = !noData && data?.value !== null && data?.value !== 0
               const isPositive = data?.changePercent > 0
               const isNegative = data?.changePercent < 0
+              const noDataTooltip = noData && oldestSnapshotDate
+                ? t('inventory.noDataTooltip')
+                    .replace('{oldest}', formatDate(oldestSnapshotDate))
+                    .replace('{available}', formatDate(addDays(oldestSnapshotDate, days)))
+                : t('inventory.noDataTooltipFallback').replace('{days}', String(days))
+              const anomalyTooltip = data?.anomaly
+                ? t('inventory.anomalyTooltip')
+                    .replace('{date}', formatDate(data.anomaly.date))
+                    .replace('{pct}', (data.anomaly.percentChange > 0 ? '+' : '') + data.anomaly.percentChange.toFixed(1) + ' %')
+                : null
 
               return (
                 <div
                   key={key}
                   className={cn(
-                    'p-3 rounded-xl border text-center',
+                    'p-3 rounded-xl border text-center relative',
                     hasData && isPositive && 'bg-success/10 border-success/30',
                     hasData && isNegative && 'bg-destructive/10 border-destructive/30',
                     hasData && !isPositive && !isNegative && 'bg-background-subtle border-border',
                     !hasData && 'bg-background-subtle border-border opacity-50'
                   )}
                 >
-                  <div className="text-xs text-foreground-muted mb-1">{label}</div>
+                  <div className="text-xs text-foreground-muted mb-1 inline-flex items-center justify-center">
+                    {label}
+                    {noData && <InfoTooltip text={noDataTooltip} />}
+                    {hasData && anomalyTooltip && <InfoTooltip text={anomalyTooltip} />}
+                  </div>
                   {hasData ? (
                     <>
                       <div className={cn(
@@ -398,7 +590,17 @@ export function InventoryPage() {
               <FolderOpen className="w-5 h-5 text-primary" />
               <h2 className="text-lg font-semibold text-foreground">{t('inventory.categoryBreakdown')}</h2>
             </div>
-            <p className="text-xs text-foreground-muted mb-4">{t('inventory.categoryBreakdownDesc')}</p>
+            <p className="text-xs text-foreground-muted mb-1">{t('inventory.categoryBreakdownDesc')}</p>
+            {categoryBreakdown.length > 0 && categoryCoverage.percent < 100 && (
+              <p className="text-xs text-warning mb-3">
+                {t('inventory.categoryCoverage', {
+                  count: categoryCoverage.categorized,
+                  total: categoryCoverage.total,
+                  percent: categoryCoverage.percent
+                })}
+              </p>
+            )}
+            {categoryBreakdown.length > 0 && categoryCoverage.percent === 100 && <div className="mb-4" />}
 
             {categoryBreakdown.length > 0 ? (
               <div className="space-y-2 max-h-48 overflow-y-auto">
@@ -429,6 +631,7 @@ export function InventoryPage() {
               <div className="py-8 text-center">
                 <FolderOpen className="w-10 h-10 text-foreground-muted mx-auto mb-2 opacity-50" />
                 <p className="text-sm text-foreground-muted">{t('inventory.noCategories')}</p>
+                <p className="text-xs text-foreground-muted mt-1 max-w-sm mx-auto">{t('inventory.noCategoriesHint')}</p>
               </div>
             )}
           </div>
