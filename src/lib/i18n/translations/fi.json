@@ -753,6 +753,7 @@
     "negativeStockTitle": "Negatiivisia varastosaldoja",
     "negativeStockDesc": "{{count}} tuotteella on negatiivinen saldo ({{value}}). Ne lasketaan nollana varaston arvossa, joten arvo on todellista suurempi.",
     "negativeStockBundles": "Näistä {{count}} on pakettituotteita ({{value}}), joilla ei ole omaa varastosaldoa — niiden miinus on odotettavaa, ei virhe.",
+    "excludesBundles": "ilman paketteja ({{count}} kpl, {{value}})",
     "turnoverRate": "Varaston kiertonopeus",
     "turnoverRateDesc": "Kuinka monta kertaa varasto 'pyörähtää' vuodessa. Korkeampi on parempi.",
     "avgTurnoverYear": "Keskimääräinen kierto/vuosi",

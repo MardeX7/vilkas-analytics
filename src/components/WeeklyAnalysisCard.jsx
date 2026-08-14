@@ -222,11 +222,15 @@ export function WeeklyAnalysisCard({ dateRange, granularity = 'week' }) {
                 />
                 <KeyInsight
                   label={t('weeklyAnalysis.keyMetrics.biggestImpact')}
-                  value={
-                    displayAnalysis.key_metrics.biggest_impact
-                      ? t(KPI_AREA_TRANSLATIONS[displayAnalysis.key_metrics.biggest_impact] || displayAnalysis.key_metrics.biggest_impact)
-                      : '—'
-                  }
+                  value={(() => {
+                    const raw = displayAnalysis.key_metrics.biggest_impact
+                    if (!raw) return '—'
+                    // Only translate known KPI area keys; never pass an arbitrary AI-returned
+                    // value to t() — bare namespace keys (e.g. "inventory") resolve to objects
+                    // and crash React with error #31.
+                    const mapped = KPI_AREA_TRANSLATIONS[raw]
+                    return mapped ? t(mapped) : String(raw)
+                  })()}
                   type="text"
                 />
                 <KeyInsight

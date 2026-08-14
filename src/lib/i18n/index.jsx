@@ -70,11 +70,19 @@ export function LanguageProvider({ children }) {
     if (translation === '' || translation === undefined) {
       const fallbackLang = language === 'fi' ? 'sv' : 'fi'
       const fallback = get(translations[fallbackLang], key)
-      if (fallback) {
+      if (fallback && typeof fallback === 'string') {
         return interpolate(fallback, vars)
       }
       // Return key if no translation found (for debugging)
       console.warn(`Missing translation: ${key}`)
+      return key
+    }
+
+    // Guard: if a caller passes a namespace key (e.g. "inventory") get() returns
+    // the whole sub-object. Rendering that as a React child throws error #31 and
+    // unmounts the entire app. Return the key instead so we render harmless text.
+    if (typeof translation !== 'string') {
+      console.warn(`Translation key "${key}" resolved to non-string (${typeof translation}). Did you mean a sub-key?`)
       return key
     }
 

@@ -308,7 +308,14 @@ export function InventoryPage() {
             label={t('inventory.totalValue')}
             value={summary.totalValue}
             suffix={currencySymbol}
-            subValue={t('inventory.atCostPrice')}
+            subValue={
+              summary.bundleCount > 0
+                ? `${t('inventory.atCostPrice')}, ${t('inventory.excludesBundles', {
+                    count: summary.bundleCount,
+                    value: fmtCurrency(summary.bundleValue)
+                  })}`
+                : t('inventory.atCostPrice')
+            }
           />
           <MetricCard
             label={<span className="inline-flex items-center">{t('inventory.productsInStock')}<InfoTooltip text={t('inventory.stockTrackingInfo')} /></span>}

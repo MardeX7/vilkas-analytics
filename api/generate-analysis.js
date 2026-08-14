@@ -364,10 +364,18 @@ export async function fetchContextData(dateRange, STORE_ID, SHOP_ID) {
         : 0
 
       const negativeStock = enrichedProducts.filter(p => (p.stock_level || 0) < 0)
+      // Bundles inherit their level from the components attached to them; counting
+      // both double counts the same goods. Matches useInventory.js and the
+      // get_inventory_history_aggregated RPC.
+      const isBundleProduct = (p) => /paket|bundle/i.test(p.name || '')
+      const bundleValue = enrichedProducts.filter(isBundleProduct).reduce((sum, p) => sum + p.stockValue, 0)
 
       inventoryMetrics = {
         avgTurnover: Math.round(avgTurnover * 10) / 10,
-        totalStockValue: Math.round(enrichedProducts.reduce((sum, p) => sum + p.stockValue, 0)),
+        totalStockValue: Math.round(
+          enrichedProducts.filter(p => !isBundleProduct(p)).reduce((sum, p) => sum + p.stockValue, 0)
+        ),
+        bundleValue: Math.round(bundleValue),
         productsWithStock: enrichedProducts.filter(p => p.stock_level > 0).length,
         negativeStock: {
           count: negativeStock.length,
@@ -784,8 +792,8 @@ export function buildUserPrompt(contextData, periodNumber, year, language = 'fi'
       ? `- Keskikiertonopeus: ${inventoryMetrics.avgTurnover}x/vuosi\n`
       : `- Genomsnittlig omsättning: ${inventoryMetrics.avgTurnover}x/år\n`
     prompt += isFi
-      ? `- Varaston arvo: ${inventoryMetrics.totalStockValue.toLocaleString()} ${currencySymbol}\n`
-      : `- Lagervärde: ${inventoryMetrics.totalStockValue.toLocaleString()} ${currencySymbol}\n`
+      ? `- Varaston arvo: ${inventoryMetrics.totalStockValue.toLocaleString()} ${currencySymbol} (ilman pakettituotteita, jotka perivät saldon komponenteiltaan — ${(inventoryMetrics.bundleValue || 0).toLocaleString()} ${currencySymbol})\n`
+      : `- Lagervärde: ${inventoryMetrics.totalStockValue.toLocaleString()} ${currencySymbol} (exkl. paketprodukter som ärver saldot från sina komponenter — ${(inventoryMetrics.bundleValue || 0).toLocaleString()} ${currencySymbol})\n`
     prompt += isFi
       ? `- Tuotteita varastossa: ${inventoryMetrics.productsWithStock}\n\n`
       : `- Produkter i lager: ${inventoryMetrics.productsWithStock}\n\n`

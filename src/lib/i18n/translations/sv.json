@@ -695,6 +695,7 @@
     "negativeStockTitle": "Negativa lagersaldon",
     "negativeStockDesc": "{{count}} produkter har negativt saldo ({{value}}). De räknas som noll i lagervärdet, så värdet är högre än det verkliga.",
     "negativeStockBundles": "Av dessa är {{count}} paketprodukter ({{value}}) utan eget lagersaldo — deras minus är väntat, inte ett fel.",
+    "excludesBundles": "exkl. paket ({{count}} st, {{value}})",
     "turnoverRate": "Lageromsättningshastighet",
     "turnoverRateDesc": "Hur många gånger lagret 'roterar' per år. Högre är bättre.",
     "avgTurnoverYear": "Genomsnittlig omsättning/år",

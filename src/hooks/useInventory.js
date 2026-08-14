@@ -50,6 +50,8 @@ export function useInventory() {
   // Summary metrics
   const [summary, setSummary] = useState({
     totalValue: 0,
+    bundleValue: 0,
+    bundleCount: 0,
     totalProducts: 0,
     productsInStock: 0,
     outOfStockCount: 0,
@@ -271,7 +273,10 @@ export function useInventory() {
       setProductInventory(enrichedProducts)
 
       // 4. Calculate summary metrics
-      const totalValue = enrichedProducts.reduce((sum, p) => sum + p.stockValue, 0)
+      // Bundles inherit their stock level from the components attached to them, so
+      // counting both double counts the same goods. Components only.
+      const bundleValue = enrichedProducts.filter(isBundle).reduce((sum, p) => sum + p.stockValue, 0)
+      const totalValue = enrichedProducts.filter(p => !isBundle(p)).reduce((sum, p) => sum + p.stockValue, 0)
 
       // Negative stock levels are clamped to zero in stockValue above, so without
       // this they would vanish silently instead of being flagged.
@@ -312,6 +317,8 @@ export function useInventory() {
 
       setSummary({
         totalValue,
+        bundleValue: Math.round(bundleValue),
+        bundleCount: enrichedProducts.filter(isBundle).length,
         totalProducts: products.length,
         productsInStock,
         outOfStockCount,
@@ -561,22 +568,28 @@ export function useInventory() {
         // Map RPC result to expected format
         // Allow all values (including low/zero) to keep chart continuous
         // Negative snapshots are cleaned up in DB migration
+        // bundle_value only exists once 20260814_exclude_bundles_from_inventory_value
+        // has run. Until then the RPC still totals bundles in, so keep today's point
+        // on the same basis rather than dropping it off the series.
+        const historyExcludesBundles = historyData.some(h => h.bundle_value !== undefined)
         const validHistory = historyData
           .filter(h => h.total_value != null)
           .map(h => ({
             date: h.snapshot_date,
             totalValue: Math.max(Number(h.total_value), 0),
-            productCount: Number(h.product_count)
+            productCount: Number(h.product_count),
+            bundleValue: h.bundle_value != null ? Number(h.bundle_value) : null
           }))
 
         // Add today's calculated value (from products, not snapshots)
+        const todayValue = historyExcludesBundles ? totalValue : totalValue + bundleValue
         const today = new Date().toISOString().split('T')[0]
         const todayEntry = validHistory.find(h => h.date === today)
-        if (!todayEntry && totalValue > 0) {
-          validHistory.push({ date: today, totalValue, productCount: productsInStock })
-        } else if (todayEntry && todayEntry.totalValue === 0 && totalValue > 0) {
+        if (!todayEntry && todayValue > 0) {
+          validHistory.push({ date: today, totalValue: todayValue, productCount: productsInStock })
+        } else if (todayEntry && todayEntry.totalValue === 0 && todayValue > 0) {
           // Replace buggy snapshot with calculated value
-          todayEntry.totalValue = totalValue
+          todayEntry.totalValue = todayValue
           todayEntry.productCount = productsInStock
         }
 
@@ -593,7 +606,7 @@ export function useInventory() {
         // Get latest snapshot value (for short-term comparisons)
         // For current value, prefer today's snapshot if available, otherwise use calculated
         const latestSnapshot = validHistory.length > 0 ? validHistory[validHistory.length - 1] : null
-        const latestSnapshotValue = latestSnapshot?.totalValue || totalValue
+        const latestSnapshotValue = latestSnapshot?.totalValue || todayValue
 
         const getValueAtDaysAgo = (daysAgo) => {
           const targetDate = new Date(now)
@@ -654,7 +667,7 @@ export function useInventory() {
 
           // For short periods, compare snapshot to snapshot (not calculated to snapshot)
           // This ensures consistent comparison
-          const currentValue = useExactMatch ? latestSnapshotValue : totalValue
+          const currentValue = useExactMatch ? latestSnapshotValue : todayValue
 
           const change = currentValue - pastValue
           const changePercent = (change / pastValue) * 100
