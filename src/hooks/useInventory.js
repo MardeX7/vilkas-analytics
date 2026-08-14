@@ -214,17 +214,31 @@ export function useInventory() {
           )
         : []
       // One product can sit in several categories; pick a single primary one so
-      // stock value is never counted twice.
+      // stock value is never counted twice. The primary is the category used by
+      // most products in the catalogue, which keeps reporting on the main groups
+      // instead of scattering value across niche ones. Ties fall back to the
+      // shop's own ordering (position_category).
+      const labelOf = (c) => c.level2 || c.display_name || c.category_path
+      const validLinks = productLinks.filter(l => categoryById[l.category_id])
+      const categoryUsage = {}
+      validLinks.forEach(l => {
+        const key = labelOf(categoryById[l.category_id])
+        categoryUsage[key] = (categoryUsage[key] || 0) + 1
+      })
       const primaryCategory = {}
-      productLinks
-        .filter(l => categoryById[l.category_id])
-        .sort((a, b) => (a.position_category ?? 9999) - (b.position_category ?? 9999))
-        .forEach(l => {
-          if (!primaryCategory[l.product_id]) {
-            const c = categoryById[l.category_id]
-            primaryCategory[l.product_id] = c.level2 || c.display_name || c.category_path
-          }
-        })
+      const linksByProduct = {}
+      validLinks.forEach(l => {
+        (linksByProduct[l.product_id] = linksByProduct[l.product_id] || []).push(l)
+      })
+      Object.entries(linksByProduct).forEach(([productId, links]) => {
+        const best = links.slice().sort((a, b) => {
+          const usageDiff = categoryUsage[labelOf(categoryById[b.category_id])]
+            - categoryUsage[labelOf(categoryById[a.category_id])]
+          if (usageDiff !== 0) return usageDiff
+          return (a.position_category ?? 9999) - (b.position_category ?? 9999)
+        })[0]
+        primaryCategory[productId] = labelOf(categoryById[best.category_id])
+      })
 
       // Calculate sales velocity per product (by SKU)
       const salesByProduct = {}
