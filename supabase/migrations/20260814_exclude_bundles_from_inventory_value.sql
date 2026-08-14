@@ -17,7 +17,14 @@
 -- becomes correct retroactively and this migration is reversible by restoring
 -- the previous function body.
 
-CREATE OR REPLACE FUNCTION get_inventory_history_aggregated(
+-- Adding bundle_value changes the return type, which CREATE OR REPLACE cannot do
+-- (42P13). Wrapped in a transaction so the function is never missing for a live
+-- request: the drop and the recreate become visible at the same instant.
+BEGIN;
+
+DROP FUNCTION IF EXISTS get_inventory_history_aggregated(UUID, INT);
+
+CREATE FUNCTION get_inventory_history_aggregated(
   p_store_id UUID,
   p_days_back INT DEFAULT 365
 )
@@ -37,7 +44,9 @@ BEGIN
     s.snapshot_date,
     -- Stock held as components only. GREATEST guards the 745 legacy rows written
     -- before the snapshot function started clamping negative levels.
-    SUM(GREATEST(s.stock_value, 0)) FILTER (WHERE p.name !~* '(paket|bundle)')::NUMERIC AS total_value,
+    -- COALESCE: a FILTER that matches nothing yields NULL, and the frontend drops
+    -- NULL days out of the chart entirely.
+    COALESCE(SUM(GREATEST(s.stock_value, 0)) FILTER (WHERE p.name !~* '(paket|bundle)'), 0)::NUMERIC AS total_value,
     COUNT(*) FILTER (WHERE p.name !~* '(paket|bundle)' AND s.stock_level > 0)::BIGINT AS product_count,
     -- Reported separately so the UI can show what was excluded rather than
     -- silently dropping half the number.
@@ -51,5 +60,16 @@ BEGIN
 END;
 $$;
 
+-- DROP discards the old function's grants, so restore them explicitly rather
+-- than relying on the PUBLIC default.
+GRANT EXECUTE ON FUNCTION get_inventory_history_aggregated(UUID, INT)
+  TO anon, authenticated, service_role;
+
 COMMENT ON FUNCTION get_inventory_history_aggregated IS
 'Daily inventory value totals, excluding bundle products whose stock level is inherited from their components (would double count). bundle_value reports the excluded amount.';
+
+-- PostgREST caches the schema; without this the new column stays invisible to the
+-- frontend until the cache happens to refresh.
+NOTIFY pgrst, 'reload schema';
+
+COMMIT;

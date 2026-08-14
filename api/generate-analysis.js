@@ -937,40 +937,44 @@ export default async function handler(req, res) {
     const periodNumber = isMonthly ? targetMonth : targetWeek
     const userPrompt = buildUserPrompt(contextData, periodNumber, targetYear, language, isMonthly, currencySymbol)
 
-    // Call Deepseek API (OpenAI-compatible)
-    const response = await deepseek.chat.completions.create({
-      model: 'deepseek-chat',
-      max_tokens: 4000,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt }
-      ]
-    })
+    // Never save a truncated or malformed reply — it would render as raw text in
+    // the UI. Retry once first: the failures are sampling artefacts (unescaped
+    // control characters, a cut-off object) that a second attempt usually avoids.
+    let analysisContent = null
+    let lastError = null
+    let response = null
 
-    // Refuse to save truncated/malformed responses — better to return an error and
-    // let the user retry than to persist a half-baked JSON blob that renders as
-    // raw text in the UI.
-    const finishReason = response.choices[0].finish_reason
-    if (finishReason === 'length') {
-      console.error(`AI response truncated (finish_reason=length, max_tokens=4000)`)
-      return res.status(502).json({
-        error: 'AI response truncated — please retry. Consider shortening the analysis scope or increasing max_tokens.'
+    for (let attempt = 1; attempt <= 2 && !analysisContent; attempt++) {
+      response = await deepseek.chat.completions.create({
+        model: 'deepseek-chat',
+        max_tokens: 4000,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
+        ]
       })
+
+      if (response.choices[0].finish_reason === 'length') {
+        lastError = 'AI response truncated (finish_reason=length, max_tokens=4000)'
+        console.error(`${lastError} — attempt ${attempt}/2`)
+        continue
+      }
+
+      try {
+        let responseText = response.choices[0].message.content
+        // Strip markdown code block markers (```json ... ```)
+        responseText = responseText.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '')
+        const jsonMatch = responseText.match(/\{[\s\S]*\}/)
+        if (!jsonMatch) throw new Error('No JSON object found in AI response')
+        analysisContent = JSON.parse(jsonMatch[0])
+      } catch (parseError) {
+        lastError = `AI response was not valid JSON (${parseError.message})`
+        console.error(`${lastError} — attempt ${attempt}/2`)
+      }
     }
 
-    let analysisContent
-    try {
-      let responseText = response.choices[0].message.content
-      // Strip markdown code block markers (```json ... ```)
-      responseText = responseText.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '')
-      const jsonMatch = responseText.match(/\{[\s\S]*\}/)
-      if (!jsonMatch) throw new Error('No JSON object found in AI response')
-      analysisContent = JSON.parse(jsonMatch[0])
-    } catch (parseError) {
-      console.error('Failed to parse AI response:', parseError.message)
-      return res.status(502).json({
-        error: `AI response was not valid JSON (${parseError.message}). Please retry.`
-      })
+    if (!analysisContent) {
+      return res.status(502).json({ error: `${lastError}. Please retry.` })
     }
 
     // Add language to content
