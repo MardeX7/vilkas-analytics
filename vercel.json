@@ -19,6 +19,10 @@
       "schedule": "8 6 * * *"
     },
     {
+      "path": "/api/cron/sync-categories",
+      "schedule": "20 6 * * 1"
+    },
+    {
       "path": "/api/cron/send-morning-brief-slack",
       "schedule": "15 6 * * *"
     },
