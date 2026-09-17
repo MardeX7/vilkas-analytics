@@ -83,6 +83,32 @@ function scale(value, min, max) {
   return Math.round(((value - min) / (max - min)) * 100)
 }
 
+// Multiplier that turns a VAT-inclusive amount into a net one, read from the order
+// itself. Falls back to the VAT_RATES divisor when the order has no split - 12 orders
+// have a null total_before_tax, all but one of them zero-value.
+export function netFactor(order, vatRate) {
+  const gross = parseFloat(order.grand_total) || 0
+  let net = parseFloat(order.total_before_tax)
+  if (!Number.isFinite(net)) {
+    // Only a tax amount that is actually present tells us the split. Treating a
+    // missing total_tax as zero would read as "no VAT on this order" and hand back
+    // a factor of 1, which inflates the margin by the whole VAT rate.
+    const tax = parseFloat(order.total_tax)
+    net = Number.isFinite(tax) && tax > 0 ? gross - tax : NaN
+  }
+  if (gross > 0 && net > 0 && net <= gross) return net / gross
+  return 1 / vatRate
+}
+
+// order_line_items.quantity is rounded to a whole number, so paint sold by the litre
+// reports 1 for a 0,5 l line. The ordered amount survives in the prices.
+export function trueQuantity(item) {
+  const unit = parseFloat(item.unit_price) || 0
+  const total = parseFloat(item.total_price) || 0
+  if (unit > 0) return total / unit
+  return parseFloat(item.quantity) || 0
+}
+
 /**
  * Calculate KPI for a single store
  */
@@ -122,7 +148,7 @@ async function calculateKPIForStore(supabase, storeId, granularity, force, count
   // Fetch orders for this period
   const { data: orders, error: ordersError } = await supabase
     .from('orders')
-    .select('id, creation_date, grand_total, customer_id')
+    .select('id, creation_date, grand_total, total_before_tax, total_tax, customer_id')
     .eq('store_id', storeId)
     .gte('creation_date', periodStart)
     .lte('creation_date', periodEnd + 'T23:59:59')
@@ -135,7 +161,7 @@ async function calculateKPIForStore(supabase, storeId, granularity, force, count
   if (orderIds.length > 0) {
     const { data: items } = await supabase
       .from('order_line_items')
-      .select('order_id, product_id, quantity, total_price')
+      .select('order_id, product_number, quantity, unit_price, total_price')
       .in('order_id', orderIds)
     lineItems = items || []
   }
@@ -143,11 +169,21 @@ async function calculateKPIForStore(supabase, storeId, granularity, force, count
   // Fetch products with cost_price
   const { data: products } = await supabase
     .from('products')
-    .select('id, cost_price, stock_level')
+    .select('id, product_number, cost_price, stock_level')
     .eq('store_id', storeId)
 
+  // Keyed by product_number, not id: order_line_items.product_id is NULL on every
+  // row, so an id lookup never matched and every line fell through to the margin
+  // assumption below. A handful of product_numbers occur twice within a store;
+  // keep the higher cost_price so the margin is not flattered by a stale row.
   const productMap = {}
-  products?.forEach(p => { productMap[p.id] = p })
+  products?.forEach(p => {
+    if (!p.product_number) return
+    const seen = productMap[p.product_number]
+    if (!seen || (parseFloat(p.cost_price) || 0) > (parseFloat(seen.cost_price) || 0)) {
+      productMap[p.product_number] = p
+    }
+  })
 
   // Group line items by order
   const lineItemsByOrder = {}
@@ -158,8 +194,8 @@ async function calculateKPIForStore(supabase, storeId, granularity, force, count
 
   // Calculate metrics
   const orderCount = orders?.length || 0
-  const totalRevenue = orders?.reduce((sum, o) => sum + (parseFloat(o.grand_total) || 0), 0) || 0
-  const nettoRevenue = totalRevenue / VAT_RATE
+  const nettoRevenue = orders?.reduce(
+    (sum, o) => sum + (parseFloat(o.grand_total) || 0) * netFactor(o, VAT_RATE), 0) || 0
   const aov = orderCount > 0 ? nettoRevenue / orderCount : 0
   const uniqueCustomers = new Set(orders?.map(o => o.customer_id).filter(Boolean)).size
 
@@ -169,21 +205,26 @@ async function calculateKPIForStore(supabase, storeId, granularity, force, count
   let hasLineItems = false
 
   orders?.forEach(order => {
+    // The order carries its own VAT split; VAT_RATE is only a fallback. The table
+    // is stale (it has Finland at 24 %, the real rate is 25,5 %) and a hardcoded
+    // divisor silently shifts the margin whenever a rate changes.
+    const orderVat = netFactor(order, VAT_RATE)
     const items = lineItemsByOrder[order.id] || []
     if (items.length > 0) {
       hasLineItems = true
       items.forEach(item => {
-        const salesNetto = (parseFloat(item.total_price) || 0) / VAT_RATE
+        const salesNetto = (parseFloat(item.total_price) || 0) * orderVat
         totalSalesNetto += salesNetto
-        const product = productMap[item.product_id]
-        if (product?.cost_price) {
-          totalCost += product.cost_price * item.quantity
+        const product = productMap[item.product_number]
+        const costPrice = parseFloat(product?.cost_price) || 0
+        if (costPrice > 0) {
+          totalCost += costPrice * trueQuantity(item)
         } else {
           totalCost += salesNetto * 0.4
         }
       })
     } else {
-      const orderNetto = (parseFloat(order.grand_total) || 0) / VAT_RATE
+      const orderNetto = (parseFloat(order.grand_total) || 0) * orderVat
       totalSalesNetto += orderNetto
       totalCost += orderNetto * 0.4
     }
