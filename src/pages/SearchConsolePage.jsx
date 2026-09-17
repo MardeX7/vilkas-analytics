@@ -76,9 +76,12 @@ export function SearchConsolePage() {
   const ctrChange = comparisonEnabled && previousSummary
     ? getChangePercent(summary?.avgCtr, previousSummary.avgCtr)
     : null
-  // For position, lower is better, so invert the comparison
+  // Position is measured like every other metric here; the MetricCard's
+  // invertDelta prop handles "lower is better" when colouring the delta.
+  // Swapping the arguments here as well flipped it back and also divided by the
+  // current value instead of the baseline.
   const positionChange = comparisonEnabled && previousSummary
-    ? getChangePercent(previousSummary.avgPosition, summary?.avgPosition)
+    ? getChangePercent(summary?.avgPosition, previousSummary.avgPosition)
     : null
 
   // Keyword stats changes

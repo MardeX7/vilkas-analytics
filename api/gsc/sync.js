@@ -156,35 +156,49 @@ export default async function handler(req, res) {
     }
 
     // 2. FETCH DETAILED DATA (all dimensions for queries/pages breakdown)
-    const gscResponse = await fetch(
-      `https://www.googleapis.com/webmasters/v3/sites/${encodeURIComponent(tokenData.site_url)}/searchAnalytics/query`,
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          startDate,
-          endDate,
-          dimensions: ['date', 'query', 'page', 'device', 'country'],
-          rowLimit: 25000
+    // A single response is capped at 25000 rows, which a busy property exceeds
+    // in a few days - page through with startRow or the rest is silently lost.
+    const GSC_MAX_ROWS_PER_REQUEST = 25000
+    const rows = []
+    let startRow = 0
+
+    while (true) {
+      const gscResponse = await fetch(
+        `https://www.googleapis.com/webmasters/v3/sites/${encodeURIComponent(tokenData.site_url)}/searchAnalytics/query`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            startDate,
+            endDate,
+            dimensions: ['date', 'query', 'page', 'device', 'country'],
+            rowLimit: GSC_MAX_ROWS_PER_REQUEST,
+            startRow
+          })
+        }
+      )
+
+      const gscData = await gscResponse.json()
+
+      if (gscData.error) {
+        console.error('GSC Detailed API error:', JSON.stringify(gscData.error))
+        return res.status(gscResponse.status || 500).json({
+          error: gscData.error.message || 'GSC API error',
+          code: gscData.error.code,
+          daily_totals_synced: dailyUpserted
         })
       }
-    )
 
-    const gscData = await gscResponse.json()
+      const page = gscData.rows || []
+      rows.push(...page)
 
-    if (gscData.error) {
-      console.error('GSC Detailed API error:', JSON.stringify(gscData.error))
-      return res.status(gscResponse.status || 500).json({
-        error: gscData.error.message || 'GSC API error',
-        code: gscData.error.code,
-        daily_totals_synced: dailyUpserted
-      })
+      if (page.length < GSC_MAX_ROWS_PER_REQUEST) break
+      startRow += GSC_MAX_ROWS_PER_REQUEST
     }
 
-    const rows = gscData.rows || []
     console.log(`GSC detailed rows received: ${rows.length}`)
 
     // Transform detailed data

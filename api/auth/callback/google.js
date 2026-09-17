@@ -66,12 +66,22 @@ export default async function handler(req, res) {
     )
     const sitesData = await sitesResponse.json()
 
-    // Find the site matching this shop's domain
+    // Find the site matching this shop's domain.
+    // A shop often has several properties for the same domain (legacy http://,
+    // https://, sc-domain:). Only the canonical one carries the real traffic, so
+    // rank them instead of taking whichever Google happens to list first.
     const sites = sitesData.siteEntry || []
-    const targetSite = (shopDomain
-      ? sites.find(s => s.siteUrl.includes(shopDomain))
-      : null
-    ) || sites[0]
+    const propertyRank = (siteUrl) => {
+      if (siteUrl.startsWith('sc-domain:')) return 0
+      if (siteUrl.startsWith('https://')) return 1
+      return 2
+    }
+    const matchingSites = shopDomain
+      ? sites
+        .filter(s => s.siteUrl.includes(shopDomain))
+        .sort((a, b) => propertyRank(a.siteUrl) - propertyRank(b.siteUrl))
+      : []
+    const targetSite = matchingSites[0] || sites[0]
 
     console.log(`GSC sites available: ${sites.map(s => s.siteUrl).join(', ')}`)
     console.log(`Looking for domain: ${shopDomain}, selected: ${targetSite?.siteUrl}`)

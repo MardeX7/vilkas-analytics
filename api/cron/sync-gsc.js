@@ -150,23 +150,37 @@ async function syncStoreGSC(tokenData, startDate, endDate) {
   }
 
   // 2. Fetch detailed data (query, page, device, country)
-  const detailedResponse = await fetch(gscApiBase, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({
-      startDate,
-      endDate,
-      dimensions: ['date', 'query', 'page', 'device', 'country'],
-      rowLimit: 25000
+  // The API caps a single response at 25000 rows, and a busy property produces
+  // well over that across a 10 day window - page through with startRow or the
+  // tail of the window is silently dropped.
+  const GSC_MAX_ROWS_PER_REQUEST = 25000
+  const rows = []
+  let startRow = 0
+
+  while (true) {
+    const detailedResponse = await fetch(gscApiBase, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        startDate,
+        endDate,
+        dimensions: ['date', 'query', 'page', 'device', 'country'],
+        rowLimit: GSC_MAX_ROWS_PER_REQUEST,
+        startRow
+      })
     })
-  })
 
-  const detailedData = await detailedResponse.json()
-  if (detailedData.error) {
-    throw new Error(`GSC Detailed API: ${detailedData.error.message || detailedData.error.status}`)
+    const detailedData = await detailedResponse.json()
+    if (detailedData.error) {
+      throw new Error(`GSC Detailed API: ${detailedData.error.message || detailedData.error.status}`)
+    }
+
+    const page = detailedData.rows || []
+    rows.push(...page)
+
+    if (page.length < GSC_MAX_ROWS_PER_REQUEST) break
+    startRow += GSC_MAX_ROWS_PER_REQUEST
   }
-
-  const rows = detailedData.rows || []
   let detailedSynced = 0
 
   if (rows.length > 0) {

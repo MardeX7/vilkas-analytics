@@ -2,25 +2,32 @@ import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useCurrentShop } from '@/config/storeConfig'
 
-// Helper to fetch all rows with pagination (Supabase has 1000 row limit per request)
-async function fetchAllRows(query, pageSize = 1000) {
-  let allRows = []
+// Helper to fetch all rows with pagination (Supabase has 1000 row limit per request).
+// Takes a factory rather than a query object: pages are requested concurrently and
+// a Supabase query builder carries the range on itself, so every page needs its own.
+// A month of GSC detail data runs to tens of thousands of rows and fetching those
+// pages one after another stalled the dashboard for ~10 seconds.
+async function fetchAllRows(buildQuery, pageSize = 1000, concurrency = 6) {
+  const allRows = []
   let page = 0
-  let hasMore = true
 
-  while (hasMore) {
-    const from = page * pageSize
-    const to = from + pageSize - 1
-    const { data, error } = await query.range(from, to)
+  while (true) {
+    const batch = await Promise.all(
+      Array.from({ length: concurrency }, (_, i) => {
+        const from = (page + i) * pageSize
+        return buildQuery().range(from, from + pageSize - 1)
+      })
+    )
 
-    if (error) throw error
-    if (!data || data.length === 0) {
-      hasMore = false
-    } else {
-      allRows = allRows.concat(data)
-      hasMore = data.length === pageSize
-      page++
+    let reachedEnd = false
+    for (const { data, error } of batch) {
+      if (error) throw error
+      if (data) allRows.push(...data)
+      if (!data || data.length < pageSize) reachedEnd = true
     }
+
+    if (reachedEnd) break
+    page += concurrency
   }
 
   return allRows
@@ -95,99 +102,85 @@ export function useGSC(dateRange = null, comparisonMode = 'mom') {
       if (startDate) dailyQuery = dailyQuery.gte('date', startDate)
       if (endDate) dailyQuery = dailyQuery.lte('date', endDate)
 
-      // Fetch top queries with date filter
-      let queriesQuery = supabase
-        .from('gsc_search_analytics')
-        .select('query, clicks, impressions, ctr, position')
-        .eq('store_id', storeId)
-        .not('query', 'is', null)
+      // Query, page, device and country breakdowns all read the same detail rows,
+      // so fetch them once. This must paginate: a 30 day period is tens of
+      // thousands of rows, and the 1000 row cap silently skewed every metric
+      // derived from it.
+      // order('date') rides the (store_id, date) index and id only breaks ties -
+      // ordering by id alone made this query time out on a million row table.
+      const buildDetailQuery = () => {
+        let q = supabase
+          .from('gsc_search_analytics')
+          .select('query, page, device, country, clicks, impressions, ctr, position')
+          .eq('store_id', storeId)
+          .order('date')
+          .order('id')
 
-      if (startDate) queriesQuery = queriesQuery.gte('date', startDate)
-      if (endDate) queriesQuery = queriesQuery.lte('date', endDate)
+        if (startDate) q = q.gte('date', startDate)
+        if (endDate) q = q.lte('date', endDate)
+        return q
+      }
 
-      // Fetch top pages with date filter
-      let pagesQuery = supabase
-        .from('gsc_search_analytics')
-        .select('page, clicks, impressions, ctr, position')
-        .eq('store_id', storeId)
-        .not('page', 'is', null)
-
-      if (startDate) pagesQuery = pagesQuery.gte('date', startDate)
-      if (endDate) pagesQuery = pagesQuery.lte('date', endDate)
-
-      // Fetch device breakdown
-      let deviceQuery = supabase
-        .from('gsc_search_analytics')
-        .select('device, clicks, impressions')
-        .eq('store_id', storeId)
-        .not('device', 'is', null)
-
-      if (startDate) deviceQuery = deviceQuery.gte('date', startDate)
-      if (endDate) deviceQuery = deviceQuery.lte('date', endDate)
-
-      // Fetch country breakdown
-      let countryQuery = supabase
-        .from('gsc_search_analytics')
-        .select('country, clicks, impressions')
-        .eq('store_id', storeId)
-        .not('country', 'is', null)
-
-      if (startDate) countryQuery = countryQuery.gte('date', startDate)
-      if (endDate) countryQuery = countryQuery.lte('date', endDate)
-
-      const [dailyRes, queriesRes, pagesRes, deviceRes, countryRes] = await Promise.all([
+      const [dailyRes, detailRows] = await Promise.all([
         dailyQuery.limit(90),
-        queriesQuery,
-        pagesQuery,
-        deviceQuery,
-        countryQuery
+        fetchAllRows(buildDetailQuery)
       ])
 
       // Aggregate queries
+      // GSC reports average position weighted by impressions - a plain mean over
+      // daily rows lets a single low-impression day dominate a keyword's rank
       const queryMap = new Map()
-      queriesRes.data?.forEach(row => {
+      detailRows.forEach(row => {
+        if (!row.query) return
         if (!queryMap.has(row.query)) {
-          queryMap.set(row.query, { query: row.query, clicks: 0, impressions: 0, ctr: 0, position: 0, count: 0 })
+          queryMap.set(row.query, { query: row.query, clicks: 0, impressions: 0, ctr: 0, position: 0, weightedPosition: 0, count: 0 })
         }
         const q = queryMap.get(row.query)
         q.clicks += row.clicks || 0
         q.impressions += row.impressions || 0
         q.position += row.position || 0
+        q.weightedPosition += (row.position || 0) * (row.impressions || 0)
         q.count += 1
       })
+      const avgPositionOf = (agg) => agg.impressions > 0
+        ? agg.weightedPosition / agg.impressions
+        : (agg.count > 0 ? agg.position / agg.count : 0)
       const topQueries = Array.from(queryMap.values())
         .map(q => ({
           ...q,
           ctr: q.impressions > 0 ? q.clicks / q.impressions : 0,
-          position: q.count > 0 ? q.position / q.count : 0
+          position: avgPositionOf(q)
         }))
         .sort((a, b) => b.clicks - a.clicks)
         .slice(0, 20)
 
       // Aggregate pages
       const pageMap = new Map()
-      pagesRes.data?.forEach(row => {
+      detailRows.forEach(row => {
+        if (!row.page) return
         if (!pageMap.has(row.page)) {
-          pageMap.set(row.page, { page: row.page, clicks: 0, impressions: 0, ctr: 0, position: 0, count: 0 })
+          pageMap.set(row.page, { page: row.page, clicks: 0, impressions: 0, ctr: 0, position: 0, weightedPosition: 0, count: 0 })
         }
         const p = pageMap.get(row.page)
         p.clicks += row.clicks || 0
         p.impressions += row.impressions || 0
         p.position += row.position || 0
+        p.weightedPosition += (row.position || 0) * (row.impressions || 0)
         p.count += 1
       })
       const topPages = Array.from(pageMap.values())
         .map(p => ({
           ...p,
           ctr: p.impressions > 0 ? p.clicks / p.impressions : 0,
-          position: p.count > 0 ? p.position / p.count : 0
+          position: avgPositionOf(p)
         }))
         .sort((a, b) => b.clicks - a.clicks)
         .slice(0, 20)
 
       // Aggregate devices
       const deviceMap = new Map()
-      deviceRes.data?.forEach(row => {
+      detailRows.forEach(row => {
+        if (!row.device) return
         if (!deviceMap.has(row.device)) {
           deviceMap.set(row.device, { device: row.device, clicks: 0, impressions: 0 })
         }
@@ -200,7 +193,8 @@ export function useGSC(dateRange = null, comparisonMode = 'mom') {
 
       // Aggregate countries
       const countryMap = new Map()
-      countryRes.data?.forEach(row => {
+      detailRows.forEach(row => {
+        if (!row.country) return
         if (!countryMap.has(row.country)) {
           countryMap.set(row.country, { country: row.country, clicks: 0, impressions: 0 })
         }
@@ -219,16 +213,13 @@ export function useGSC(dateRange = null, comparisonMode = 'mom') {
       const avgCtr = totalImpressions > 0 ? totalClicks / totalImpressions : 0
       const avgPosition = dailySummary.reduce((sum, d) => sum + (d.avg_position || 0), 0) / Math.max(dailySummary.length, 1)
 
-      // Calculate Keyword Ranking Buckets (unique keywords by position)
+      // Calculate Keyword Ranking Buckets (unique keywords by position).
+      // Uses the impression-weighted average position, not the best position the
+      // keyword ever reached - taking the minimum across every day/page/device/country
+      // row put nearly every keyword on page 1 and left the 20+ bucket permanently empty.
       const uniqueKeywordPositions = new Map()
-      queriesRes.data?.forEach(row => {
-        if (row.query) {
-          // Keep the best (lowest) position for each keyword
-          const current = uniqueKeywordPositions.get(row.query)
-          if (!current || row.position < current) {
-            uniqueKeywordPositions.set(row.query, row.position)
-          }
-        }
+      queryMap.forEach((agg, query) => {
+        uniqueKeywordPositions.set(query, avgPositionOf(agg))
       })
 
       const totalUniqueKeywords = uniqueKeywordPositions.size
@@ -308,23 +299,33 @@ export function useGSC(dateRange = null, comparisonMode = 'mom') {
           }
 
           // Fetch previous period keyword data for comparison
-          const prevQueriesQuery = await supabase
-            .from('gsc_search_analytics')
-            .select('query, position')
-            .eq('store_id', storeId)
-            .not('query', 'is', null)
-            .gte('date', prevStart)
-            .lte('date', prevEnd)
+          const prevQueryRows = await fetchAllRows(() =>
+            supabase
+              .from('gsc_search_analytics')
+              .select('query, position, impressions')
+              .eq('store_id', storeId)
+              .not('query', 'is', null)
+              .gte('date', prevStart)
+              .lte('date', prevEnd)
+              .order('date')
+              .order('id')
+          )
 
-          // Calculate previous keyword buckets
+          // Calculate previous keyword buckets - same impression-weighted
+          // methodology as the current period, or the comparison is meaningless
+          const prevQueryMap = new Map()
+          prevQueryRows.forEach(row => {
+            const agg = prevQueryMap.get(row.query) || { impressions: 0, position: 0, weightedPosition: 0, count: 0 }
+            agg.impressions += row.impressions || 0
+            agg.position += row.position || 0
+            agg.weightedPosition += (row.position || 0) * (row.impressions || 0)
+            agg.count += 1
+            prevQueryMap.set(row.query, agg)
+          })
+
           const prevUniqueKeywordPositions = new Map()
-          prevQueriesQuery.data?.forEach(row => {
-            if (row.query) {
-              const current = prevUniqueKeywordPositions.get(row.query)
-              if (!current || row.position < current) {
-                prevUniqueKeywordPositions.set(row.query, row.position)
-              }
-            }
+          prevQueryMap.forEach((agg, query) => {
+            prevUniqueKeywordPositions.set(query, avgPositionOf(agg))
           })
 
           previousTotalUniqueKeywords = prevUniqueKeywordPositions.size
@@ -356,7 +357,7 @@ export function useGSC(dateRange = null, comparisonMode = 'mom') {
 
       // Fetch page-level data for 3 weeks using pagination
       // Supabase has 1000 row limit per request, so we need to paginate
-      const riskData = await fetchAllRows(
+      const riskData = await fetchAllRows(() =>
         supabase
           .from('gsc_search_analytics')
           .select('page, clicks, impressions, ctr, position, date')
@@ -364,6 +365,7 @@ export function useGSC(dateRange = null, comparisonMode = 'mom') {
           .not('page', 'is', null)
           .gte('date', threeWeeksAgoStr)
           .order('date', { ascending: true })
+          .order('id')
       )
 
       // Group data by page and week
