@@ -8,6 +8,13 @@ Kommunikoi suomeksi. Koodikommentit ja commit-viestit englanniksi.
 
 ## Projektin kuvaus
 
+> **TÄSSÄ REPOSSA ON KAKSI KAUPPAA.** Automaalit.net (Suomi, EUR) **ja**
+> Billackering.eu (Ruotsi, SEK). Jokainen kysely, näkymä ja cron on
+> kauppakohtainen — mikään luku ei ole "koko liiketoiminta" ellei se ole
+> nimenomaan summattu molemmista. Automaalit.netiä koskeva analytiikkatyö
+> kuuluu **tänne**, ei `~/dev/Automaalit-net`-repoon, joka on
+> uutiskirjedashboard (MailerLite).
+
 VilkasAnalytics on multi-tenant verkkokauppa-analytiikkatyökalu kahdelle automaalien verkkokaupalla. Suomessa verkkokauppa on www.automaalit.net ja Ruotsissa www.billackering.eu. Molemmat ovat samaa yritystä. 
 
 Sovellus yhdistää ePages-verkkokaupan, Google Search Consolen, GA4:n ja Jiran dataa yhteen dashboardiin, ja tarjoaa AI-pohjaisia analyyseja ja suosituksia.
@@ -41,9 +48,43 @@ Ei testikehystä konfiguroituna — tämä on dev-only-projekti ilman automaatti
 | Billackering.eu | a28836f6-9487-4b67-9194-e907eaf94b69 | 3b93e9b1-d64c-4686-a14a-bec535495f71 | SEK | sv |
 | Automaalit.net | 9a0ba934-bd6c-428c-8729-791d5c7ac7c2 | 9355ace7-3548-4023-91c8-5e9c14003c31 | EUR | fi |
 
+### Valuutta: älä lue sitä orders- tai stores-taulusta
+
+**`orders.currency` on väärä molemmissa kaupoissa**, eri suuntaan ja eri aikaan.
+Automaalitilla (EUR-kauppa) arvo oli EUR tammikuun 2026 loppuun ja on ollut SEK
+helmikuusta 2026; tammikuu on sekakuukausi (EUR 283 / SEK 15). Billackeringilla
+arvo vaihtui joulukuussa 2025, eli siellä se on nyt oikein ja oli ennen väärin.
+
+Juurisyy on kahdessa synkkatiedostossa, jotka kirjoittavat eri kovakoodatun
+vakion:
+
+```js
+api/cron/sync-epages.js:167        ... : 'SEK'   // päiväcron
+api/cron/sync-epages-range.js:149  ... : 'EUR'   // historiatäyttö
+```
+
+Molemmat testaavat `typeof order.grandTotal === 'object'`, mutta ePages palauttaa
+`grandTotal`in **merkkijonona** ("806", "294.03"), joten ehto on aina epätosi ja
+koodi ottaa aina kovakoodatun haaran. Oikea arvo `currencyId` on vieressä samassa
+vastauksessa eikä sitä lueta koskaan. Vaihtumispäivä on kaupoittain eri, koska
+kummankin historiatäyttö päättyi eri aikaan. Koskemattomat rivit kantavat lisäksi
+skeeman oletusta `currency TEXT DEFAULT 'EUR'`
+(`001_initial_schema.sql:117`).
+
+**`stores.currency` on hyödytön** — se on `'EUR'` **molemmille** kaupoille, koska
+`001_initial_schema.sql:15` asettaa oletuksen eikä sitä koskaan ylikirjoiteta.
+Se ei siis ole väärä vain toiselle, vaan vakio.
+
+Lue valuutta `shops.currency`-sarakkeesta (oikein: FI EUR, SE SEK) tai
+`products.price_currency`ista (FI 461 EUR / 1 SEK, SE 470 SEK / 0 EUR).
+Summat itsessään ovat aina kaupan omassa valuutassa; vain leima on rikki.
+`*_eur`-sarakkeita eikä `exchange_rates`-taulua ei tässä repossa ole.
+
 ## Kaksi-ID-järjestelmä (KRIITTINEN)
 
-- **store_id** (stores.id, TEXT) = ePages-taulut: `orders`, `products`, `order_line_items`, `gsc_*`, `ga4_tokens`
+- **store_id** = ePages-taulut: `orders`, `products`, `order_line_items`, `gsc_*`, `ga4_tokens`.
+  Huom: `stores.id` on **uuid**, mutta `shops.store_id` on **text** joka sisältää
+  saman uuid:n merkkijonona — liitos on `shops.store_id::uuid = stores.id`.
 - **shop_id** (shops.id, UUID) = analytics-taulut: `weekly_analyses`, `support_tickets`, `paste_*`, `growth_engine_snapshots` jne.
 
 Käytä `useCurrentShop()` hookia — se palauttaa molemmat. Konfiguraatio: `src/config/storeConfig.js`.
