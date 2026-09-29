@@ -260,9 +260,10 @@ export function Dashboard() {
             subValue={summary?.isEstimated
               ? (language === 'fi' ? '(arvio)' : '(uppskattning)')
               : summary?.grossProfit ? `(${Math.round(summary.grossProfit).toLocaleString(language === 'fi' ? 'fi-FI' : 'sv-SE')} ${currencySymbol})` : undefined}
-            delta={summary?.isEstimated ? undefined : comparison?.margin}
-            previousValue={dateRange.compare && !summary?.isEstimated ? previousSummary?.marginPercent?.toFixed(1) : undefined}
-            deltaLabel={dateRange.compare && !summary?.isEstimated ? comparisonMode.toUpperCase() : undefined}
+            // No delta when either period's margin is mostly the 60 % assumption
+            delta={summary?.isEstimated || previousSummary?.isEstimated ? undefined : comparison?.margin}
+            previousValue={dateRange.compare && !summary?.isEstimated && !previousSummary?.isEstimated ? previousSummary?.marginPercent?.toFixed(1) : undefined}
+            deltaLabel={dateRange.compare && !summary?.isEstimated && !previousSummary?.isEstimated ? comparisonMode.toUpperCase() : undefined}
           />
           <MetricCard
             label={t('dashboard.metrics.orders')}

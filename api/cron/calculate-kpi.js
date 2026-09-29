@@ -8,15 +8,10 @@
  */
 
 import { createClient } from '@supabase/supabase-js'
+import { pricingFor, netFactor, buildCostMap, marginTotals, isEstimatedMargin } from '../../src/lib/margin.js'
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-
-// VAT rates per country
-const VAT_RATES = {
-  SE: 1.25,  // Sweden 25%
-  FI: 1.24,  // Finland 24%
-}
 
 export const config = {
   maxDuration: 120,
@@ -102,38 +97,13 @@ function scale(value, min, max) {
   return Math.round(((value - min) / (max - min)) * 100)
 }
 
-// Multiplier that turns a VAT-inclusive amount into a net one, read from the order
-// itself. Falls back to the VAT_RATES divisor when the order has no split - 12 orders
-// have a null total_before_tax, all but one of them zero-value.
-export function netFactor(order, vatRate) {
-  const gross = parseFloat(order.grand_total) || 0
-  let net = parseFloat(order.total_before_tax)
-  if (!Number.isFinite(net)) {
-    // Only a tax amount that is actually present tells us the split. Treating a
-    // missing total_tax as zero would read as "no VAT on this order" and hand back
-    // a factor of 1, which inflates the margin by the whole VAT rate.
-    const tax = parseFloat(order.total_tax)
-    net = Number.isFinite(tax) && tax > 0 ? gross - tax : NaN
-  }
-  if (gross > 0 && net > 0 && net <= gross) return net / gross
-  return 1 / vatRate
-}
-
-// order_line_items.quantity is rounded to a whole number, so paint sold by the litre
-// reports 1 for a 0,5 l line. The ordered amount survives in the prices.
-export function trueQuantity(item) {
-  const unit = parseFloat(item.unit_price) || 0
-  const total = parseFloat(item.total_price) || 0
-  if (unit > 0) return total / unit
-  return parseFloat(item.quantity) || 0
-}
-
 /**
  * Calculate KPI for a single store
  */
 // `period` ({ start, end, label }) overrides the previous week/month; used to backfill.
 export async function calculateKPIForStore(supabase, storeId, granularity, force, country, period = null) {
-  const VAT_RATE = VAT_RATES[country] || 1.24
+  // VAT fallback (orders without a net/tax split) and shipping prices for this store
+  const pricing = pricingFor(country)
 
   // Determine period to calculate
   let periodStart, periodEnd, periodLabel
@@ -191,25 +161,14 @@ export async function calculateKPIForStore(supabase, storeId, granularity, force
   }
 
   // Fetch products with cost_price
-  const { data: products } = await supabase
+  const products = await fetchAllRows(() => supabase
     .from('products')
     .select('id, product_number, cost_price, stock_level')
     .eq('store_id', storeId)
+    .order('id', { ascending: true }))
 
-  // Keyed by product_number, not id: order_line_items.product_id is NULL on every
-  // row, so an id lookup never matched and every line fell through to the margin
-  // assumption below. A handful of product_numbers occur twice within a store;
-  // keep the higher cost_price so the margin is not flattered by a stale row.
-  const productMap = {}
-  products?.forEach(p => {
-    if (!p.product_number) return
-    const seen = productMap[p.product_number]
-    if (!seen || (parseFloat(p.cost_price) || 0) > (parseFloat(seen.cost_price) || 0)) {
-      productMap[p.product_number] = p
-    }
-  })
-
-  // Group line items by order
+  // Margin: src/lib/margin.js, the same definition the sales page uses
+  const costMap = buildCostMap(products)
   const lineItemsByOrder = {}
   lineItems.forEach(li => {
     if (!lineItemsByOrder[li.order_id]) lineItemsByOrder[li.order_id] = []
@@ -219,49 +178,15 @@ export async function calculateKPIForStore(supabase, storeId, granularity, force
   // Calculate metrics
   const orderCount = orders?.length || 0
   const nettoRevenue = orders?.reduce(
-    (sum, o) => sum + (parseFloat(o.grand_total) || 0) * netFactor(o, VAT_RATE), 0) || 0
+    (sum, o) => sum + (parseFloat(o.grand_total) || 0) * netFactor(o, pricing.vatRate), 0) || 0
   const aov = orderCount > 0 ? nettoRevenue / orderCount : 0
   const uniqueCustomers = new Set(orders?.map(o => o.customer_id).filter(Boolean)).size
 
   // Calculate gross profit
-  let totalCost = 0
-  let totalSalesNetto = 0
-  let hasLineItems = false
-
-  orders?.forEach(order => {
-    // The order carries its own VAT split; VAT_RATE is only a fallback. The table
-    // is stale (it has Finland at 24 %, the real rate is 25,5 %) and a hardcoded
-    // divisor silently shifts the margin whenever a rate changes.
-    const orderVat = netFactor(order, VAT_RATE)
-    const items = lineItemsByOrder[order.id] || []
-    if (items.length > 0) {
-      hasLineItems = true
-      items.forEach(item => {
-        const salesNetto = (parseFloat(item.total_price) || 0) * orderVat
-        totalSalesNetto += salesNetto
-        const product = productMap[item.product_number]
-        const costPrice = parseFloat(product?.cost_price) || 0
-        const lineCost = costPrice * trueQuantity(item)
-        // Early-2025 lines carry the quantity in ml/m ("500" for a 500 ml can at 0,03),
-        // while cost_price is per package: cost comes out >100x the line's sales. No real
-        // sale is 10x below cost, so treat that as a unit mismatch, not a price. Only for
-        // charged lines: a free BONUS line has zero sales and its cost is real.
-        const unitMismatch = salesNetto > 0 && lineCost > salesNetto * 10
-        if (costPrice > 0 && !unitMismatch) {
-          totalCost += lineCost
-        } else {
-          totalCost += salesNetto * 0.4
-        }
-      })
-    } else {
-      const orderNetto = (parseFloat(order.grand_total) || 0) * orderVat
-      totalSalesNetto += orderNetto
-      totalCost += orderNetto * 0.4
-    }
-  })
-
-  const grossProfit = totalSalesNetto - totalCost
-  const marginPercent = totalSalesNetto > 0 ? (grossProfit / totalSalesNetto) * 100 : 0
+  const margin = marginTotals(
+    orders.map(o => ({ ...o, order_line_items: lineItemsByOrder[o.id] || [] })), costMap, pricing)
+  const grossProfit = margin.grossProfit
+  const marginPercent = margin.marginPercent
 
   // Fetch historical data for scaling (the 12 weeks/months before this period, so a
   // recalculation or backfill does not scale against itself or against later periods)
@@ -357,7 +282,7 @@ export async function calculateKPIForStore(supabase, storeId, granularity, force
         aov,
         gross_profit: grossProfit,
         margin_percent: marginPercent,
-        margin_estimated: !hasLineItems,
+        margin_estimated: isEstimatedMargin(margin),
         unique_customers: uniqueCustomers
       }
     },

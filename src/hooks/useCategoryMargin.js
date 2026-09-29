@@ -1,19 +1,21 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useCurrentShop } from '@/config/storeConfig'
+import { pricingFor, buildCostMap, priceOrderLines } from '@/lib/margin'
 
 /**
  * useCategoryMargin - Hook for product category margin analysis
  *
- * Uses REAL sales data from order_items joined with:
+ * Uses order_line_items joined with:
  * - products (for cost_price)
  * - product_categories (for category mapping)
  * - categories (for level3 category name)
  *
- * This gives accurate sales figures from the webshop database.
+ * Net sales and cost come from src/lib/margin.js, the same margin definition as the
+ * margin card and the KPI snapshots.
  */
 export function useCategoryMargin(dateRange = null) {
-  const { storeId, shopId, ready } = useCurrentShop()
+  const { storeId, shopId, currency, ready } = useCurrentShop()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [data, setData] = useState({
@@ -50,13 +52,15 @@ export function useCategoryMargin(dateRange = null) {
       let allRows = []
       for (let i = 0; i < filterValues.length; i += batchSize) {
         const batch = filterValues.slice(i, i + batchSize)
-        let query = supabase.from(table).select(selectCols).in(filterCol, batch)
-        for (const [col, val] of Object.entries(extraFilters)) {
-          query = query.eq(col, val)
-        }
-        const { data, error } = await query
-        if (error) throw error
-        allRows = allRows.concat(data || [])
+        // A batch of 200 orders can still pass 1000 lines, so page within it too
+        const rows = await fetchAllRows((from, to) => {
+          let query = supabase.from(table).select(selectCols).in(filterCol, batch)
+          for (const [col, val] of Object.entries(extraFilters)) {
+            query = query.eq(col, val)
+          }
+          return query.order('id', { ascending: true }).range(from, to)
+        })
+        allRows = allRows.concat(rows)
       }
       return allRows
     }
@@ -65,13 +69,15 @@ export function useCategoryMargin(dateRange = null) {
       const startDate = dateRange?.startDate
       const endDate = dateRange?.endDate
 
-      // 1. Get orders for the period (paginated)
+      // 1. Get orders for the period (paginated; the unique sort keeps pages from
+      // overlapping or skipping)
       const orders = await fetchAllRows((from, to) => {
         let q = supabase
           .from('orders')
-          .select('id')
+          .select('id, grand_total, total_before_tax, total_tax')
           .eq('store_id', storeId)
           .neq('status', 'cancelled')
+          .order('id', { ascending: true })
           .range(from, to)
         if (startDate) q = q.gte('creation_date', startDate)
         if (endDate) q = q.lte('creation_date', endDate + 'T23:59:59')
@@ -91,36 +97,23 @@ export function useCategoryMargin(dateRange = null) {
 
       const orderIds = orders.map(o => o.id)
 
-      // 2. Get order items — try order_items (has shop_id), fall back to order_line_items
-      let items = await fetchWithBatchedIn(
-        'order_items', 'sku, name, quantity, line_total',
-        'order_id', orderIds, { shop_id: shopId }
+      // 2. Get order line items. (The legacy order_items table holds a partial copy
+      // for one store only; order_line_items is complete for both.)
+      const lineItems = await fetchWithBatchedIn(
+        'order_line_items', 'order_id, product_number, product_name, quantity, unit_price, total_price',
+        'order_id', orderIds
       )
-
-      // If order_items is empty, use order_line_items (different column names)
-      if (items.length === 0) {
-        const rawItems = await fetchWithBatchedIn(
-          'order_line_items', 'product_number, product_name, quantity, total_price',
-          'order_id', orderIds
-        )
-        items = rawItems.map(r => ({
-          sku: r.product_number,
-          name: r.product_name,
-          quantity: r.quantity,
-          line_total: r.total_price
-        }))
-      }
 
       // 3. Get products with cost_price (paginated)
       const products = await fetchAllRows((from, to) =>
         supabase.from('products').select('id, product_number, cost_price')
-          .eq('store_id', storeId).range(from, to)
+          .eq('store_id', storeId).order('id', { ascending: true }).range(from, to)
       )
 
       // 4. Get product -> category mappings (paginated)
       const productCategories = await fetchAllRows((from, to) =>
         supabase.from('product_categories').select('product_id, category_id, position')
-          .range(from, to)
+          .order('id', { ascending: true }).range(from, to)
       )
 
       // 5. Get categories with level3 names
@@ -133,13 +126,17 @@ export function useCategoryMargin(dateRange = null) {
 
       // Build lookup maps
       const skuToProductId = new Map()
-      const skuToCost = new Map()
       products?.forEach(p => {
-        if (p.product_number) {
-          skuToProductId.set(p.product_number, p.id)
-          skuToCost.set(p.product_number, p.cost_price || 0)
-        }
+        if (p.product_number) skuToProductId.set(p.product_number, p.id)
       })
+
+      // Price every line: net sales and cost, per the shared margin definition
+      const costMap = buildCostMap(products)
+      const pricing = pricingFor(currency)
+      const linesByOrder = {}
+      lineItems.forEach(li => { (linesByOrder[li.order_id] = linesByOrder[li.order_id] || []).push(li) })
+      const pricedLines = orders.flatMap(o =>
+        linesByOrder[o.id] ? priceOrderLines(o, linesByOrder[o.id], costMap, pricing) : [])
 
       // Build product -> primary category map (use lowest position = top category)
       const productIdToPrimaryCategory = new Map()
@@ -162,16 +159,11 @@ export function useCategoryMargin(dateRange = null) {
       // 6. Aggregate sales by category (level3)
       const categoryMap = new Map()
 
-      items?.forEach(item => {
-        const sku = item.sku
-        const revenue = item.line_total || 0
+      pricedLines.forEach(({ item, sales: revenue, cost }) => {
+        const sku = item.product_number
         const qty = item.quantity || 1
 
         const productId = skuToProductId.get(sku)
-
-        // Get cost price
-        const costPrice = skuToCost.get(sku) || 0
-        const cost = costPrice > 0 ? costPrice * qty : revenue * 0.3 // Estimate 30% if no cost
 
         // Get primary category (top position)
         let catName = 'Kategorisoimaton'
@@ -200,7 +192,7 @@ export function useCategoryMargin(dateRange = null) {
       })
 
       // 7. Calculate margins and sort
-      const categoryMargins = Array.from(categoryMap.values())
+      const allCategories = Array.from(categoryMap.values())
         .map(cat => ({
           category: cat.category,
           revenue: cat.revenue,
@@ -210,12 +202,14 @@ export function useCategoryMargin(dateRange = null) {
           productCount: cat.productCount.size,
           itemCount: cat.itemCount
         }))
+      const categoryMargins = allCategories
         .filter(cat => cat.revenue > 0)
         .sort((a, b) => b.revenue - a.revenue)
 
-      // 8. Calculate totals
-      const totalRevenue = categoryMargins.reduce((sum, c) => sum + c.revenue, 0)
-      const totalCost = categoryMargins.reduce((sum, c) => sum + c.cost, 0)
+      // 8. Calculate totals over every category: one holding only free BONUS lines has
+      // no revenue but real cost, and leaving it out lifted the total above the card's
+      const totalRevenue = allCategories.reduce((sum, c) => sum + c.revenue, 0)
+      const totalCost = allCategories.reduce((sum, c) => sum + c.cost, 0)
       const totalProfit = totalRevenue - totalCost
       const totalMarginPercent = totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0
 
@@ -242,7 +236,7 @@ export function useCategoryMargin(dateRange = null) {
     } finally {
       setLoading(false)
     }
-  }, [storeId, shopId, ready, dateRange?.startDate, dateRange?.endDate])
+  }, [storeId, shopId, currency, ready, dateRange?.startDate, dateRange?.endDate])
 
   useEffect(() => {
     fetchCategoryMargin()
