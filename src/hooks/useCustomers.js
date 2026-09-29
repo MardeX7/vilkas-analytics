@@ -19,30 +19,46 @@ export function useCustomers(dateRange) {
   // Fetch orders with customer data
   useEffect(() => {
     if (!ready || !storeId) return
+    // CustomersPage passes null for the comparison period when comparison is off. Without
+    // a range this would page through the store's whole order history for nothing.
+    if (!dateRange?.startDate) {
+      setOrders([])
+      setLoading(false)
+      return
+    }
 
     async function fetchOrders() {
       setLoading(true)
       setError(null)
 
       try {
-        let query = supabase
-          .from('orders')
-          .select('id, is_b2b, is_b2b_soft, grand_total, total_before_tax, total_tax, billing_email, billing_company, billing_country, billing_city, billing_first_name, billing_last_name, creation_date, customer_id, locale, note')
-          .eq('store_id', storeId)
-          .order('creation_date', { ascending: false })
+        // Paginated: Supabase caps a response at 1000 rows, and the default 90-day
+        // range holds ~2 300 Automaalit orders. id breaks creation_date ties so pages
+        // neither overlap nor skip.
+        const PAGE = 1000
+        const rows = []
+        for (let from = 0; ; from += PAGE) {
+          let query = supabase
+            .from('orders')
+            .select('id, is_b2b, is_b2b_soft, grand_total, total_before_tax, total_tax, billing_email, billing_company, billing_country, billing_city, billing_first_name, billing_last_name, creation_date, customer_id, locale, note')
+            .eq('store_id', storeId)
+            .order('creation_date', { ascending: false })
+            .order('id', { ascending: true })
 
-        // Apply date filter if provided
-        if (dateRange?.startDate) {
-          query = query.gte('creation_date', dateRange.startDate)
+          // Apply date filter if provided
+          if (dateRange?.startDate) {
+            query = query.gte('creation_date', dateRange.startDate)
+          }
+          if (dateRange?.endDate) {
+            query = query.lte('creation_date', dateRange.endDate + 'T23:59:59')
+          }
+
+          const { data, error: fetchError } = await query.range(from, from + PAGE - 1)
+          if (fetchError) throw fetchError
+          rows.push(...(data || []))
+          if (!data || data.length < PAGE) break
         }
-        if (dateRange?.endDate) {
-          query = query.lte('creation_date', dateRange.endDate + 'T23:59:59')
-        }
-
-        const { data, error: fetchError } = await query
-
-        if (fetchError) throw fetchError
-        setOrders(data || [])
+        setOrders(rows)
       } catch (err) {
         console.error('Failed to fetch customer data:', err)
         setError(err.message)

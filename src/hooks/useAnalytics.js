@@ -2,6 +2,31 @@ import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useCurrentShop } from '@/config/storeConfig'
 
+// Supabase caps every response at 1000 rows regardless of .limit(); a 90-day range has
+// ~2 300 Automaalit orders, so every order-level figure below silently covered the first
+// 1000 only. buildQuery must return a fresh query sorted on a unique key.
+async function fetchAllRows(buildQuery, pageSize = 1000) {
+  const rows = []
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await buildQuery().range(from, from + pageSize - 1)
+    if (error) throw error
+    if (!data?.length) break
+    rows.push(...data)
+    if (data.length < pageSize) break
+  }
+  return rows
+}
+
+// Cost prices for the whole store: one small table (~500 rows) instead of an
+// .in('product_number', ...) list that grows with the range until the URL is rejected
+function fetchStoreProducts(storeId, columns) {
+  return fetchAllRows(() => supabase
+    .from('products')
+    .select(columns)
+    .eq('store_id', storeId)
+    .order('id', { ascending: true }))
+}
+
 // Helper to fetch summary for a period
 // KORJAUS: Käytä v_daily_sales-näkymää RLS-ongelman kiertämiseksi
 async function fetchPeriodSummary(storeId, startDate, endDate) {
@@ -44,15 +69,16 @@ async function fetchPeriodSummary(storeId, startDate, endDate) {
   let returningCustomerPercent = 0
 
   try {
-    let ordersQuery = supabase
-      .from('orders')
-      .select('status, shipping_price, discount_amount, billing_email')
-      .eq('store_id', storeId)
+    const allOrders = await fetchAllRows(() => {
+      let ordersQuery = supabase
+        .from('orders')
+        .select('id, status, shipping_price, discount_amount, billing_email')
+        .eq('store_id', storeId)
 
-    if (startDate) ordersQuery = ordersQuery.gte('creation_date', startDate)
-    if (endDate) ordersQuery = ordersQuery.lte('creation_date', endDate + 'T23:59:59')
-
-    const { data: allOrders } = await ordersQuery
+      if (startDate) ordersQuery = ordersQuery.gte('creation_date', startDate)
+      if (endDate) ordersQuery = ordersQuery.lte('creation_date', endDate + 'T23:59:59')
+      return ordersQuery.order('id', { ascending: true })
+    })
 
     if (allOrders && allOrders.length > 0) {
       const cancelledOrders = allOrders.filter(o => o.status === 'cancelled')
@@ -95,44 +121,33 @@ async function fetchPeriodSummary(storeId, startDate, endDate) {
 // Helper to fetch gross margin data - REAL-TIME calculation from orders + products.cost_price
 // Uses product_number (SKU) for matching since most line items don't have product_id
 async function fetchGrossMargin(storeId, startDate, endDate) {
-  let query = supabase
-    .from('orders')
+  const orders = await fetchAllRows(() => {
+    let query = supabase
+      .from('orders')
     .select(`
-      id,
-      grand_total,
-      order_line_items (
-        quantity,
-        total_price,
-        product_id,
-        product_number
-      )
-    `)
-    .eq('store_id', storeId)
-    .neq('status', 'cancelled')
+        id,
+        grand_total,
+        order_line_items (
+          quantity,
+          total_price,
+          product_id,
+          product_number
+        )
+      `)
+      .eq('store_id', storeId)
+      .neq('status', 'cancelled')
 
-  if (startDate) query = query.gte('creation_date', startDate)
-  if (endDate) query = query.lte('creation_date', endDate + 'T23:59:59')
-
-  const { data: orders } = await query
+    if (startDate) query = query.gte('creation_date', startDate)
+    if (endDate) query = query.lte('creation_date', endDate + 'T23:59:59')
+    return query.order('id', { ascending: true })
+  })
 
   if (!orders || orders.length === 0) {
     return { grossProfit: 0, marginPercent: 0, totalCost: 0, totalRevenue: 0 }
   }
 
-  // Collect all product_numbers (SKUs) from line items
-  const productNumbers = new Set()
-  orders.forEach(o => {
-    o.order_line_items?.forEach(item => {
-      if (item.product_number) productNumbers.add(item.product_number)
-    })
-  })
-
-  // Fetch cost_price for all products by product_number (SKU)
-  const { data: products } = await supabase
-    .from('products')
-    .select('id, product_number, cost_price')
-    .eq('store_id', storeId)
-    .in('product_number', Array.from(productNumbers))
+  // Fetch cost_price for the store's products; matched by SKU (product_number)
+  const products = await fetchStoreProducts(storeId, 'id, product_number, cost_price')
 
   // Build cost map by product_number (SKU)
   const costMapBySku = new Map()
@@ -182,43 +197,32 @@ async function fetchGrossMargin(storeId, startDate, endDate) {
 // Helper to fetch daily gross margin data
 // Uses product_number (SKU) for matching since most line items don't have product_id
 async function fetchDailyMargin(storeId, startDate, endDate) {
-  let query = supabase
-    .from('orders')
+  const orders = await fetchAllRows(() => {
+    let query = supabase
+      .from('orders')
     .select(`
-      id,
-      creation_date,
-      order_line_items (
-        quantity,
-        total_price,
-        product_number
-      )
-    `)
-    .eq('store_id', storeId)
-    .neq('status', 'cancelled')
+        id,
+        creation_date,
+        order_line_items (
+          quantity,
+          total_price,
+          product_number
+        )
+      `)
+      .eq('store_id', storeId)
+      .neq('status', 'cancelled')
 
-  if (startDate) query = query.gte('creation_date', startDate)
-  if (endDate) query = query.lte('creation_date', endDate + 'T23:59:59')
-
-  const { data: orders } = await query
+    if (startDate) query = query.gte('creation_date', startDate)
+    if (endDate) query = query.lte('creation_date', endDate + 'T23:59:59')
+    return query.order('id', { ascending: true })
+  })
 
   if (!orders || orders.length === 0) {
     return []
   }
 
-  // Collect all product_numbers (SKUs)
-  const productNumbers = new Set()
-  orders.forEach(o => {
-    o.order_line_items?.forEach(item => {
-      if (item.product_number) productNumbers.add(item.product_number)
-    })
-  })
-
-  // Fetch cost_price for all products by SKU
-  const { data: products } = await supabase
-    .from('products')
-    .select('product_number, cost_price')
-    .eq('store_id', storeId)
-    .in('product_number', Array.from(productNumbers))
+  // Fetch cost_price for the store's products; matched by SKU (product_number)
+  const products = await fetchStoreProducts(storeId, 'id, product_number, cost_price')
 
   const costMapBySku = new Map()
   products?.forEach(p => {
@@ -256,19 +260,20 @@ async function fetchDailyMargin(storeId, startDate, endDate) {
 
 // Helper to fetch average items per order
 async function fetchItemsPerOrder(storeId, startDate, endDate) {
-  let query = supabase
-    .from('orders')
+  const orders = await fetchAllRows(() => {
+    let query = supabase
+      .from('orders')
     .select(`
-      id,
-      order_line_items (quantity)
-    `)
-    .eq('store_id', storeId)
-    .neq('status', 'cancelled')
+        id,
+        order_line_items (quantity)
+      `)
+      .eq('store_id', storeId)
+      .neq('status', 'cancelled')
 
-  if (startDate) query = query.gte('creation_date', startDate)
-  if (endDate) query = query.lte('creation_date', endDate + 'T23:59:59')
-
-  const { data: orders } = await query
+    if (startDate) query = query.gte('creation_date', startDate)
+    if (endDate) query = query.lte('creation_date', endDate + 'T23:59:59')
+    return query.order('id', { ascending: true })
+  })
 
   if (!orders || orders.length === 0) {
     return { avgItemsPerOrder: 0, totalItems: 0 }
@@ -290,43 +295,32 @@ async function fetchItemsPerOrder(storeId, startDate, endDate) {
 // Kit products are identified by name containing: paket, kit, set
 // Uses product_number (SKU) for matching since most line items don't have product_id
 async function fetchKitStats(storeId, startDate, endDate) {
-  let query = supabase
-    .from('orders')
+  const orders = await fetchAllRows(() => {
+    let query = supabase
+      .from('orders')
     .select(`
-      id,
-      order_line_items (
-        quantity,
-        total_price,
-        product_number,
-        product_name
-      )
-    `)
-    .eq('store_id', storeId)
-    .neq('status', 'cancelled')
+        id,
+        order_line_items (
+          quantity,
+          total_price,
+          product_number,
+          product_name
+        )
+      `)
+      .eq('store_id', storeId)
+      .neq('status', 'cancelled')
 
-  if (startDate) query = query.gte('creation_date', startDate)
-  if (endDate) query = query.lte('creation_date', endDate + 'T23:59:59')
-
-  const { data: orders } = await query
+    if (startDate) query = query.gte('creation_date', startDate)
+    if (endDate) query = query.lte('creation_date', endDate + 'T23:59:59')
+    return query.order('id', { ascending: true })
+  })
 
   if (!orders || orders.length === 0) {
     return { kitRevenue: 0, kitRevenuePercent: 0, kitGrossProfit: 0, kitMarginPercent: 0 }
   }
 
-  // Collect all product_numbers (SKUs) from order_line_items
-  const productNumbers = new Set()
-  orders.forEach(o => {
-    o.order_line_items?.forEach(item => {
-      if (item.product_number) productNumbers.add(item.product_number)
-    })
-  })
-
-  // Fetch cost_price for all products by SKU
-  const { data: products } = await supabase
-    .from('products')
-    .select('product_number, cost_price, name')
-    .eq('store_id', storeId)
-    .in('product_number', Array.from(productNumbers))
+  // Fetch cost_price for the store's products; matched by SKU (product_number)
+  const products = await fetchStoreProducts(storeId, 'id, product_number, cost_price, name')
 
   const productMapBySku = new Map()
   products?.forEach(p => {
@@ -429,27 +423,32 @@ export function useAnalytics(dateRange = null) {
 
       // For other data, we need to query orders directly with date filter
       // Top products in date range
-      let productsQuery = supabase
-        .from('orders')
-        .select(`
-          id,
-          order_line_items (
-            product_name,
-            product_number,
-            quantity,
-            total_price
-          )
-        `)
-        .eq('store_id', storeId)
-        .neq('status', 'cancelled')
+      // Paginated order reads resolve to { data } so the consumers below stay as they were
+      const allRows = (build) => fetchAllRows(() => build().order('id', { ascending: true })).then(data => ({ data }))
 
-      if (startDate) productsQuery = productsQuery.gte('creation_date', startDate)
-      if (endDate) productsQuery = productsQuery.lte('creation_date', endDate + 'T23:59:59')
+      const productsQuery = allRows(() => {
+        let q = supabase
+          .from('orders')
+          .select(`
+            id,
+            order_line_items (
+              product_name,
+              product_number,
+              quantity,
+              total_price
+            )
+          `)
+          .eq('store_id', storeId)
+          .neq('status', 'cancelled')
+        if (startDate) q = q.gte('creation_date', startDate)
+        if (endDate) q = q.lte('creation_date', endDate + 'T23:59:59')
+        return q
+      })
 
       // Previous period top products for comparison
       let previousProductsQuery = null
       if (compare && previousStartDate && previousEndDate) {
-        previousProductsQuery = supabase
+        previousProductsQuery = allRows(() => supabase
           .from('orders')
           .select(`
             id,
@@ -463,34 +462,35 @@ export function useAnalytics(dateRange = null) {
           .eq('store_id', storeId)
           .neq('status', 'cancelled')
           .gte('creation_date', previousStartDate)
-          .lte('creation_date', previousEndDate + 'T23:59:59')
+          .lte('creation_date', previousEndDate + 'T23:59:59'))
       }
 
       // Fetch product cost prices for margin calculation
-      const productCostQuery = supabase
-        .from('products')
-        .select('product_number, cost_price')
-        .eq('store_id', storeId)
+      const productCostQuery = fetchStoreProducts(storeId, 'id, product_number, cost_price').then(data => ({ data }))
 
       // Payment methods in date range
-      let paymentQuery = supabase
-        .from('orders')
-        .select('payment_method, grand_total, total_before_tax, total_tax')
-        .eq('store_id', storeId)
-        .neq('status', 'cancelled')
-
-      if (startDate) paymentQuery = paymentQuery.gte('creation_date', startDate)
-      if (endDate) paymentQuery = paymentQuery.lte('creation_date', endDate + 'T23:59:59')
+      const paymentQuery = allRows(() => {
+        let q = supabase
+          .from('orders')
+          .select('id, payment_method, grand_total, total_before_tax, total_tax')
+          .eq('store_id', storeId)
+          .neq('status', 'cancelled')
+        if (startDate) q = q.gte('creation_date', startDate)
+        if (endDate) q = q.lte('creation_date', endDate + 'T23:59:59')
+        return q
+      })
 
       // Shipping methods in date range
-      let shippingQuery = supabase
-        .from('orders')
-        .select('shipping_method, grand_total, total_before_tax, total_tax')
-        .eq('store_id', storeId)
-        .neq('status', 'cancelled')
-
-      if (startDate) shippingQuery = shippingQuery.gte('creation_date', startDate)
-      if (endDate) shippingQuery = shippingQuery.lte('creation_date', endDate + 'T23:59:59')
+      const shippingQuery = allRows(() => {
+        let q = supabase
+          .from('orders')
+          .select('id, shipping_method, grand_total, total_before_tax, total_tax')
+          .eq('store_id', storeId)
+          .neq('status', 'cancelled')
+        if (startDate) q = q.gte('creation_date', startDate)
+        if (endDate) q = q.lte('creation_date', endDate + 'T23:59:59')
+        return q
+      })
 
       const [
         dailyRes,

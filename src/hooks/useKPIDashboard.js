@@ -123,14 +123,16 @@ async function fetchKPIHistory(storeId, granularity, limit = 12) {
     .select('period_end, overall_index, core_index, product_profitability_index, seo_performance_index, operational_index')
     .eq('store_id', storeId)
     .eq('granularity', granularity)
-    .order('period_end', { ascending: true })
+    // Newest N, returned oldest-first for the chart. Ascending + limit returned the
+    // OLDEST N, which went wrong once history was backfilled to January 2025.
+    .order('period_end', { ascending: false })
     .limit(limit)
 
   if (error) {
     throw new Error(`Failed to fetch KPI history: ${error.message}`)
   }
 
-  return data || []
+  return (data || []).reverse()
 }
 
 /**

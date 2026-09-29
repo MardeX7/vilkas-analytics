@@ -22,18 +22,20 @@ const PRESET_VALUES = [
 // The hour of slack covers the sync's own run time.
 const ORDER_SYNC_DONE_UTC_HOUR = 7
 
-// The last calendar day whose orders are all in, as a local Date at 23:59:59.999.
-// sale_date is a UTC date, so the day is decided in UTC.
-function getLastCompleteDay(now = new Date()) {
-  const daysBack = now.getUTCHours() < ORDER_SYNC_DONE_UTC_HOUR ? 2 : 1
+// The last calendar day whose data is all in, as a local Date at 23:59:59.999.
+// sale_date is a UTC date, so the day is decided in UTC. lagDays is how far behind the
+// daily sync the source runs: orders 1 (yesterday), Search Console 3 (sync-gsc fetches
+// up to today - 3, GSC_DATA_LAG_DAYS).
+function getLastCompleteDay(now = new Date(), lagDays = 1) {
+  const daysBack = lagDays + (now.getUTCHours() < ORDER_SYNC_DONE_UTC_HOUR ? 1 : 0)
   const day = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - daysBack))
   return new Date(day.getUTCFullYear(), day.getUTCMonth(), day.getUTCDate(), 23, 59, 59, 999)
 }
 
-function getDateRange(preset) {
+function getDateRange(preset, lagDays = 1) {
   const today = new Date()
   today.setHours(23, 59, 59, 999)
-  const lastComplete = getLastCompleteDay()
+  const lastComplete = getLastCompleteDay(new Date(), lagDays)
 
   let startDate, endDate
 
@@ -127,7 +129,7 @@ function formatDateISO(date) {
   return `${year}-${month}-${day}`
 }
 
-export function DateRangePicker({ value, onChange, compareEnabled, compareMode: compareModeProp }) {
+export function DateRangePicker({ value, onChange, compareEnabled, compareMode: compareModeProp, dataLagDays = 1 }) {
   const { t } = useTranslation()
   const [isOpen, setIsOpen] = useState(false)
   const [selectedPreset, setSelectedPreset] = useState(value || 'last30')
@@ -148,7 +150,7 @@ export function DateRangePicker({ value, onChange, compareEnabled, compareMode: 
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  const currentRange = getDateRange(selectedPreset)
+  const currentRange = getDateRange(selectedPreset, dataLagDays)
   const currentPresetLabel = t(`datePicker.presets.${selectedPreset}`) || t('datePicker.selectPeriod')
 
   // Get comparison period based on mode
@@ -163,7 +165,7 @@ export function DateRangePicker({ value, onChange, compareEnabled, compareMode: 
     setSelectedPreset(preset)
     setIsOpen(false)
 
-    const range = getDateRange(preset)
+    const range = getDateRange(preset, dataLagDays)
     const prevRange = compare ? getComparisonPeriod(range.startDate, range.endDate, compareMode) : null
 
     onChange?.({
@@ -183,7 +185,7 @@ export function DateRangePicker({ value, onChange, compareEnabled, compareMode: 
 
     if (compare) {
       // Re-emit with new comparison mode
-      const range = getDateRange(selectedPreset)
+      const range = getDateRange(selectedPreset, dataLagDays)
       const prevRange = getComparisonPeriod(range.startDate, range.endDate, mode)
 
       onChange?.({
@@ -223,7 +225,7 @@ export function DateRangePicker({ value, onChange, compareEnabled, compareMode: 
           <div className="p-2 max-h-[60vh] overflow-y-auto">
             <p className="text-xs text-slate-500 uppercase tracking-wider px-2 py-1 mb-1">{t('datePicker.quickSelect')}</p>
             {PRESET_VALUES.map((preset) => {
-              const range = getDateRange(preset.value)
+              const range = getDateRange(preset.value, dataLagDays)
               const isSelected = selectedPreset === preset.value
 
               return (

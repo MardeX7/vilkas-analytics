@@ -15,9 +15,13 @@ import { Button } from '@/components/ui/button'
 import { DataLoadingScreen } from '@/components/ui/DataLoadingScreen'
 import { useTranslation } from '@/lib/i18n'
 
+// Search Console data runs three days behind: sync-gsc fetches up to today - 3
+// (GSC_DATA_LAG_DAYS). Ranges end there, so neither window counts days with no data yet.
+const GSC_DATA_LAG_DAYS = 3
+
 // Helper to create default date range with YoY comparison enabled
 function createDefaultDateRange() {
-  const range = getDateRange('last30')
+  const range = getDateRange('last30', GSC_DATA_LAG_DAYS)
   const yoyRange = getYearOverYearPeriod(range.startDate, range.endDate)
   return {
     preset: 'last30',
@@ -143,6 +147,7 @@ export function SearchConsolePage() {
                 <DateRangePicker
                   value={dateRange.preset}
                   onChange={setDateRange}
+                  dataLagDays={GSC_DATA_LAG_DAYS}
                 />
               </div>
 
