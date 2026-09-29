@@ -15,9 +15,25 @@ const PRESET_VALUES = [
   { value: 'last90', days: 90 },
 ]
 
+// Orders reach the database once a day: sync-data runs at 06:00 UTC (vercel.json) and
+// brings in everything created up to that moment. Until it has run, yesterday is still
+// partial, and today always is. A range that ends on such a day sets a few hours of
+// orders against a full day a year earlier and reads as a drop that is not there.
+// The hour of slack covers the sync's own run time.
+const ORDER_SYNC_DONE_UTC_HOUR = 7
+
+// The last calendar day whose orders are all in, as a local Date at 23:59:59.999.
+// sale_date is a UTC date, so the day is decided in UTC.
+function getLastCompleteDay(now = new Date()) {
+  const daysBack = now.getUTCHours() < ORDER_SYNC_DONE_UTC_HOUR ? 2 : 1
+  const day = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - daysBack))
+  return new Date(day.getUTCFullYear(), day.getUTCMonth(), day.getUTCDate(), 23, 59, 59, 999)
+}
+
 function getDateRange(preset) {
   const today = new Date()
   today.setHours(23, 59, 59, 999)
+  const lastComplete = getLastCompleteDay()
 
   let startDate, endDate
 
@@ -38,7 +54,8 @@ function getDateRange(preset) {
 
     case 'thisMonth':
       startDate = new Date(today.getFullYear(), today.getMonth(), 1)
-      endDate = today
+      // On the first day(s) of a month no complete day exists yet; show the partial one.
+      endDate = lastComplete >= startDate ? lastComplete : today
       break
 
     case 'lastMonth':
@@ -50,8 +67,8 @@ function getDateRange(preset) {
     default:
       // last7, last14, last28, last30, last90
       const days = parseInt(preset.replace('last', '')) || 7
-      endDate = today
-      startDate = new Date(today)
+      endDate = lastComplete
+      startDate = new Date(lastComplete)
       startDate.setDate(startDate.getDate() - days + 1)
       startDate.setHours(0, 0, 0, 0)
   }
@@ -63,7 +80,9 @@ function getDateRange(preset) {
 function getPreviousPeriod(startDate, endDate) {
   const start = new Date(startDate)
   const end = new Date(endDate)
-  const diffDays = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1
+  // start is 00:00 and end 23:59:59.999, so the span is already a whole number of days
+  // minus a millisecond; rounding also absorbs a DST hour. (ceil + 1 counted one day too many.)
+  const diffDays = Math.round((end - start) / (1000 * 60 * 60 * 24))
 
   const prevEnd = new Date(start)
   prevEnd.setDate(prevEnd.getDate() - 1)
@@ -108,12 +127,14 @@ function formatDateISO(date) {
   return `${year}-${month}-${day}`
 }
 
-export function DateRangePicker({ value, onChange, compareEnabled }) {
+export function DateRangePicker({ value, onChange, compareEnabled, compareMode: compareModeProp }) {
   const { t } = useTranslation()
   const [isOpen, setIsOpen] = useState(false)
   const [selectedPreset, setSelectedPreset] = useState(value || 'last30')
   const compare = compareEnabled || false // Controlled by parent (Dashboard header)
-  const [compareMode, setCompareMode] = useState('mom') // 'mom' = Month over Month, 'yoy' = Year over Year
+  const [compareModeState, setCompareMode] = useState('mom') // 'mom' = Month over Month, 'yoy' = Year over Year
+  // A parent that owns the MoM/YoY toggle passes its mode, so a preset change keeps it
+  const compareMode = compareModeProp || compareModeState
   const dropdownRef = useRef(null)
 
   // Close on click outside

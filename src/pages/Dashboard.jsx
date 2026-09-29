@@ -145,7 +145,12 @@ export function Dashboard() {
               <div className="order-1">
                 <DateRangePicker
                   value={dateRange.preset}
-                  onChange={setDateRange}
+                  onChange={(range) => {
+                    setDateRange(range)
+                    if (range.compare) setComparisonMode(range.compareMode)
+                  }}
+                  compareEnabled={dateRange.compare}
+                  compareMode={comparisonMode}
                 />
               </div>
 
@@ -158,6 +163,9 @@ export function Dashboard() {
                     const prevRange = getPreviousPeriod(currentRange.startDate, currentRange.endDate)
                     setDateRange(prev => ({
                       ...prev,
+                      // The current window too: its end moves when the day's sync lands
+                      startDate: formatDateISO(currentRange.startDate),
+                      endDate: formatDateISO(currentRange.endDate),
                       compare: true,
                       compareMode: 'mom',
                       previousStartDate: formatDateISO(prevRange.startDate),
@@ -180,6 +188,9 @@ export function Dashboard() {
                     const prevRange = getYearOverYearPeriod(currentRange.startDate, currentRange.endDate)
                     setDateRange(prev => ({
                       ...prev,
+                      // The current window too: its end moves when the day's sync lands
+                      startDate: formatDateISO(currentRange.startDate),
+                      endDate: formatDateISO(currentRange.endDate),
                       compare: true,
                       compareMode: 'yoy',
                       previousStartDate: formatDateISO(prevRange.startDate),

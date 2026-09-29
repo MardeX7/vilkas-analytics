@@ -77,6 +77,25 @@ function getPreviousMonth() {
   return { year, month: month + 1, start, end }
 }
 
+// Supabase/PostgREST caps every response at 1000 rows regardless of .limit().
+const PAGE_SIZE = 1000
+
+async function fetchAllRows(buildQuery) {
+  const rows = []
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data, error } = await buildQuery().range(from, from + PAGE_SIZE - 1)
+    if (error) throw error
+    if (!data?.length) break
+    rows.push(...data)
+    if (data.length < PAGE_SIZE) break
+  }
+  return rows
+}
+
+// A month's order ids in one .in() filter make a ~28 KB URL that PostgREST rejects
+// with Bad Request, which left every monthly snapshot on the margin fallback.
+const IN_CHUNK = 150
+
 // Scale value to 0-100 based on min/max
 function scale(value, min, max) {
   if (max === min) return 50
@@ -112,12 +131,17 @@ export function trueQuantity(item) {
 /**
  * Calculate KPI for a single store
  */
-async function calculateKPIForStore(supabase, storeId, granularity, force, country) {
+// `period` ({ start, end, label }) overrides the previous week/month; used to backfill.
+export async function calculateKPIForStore(supabase, storeId, granularity, force, country, period = null) {
   const VAT_RATE = VAT_RATES[country] || 1.24
 
   // Determine period to calculate
   let periodStart, periodEnd, periodLabel
-  if (granularity === 'month') {
+  if (period) {
+    periodStart = period.start
+    periodEnd = period.end
+    periodLabel = period.label || `${period.start}..${period.end}`
+  } else if (granularity === 'month') {
     const { start, end, year, month } = getPreviousMonth()
     periodStart = start
     periodEnd = end
@@ -146,24 +170,24 @@ async function calculateKPIForStore(supabase, storeId, granularity, force, count
   }
 
   // Fetch orders for this period
-  const { data: orders, error: ordersError } = await supabase
+  const orders = await fetchAllRows(() => supabase
     .from('orders')
     .select('id, creation_date, grand_total, total_before_tax, total_tax, customer_id')
     .eq('store_id', storeId)
     .gte('creation_date', periodStart)
     .lte('creation_date', periodEnd + 'T23:59:59')
-
-  if (ordersError) throw ordersError
+    .order('id', { ascending: true }))
 
   // Fetch line items for these orders
-  const orderIds = orders?.map(o => o.id) || []
-  let lineItems = []
-  if (orderIds.length > 0) {
-    const { data: items } = await supabase
+  const orderIds = orders.map(o => o.id)
+  const lineItems = []
+  for (let i = 0; i < orderIds.length; i += IN_CHUNK) {
+    const chunk = orderIds.slice(i, i + IN_CHUNK)
+    lineItems.push(...await fetchAllRows(() => supabase
       .from('order_line_items')
       .select('order_id, product_number, quantity, unit_price, total_price')
-      .in('order_id', orderIds)
-    lineItems = items || []
+      .in('order_id', chunk)
+      .order('id', { ascending: true })))
   }
 
   // Fetch products with cost_price
@@ -217,8 +241,14 @@ async function calculateKPIForStore(supabase, storeId, granularity, force, count
         totalSalesNetto += salesNetto
         const product = productMap[item.product_number]
         const costPrice = parseFloat(product?.cost_price) || 0
-        if (costPrice > 0) {
-          totalCost += costPrice * trueQuantity(item)
+        const lineCost = costPrice * trueQuantity(item)
+        // Early-2025 lines carry the quantity in ml/m ("500" for a 500 ml can at 0,03),
+        // while cost_price is per package: cost comes out >100x the line's sales. No real
+        // sale is 10x below cost, so treat that as a unit mismatch, not a price. Only for
+        // charged lines: a free BONUS line has zero sales and its cost is real.
+        const unitMismatch = salesNetto > 0 && lineCost > salesNetto * 10
+        if (costPrice > 0 && !unitMismatch) {
+          totalCost += lineCost
         } else {
           totalCost += salesNetto * 0.4
         }
@@ -233,12 +263,14 @@ async function calculateKPIForStore(supabase, storeId, granularity, force, count
   const grossProfit = totalSalesNetto - totalCost
   const marginPercent = totalSalesNetto > 0 ? (grossProfit / totalSalesNetto) * 100 : 0
 
-  // Fetch historical data for scaling (last 12 weeks/months)
+  // Fetch historical data for scaling (the 12 weeks/months before this period, so a
+  // recalculation or backfill does not scale against itself or against later periods)
   const { data: historyData } = await supabase
     .from('kpi_index_snapshots')
     .select('core_index, product_profitability_index, raw_metrics')
     .eq('store_id', storeId)
     .eq('granularity', granularity)
+    .lt('period_end', periodStart)
     .order('period_end', { ascending: false })
     .limit(12)
 

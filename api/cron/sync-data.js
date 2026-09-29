@@ -339,10 +339,18 @@ export default async function handler(req, res) {
             {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ granularity: 'week' })
+              // store_id, so each store's snapshot waits for that store's own order sync
+              // above. Without it the first store's pass snapshotted every store, and the
+              // later stores' fresh orders (~18 h of the week's last day) never got in.
+              body: JSON.stringify({ granularity: 'week', store_id: store.id })
             }
           )
           const kpiResult = await kpiResponse.json()
+          // calculate-kpi answers 500 { error } on failure; the next run computes a
+          // different period, so a missed snapshot never comes back unless someone is told
+          if (!kpiResponse.ok || kpiResult.error) {
+            throw new Error(kpiResult.error || `HTTP ${kpiResponse.status}`)
+          }
           console.log(`  ✅ Weekly KPI snapshot: ${kpiResult.period || 'calculated'}`)
           results.kpi_snapshots = results.kpi_snapshots || []
           results.kpi_snapshots.push({ granularity: 'week', ...kpiResult })
@@ -360,10 +368,15 @@ export default async function handler(req, res) {
             {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ granularity: 'month' })
+              body: JSON.stringify({ granularity: 'month', store_id: store.id })
             }
           )
           const kpiResult = await kpiResponse.json()
+          // calculate-kpi answers 500 { error } on failure; the next run computes a
+          // different period, so a missed snapshot never comes back unless someone is told
+          if (!kpiResponse.ok || kpiResult.error) {
+            throw new Error(kpiResult.error || `HTTP ${kpiResponse.status}`)
+          }
           console.log(`  ✅ Monthly KPI snapshot: ${kpiResult.period || 'calculated'}`)
           results.kpi_snapshots = results.kpi_snapshots || []
           results.kpi_snapshots.push({ granularity: 'month', ...kpiResult })

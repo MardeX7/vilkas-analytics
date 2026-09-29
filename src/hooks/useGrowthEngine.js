@@ -5,6 +5,20 @@ import { useCurrentShop } from '@/config/storeConfig'
 /** Get order revenue excl VAT */
 const getNetRevenue = (o) => o.total_before_tax || (o.grand_total - (o.total_tax || 0)) || 0
 
+// Supabase caps every response at 1000 rows regardless of .limit(). buildQuery must sort
+// on a unique key, or pages overlap and skip at their boundaries.
+async function fetchAllRows(buildQuery, pageSize = 1000) {
+  const rows = []
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await buildQuery().range(from, from + pageSize - 1)
+    if (error) throw error
+    if (!data?.length) break
+    rows.push(...data)
+    if (data.length < pageSize) break
+  }
+  return rows
+}
+
 /**
  * useGrowthEngine - Hook for Growth Engine Index calculation
  *
@@ -428,12 +442,12 @@ export function useGrowthEngine(dateRange = null) {
       // Fetch orders with customer and margin data
       // IMPORTANT: Also fetch ALL historical orders to calculate returning customers correctly
       const [
-        { data: currentOrders },
-        { data: prevOrders },
-        { data: allHistoricalOrders },
+        currentOrders,
+        prevOrders,
+        allHistoricalOrders,
         { data: products }
       ] = await Promise.all([
-        supabase
+        fetchAllRows(() => supabase
           .from('orders')
           .select(`
             id, grand_total, total_before_tax, total_tax, billing_email, status,
@@ -442,8 +456,9 @@ export function useGrowthEngine(dateRange = null) {
           .eq('store_id', storeId)
           .neq('status', 'cancelled')
           .gte('creation_date', startDate)
-          .lte('creation_date', endDate + 'T23:59:59'),
-        supabase
+          .lte('creation_date', endDate + 'T23:59:59')
+          .order('id', { ascending: true })),
+        fetchAllRows(() => supabase
           .from('orders')
           .select(`
             id, grand_total, total_before_tax, total_tax, billing_email, status,
@@ -452,15 +467,19 @@ export function useGrowthEngine(dateRange = null) {
           .eq('store_id', storeId)
           .neq('status', 'cancelled')
           .gte('creation_date', prevStartStr)
-          .lte('creation_date', prevEndStr + 'T23:59:59'),
-        // Fetch ALL orders to determine if a customer is truly returning
-        supabase
+          .lte('creation_date', prevEndStr + 'T23:59:59')
+          .order('id', { ascending: true })),
+        // Fetch ALL orders to determine if a customer is truly returning. Unpaginated,
+        // this stopped at the oldest 1000 orders and counted most returners as new.
+        // Chronological, because the first order seen per email is taken as the first.
+        fetchAllRows(() => supabase
           .from('orders')
           .select('id, billing_email, creation_date, grand_total, total_before_tax, total_tax')
           .eq('store_id', storeId)
           .neq('status', 'cancelled')
           .lte('creation_date', endDate + 'T23:59:59')
-          .order('creation_date', { ascending: true }),
+          .order('creation_date', { ascending: true })
+          .order('id', { ascending: true })),
         supabase
           .from('products')
           .select('product_number, name, cost_price')

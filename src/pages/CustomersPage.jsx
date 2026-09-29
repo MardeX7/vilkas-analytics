@@ -149,7 +149,12 @@ export function CustomersPage() {
               {/* Date picker */}
               <DateRangePicker
                 value={dateRange?.preset || 'last90'}
-                onChange={setDateRange}
+                onChange={(range) => {
+                  setDateRange(range)
+                  if (range.compare) setComparisonMode(range.compareMode)
+                }}
+                compareEnabled={dateRange.compare}
+                compareMode={comparisonMode}
               />
 
               {/* MoM/YoY Toggle */}
@@ -161,6 +166,9 @@ export function CustomersPage() {
                     const prevRange = getPreviousPeriod(currentRange.startDate, currentRange.endDate)
                     setDateRange(prev => ({
                       ...prev,
+                      // The current window too: its end moves when the day's sync lands
+                      startDate: formatDateISO(currentRange.startDate),
+                      endDate: formatDateISO(currentRange.endDate),
                       compare: true,
                       compareMode: 'mom',
                       previousStartDate: formatDateISO(prevRange.startDate),
@@ -183,6 +191,9 @@ export function CustomersPage() {
                     const prevRange = getYearOverYearPeriod(currentRange.startDate, currentRange.endDate)
                     setDateRange(prev => ({
                       ...prev,
+                      // The current window too: its end moves when the day's sync lands
+                      startDate: formatDateISO(currentRange.startDate),
+                      endDate: formatDateISO(currentRange.endDate),
                       compare: true,
                       compareMode: 'yoy',
                       previousStartDate: formatDateISO(prevRange.startDate),
