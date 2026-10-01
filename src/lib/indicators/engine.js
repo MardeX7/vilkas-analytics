@@ -89,6 +89,7 @@ export async function calculateAllIndicators({
         )
       `)
       .eq('store_id', storeId)
+      .neq('status', 'cancelled')
       .gte('creation_date', startDate.toISOString())
       .lte('creation_date', effectivePeriodEnd.toISOString())
       .order('creation_date', { ascending: false })

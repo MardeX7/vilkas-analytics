@@ -71,10 +71,11 @@ async function main() {
     u.searchParams.append('createdBefore', before)
     const j = await get(u.toString(), store.access_token)
     const items = j.items || []
-    summaries.push(...items)
+    // Rejected orders are no sales: ePages' own figures and the DB views leave them out
+    summaries.push(...items.filter(o => !o.rejectedOn))
     if (items.length < 100) break
   }
-  console.log(`${store.name}: ${summaries.length} orders listed`)
+  console.log(`${store.name}: ${summaries.length} orders listed (rejected ones left out)`)
 
   const orders = await pool(summaries, CONCURRENCY, async (o, k) => {
     if (k % 100 === 0) process.stderr.write(`  ${k}/${summaries.length}\n`)

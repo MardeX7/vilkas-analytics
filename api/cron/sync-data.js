@@ -104,6 +104,11 @@ export default async function handler(req, res) {
           })
 
           console.log(`  ✅ ePages sync: ${epagesResult.orders_synced || 0} orders`)
+          // The sync answers 200 even when only its status refresh failed; without
+          // this, late rejections would silently stop reaching the database
+          if (epagesResult.status_refresh?.error) {
+            results.errors.push(`Order status refresh failed for ${store.name}: ${epagesResult.status_refresh.error}`)
+          }
         } catch (err) {
           console.error(`  ❌ ePages sync error:`, err.message)
           results.epages_sync.push({

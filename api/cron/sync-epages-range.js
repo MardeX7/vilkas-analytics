@@ -4,10 +4,14 @@
  * Used for historical backfill (month by month)
  *
  * POST /api/cron/sync-epages-range
- * Body: { store_id, start_date, end_date }
+ * Body: { store_id, start_date, end_date, skip_existing? }
+ *
+ * skip_existing: true fills gaps only. Orders already stored are left alone, so
+ * their customers' running totals are not added to a second time.
  */
 
 import { createClient } from '@supabase/supabase-js'
+import { orderStatusColumns } from '../lib/epagesOrderStatus.js'
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -21,7 +25,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  const { store_id, start_date, end_date } = req.body
+  const { store_id, start_date, end_date, skip_existing = false } = req.body
 
   if (!store_id || !start_date || !end_date) {
     return res.status(400).json({ error: 'store_id, start_date, end_date required' })
@@ -56,7 +60,26 @@ export default async function handler(req, res) {
     const domainWithoutWww = store.domain.replace(/^www\./, '')
     const apiUrl = `https://www.${domainWithoutWww}/rs/shops/${store.epages_shop_id}`
 
+    const existingIds = new Set()
+    if (skip_existing) {
+      for (let from = 0; ; from += 1000) {
+        const { data, error } = await supabase
+          .from('orders')
+          .select('epages_order_id')
+          .eq('store_id', store.id)
+          .gte('creation_date', startDate.toISOString())
+          .lt('creation_date', endDate.toISOString())
+          .order('id', { ascending: true })
+          .range(from, from + 999)
+        if (error) throw error
+        data.forEach(o => existingIds.add(o.epages_order_id))
+        if (data.length < 1000) break
+      }
+      console.log(`   ⏭️  ${existingIds.size} orders already stored, skipping them`)
+    }
+
     let allOrders = []
+    let skipped = 0
     let page = 1
     const resultsPerPage = 100
 
@@ -87,6 +110,10 @@ export default async function handler(req, res) {
 
       // Fetch order details individually (needed for line items)
       for (const orderSummary of items) {
+        if (existingIds.has(orderSummary.orderId)) {
+          skipped++
+          continue
+        }
         try {
           const orderDetailRes = await fetch(`${apiUrl}/orders/${orderSummary.orderId}`, {
             headers: {
@@ -119,13 +146,6 @@ export default async function handler(req, res) {
 
     for (const order of allOrders) {
       try {
-        const statusMap = {
-          'InProgress': 'pending', 'Pending': 'pending',
-          'ReadyForDispatch': 'paid', 'Dispatched': 'shipped',
-          'Delivered': 'delivered', 'Cancelled': 'cancelled',
-          'Returned': 'cancelled', 'Closed': 'delivered'
-        }
-
         const hasVatId = order.billingAddress?.vatId && order.billingAddress.vatId.trim() !== ''
         const hasCompany = order.billingAddress?.company && order.billingAddress.company.trim() !== ''
 
@@ -135,12 +155,8 @@ export default async function handler(req, res) {
             store_id: store.id,
             epages_order_id: order.orderId,
             order_number: order.orderNumber,
-            status: statusMap[order.status] || 'pending',
+            ...orderStatusColumns(order),
             creation_date: order.creationDate,
-            paid_on: order.paymentData?.paidOn,
-            dispatched_on: order.shippingData?.dispatchedOn,
-            delivered_on: order.shippingData?.deliveredOn,
-            closed_on: order.closedOn,
             grand_total: typeof order.grandTotal === 'object' ? (order.grandTotal?.amount || 0) : parseFloat(order.grandTotal) || 0,
             total_before_tax: typeof order.totalBeforeTax === 'object' ? order.totalBeforeTax?.amount : parseFloat(order.totalBeforeTax) || null,
             total_tax: typeof order.totalTax === 'object' ? order.totalTax?.amount : parseFloat(order.totalTax) || null,
@@ -180,8 +196,8 @@ export default async function handler(req, res) {
 
         insertedOrders++
 
-        // Customer sync
-        if (order.billingAddress?.emailAddress || order.customerId) {
+        // Customer sync. A rejected order is no purchase.
+        if (!order.rejectedOn && (order.billingAddress?.emailAddress || order.customerId)) {
           try {
             const { data: customerResult } = await supabase.rpc('upsert_customer_from_order', {
               p_store_id: store.id,
@@ -243,6 +259,7 @@ export default async function handler(req, res) {
       success: true,
       store_name: store.name,
       orders_synced: insertedOrders,
+      orders_skipped: skipped,
       line_items_synced: insertedLineItems,
       period: { start: start_date, end: end_date }
     })

@@ -230,6 +230,7 @@ export function useStrategicIndices({ granularity = 'week' } = {}) {
             billing_email, customer_id
           `)
           .eq('store_id', storeId)
+          .neq('status', 'cancelled')
           .gte('creation_date', dateRanges.current.start)
           .lte('creation_date', dateRanges.current.end + 'T23:59:59')
 
@@ -243,6 +244,7 @@ export function useStrategicIndices({ granularity = 'week' } = {}) {
             billing_email, customer_id
           `)
           .eq('store_id', storeId)
+          .neq('status', 'cancelled')
           .gte('creation_date', dateRanges.yoy.start)
           .lte('creation_date', dateRanges.yoy.end + 'T23:59:59')
 

@@ -150,12 +150,16 @@ function getBusinessDays(startDate, endDate) {
 async function fetchFulfillmentMetrics(supabase, storeId, yesterdayStr) {
   const now = new Date()
 
-  // 1. Unshipped orders: paid but not yet shipped
+  // 1. Unshipped orders: paid but not yet shipped. Only the last 30 days: a few
+  // paid orders from 2025 were never dispatched or closed in ePages and would
+  // otherwise be "overdue" every morning. Invoice orders are dispatched before
+  // they are paid, so they are 'pending' while waiting and not counted here.
   const { data: unshipped } = await supabase
     .from('orders')
     .select('id, creation_date, order_number')
     .eq('store_id', storeId)
     .eq('status', 'paid')
+    .gte('creation_date', new Date(now.getTime() - 30 * 864e5).toISOString())
 
   const ordersWithWait = (unshipped || []).map(o => {
     const created = new Date(o.creation_date)

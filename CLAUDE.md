@@ -59,8 +59,8 @@ Juurisyy on kahdessa synkkatiedostossa, jotka kirjoittavat eri kovakoodatun
 vakion:
 
 ```js
-api/cron/sync-epages.js:167        ... : 'SEK'   // päiväcron
-api/cron/sync-epages-range.js:149  ... : 'EUR'   // historiatäyttö
+api/cron/sync-epages.js:152        ... : 'SEK'   // päiväcron
+api/cron/sync-epages-range.js:165  ... : 'EUR'   // historiatäyttö
 ```
 
 Molemmat testaavat `typeof order.grandTotal === 'object'`, mutta ePages palauttaa
@@ -79,6 +79,32 @@ Lue valuutta `shops.currency`-sarakkeesta (oikein: FI EUR, SE SEK) tai
 `products.price_currency`ista (FI 461 EUR / 1 SEK, SE 470 SEK / 0 EUR).
 Summat itsessään ovat aina kaupan omassa valuutassa; vain leima on rikki.
 `*_eur`-sarakkeita eikä `exchange_rates`-taulua ei tässä repossa ole.
+
+### Tilauksen tila: hylätty tilaus ei ole myyntiä
+
+ePages ei lähetä tilaukselle tilakenttää. Tila on tilauksen omina aikaleimoina,
+ja `api/lib/epagesOrderStatus.js` johtaa niistä `orders.status`in:
+
+| ePages | `status` | Myyntiä? |
+|---|---|---|
+| `rejectedOn` | `cancelled` | ei |
+| `returnedOn` | `returned` | kyllä, ePages laskee mukaan |
+| `deliveredOn` | `delivered` | kyllä |
+| `dispatchedOn` | `shipped` | kyllä |
+| `closedOn` ilman lähetystä | `closed` | kyllä, ePages laskee mukaan |
+| `paidOn` | `paid` | kyllä |
+| ei mitään | `pending` | kyllä |
+
+Ensimmäinen osuva rivi ylhäältä voittaa.
+
+Myyntinäkymät ja -kyselyt rajaavat `status <> 'cancelled'`, ja uuden kyselyn on
+tehtävä samoin. Hylkäys tulee joskus viikkoja tilauksen jälkeen, joten päiväsynkka
+päivittää myös vanhempien tilausten tilan (`updatedFrom`).
+
+Ennen 1.10.2026 jokainen rivi oli `pending` ja hylätyt laskettiin myyntiin
+(FI 10/2025–9/2026: 77 tilausta, 7 753,79 €; SE 46). Jos `select status, count(*) from orders
+group by 1` palauttaa pelkkää `pending`iä, korjausta ei ole ajettu:
+`node scripts/backfill_order_status.js` vertaa ja `--write` kirjoittaa.
 
 ## Kaksi-ID-järjestelmä (KRIITTINEN)
 
@@ -128,6 +154,27 @@ Nationalflags.shop on eri tilillä ja eri repossa.
   on viimeinen kohta jossa väärä kauppa jää kiinni.
 - **Live-data voittaa Supabasen.** Shop Conductor lukee ePagesia suoraan;
   Supabase on synkattu kopio, jossa on tunnettuja vikoja (ks. valuutta yllä).
+
+### Rahaluvut tarkistetaan `get_sales`illa
+
+Ennen kuin raportoit tilausmäärän tai myynnin, aja sama jakso `get_sales`illa.
+Se on ePagesin oma laskenta: hylätyt pois, palautetut mukana, verollinen
+`totalGrossRevenue` ja veroton `totalNetRevenue`. Kannan vastine on `count(*)`,
+`sum(grand_total)` ja `sum(total_before_tax)` rajauksella `status <> 'cancelled'`.
+
+- **Rajat kaupan paikallisaikana**, offset mukaan: Helsinki `+03:00` kesällä ja
+  `+02:00` talvella, Tukholma tuntia vähemmän.
+- **Enintään vuosi** kutsua kohden.
+- **Ei kappalemääriä eikä rivejä**, vaikka työkalun kuvaus lupaa. Tuote- ja
+  litramäärät tarkistetaan muualta.
+- **Odotettu ero on pieni ja tunnettu.** Tilakorjauksen kuivaharjoitus
+  1.10.2026 ennusti, että korjauksen jälkeen FI täsmää joka kuukausi
+  tilausmäärältään ja summaltaan sentilleen. Poikkeus ovat tilaukset, joita on
+  muokattu yli 7 päivää luonnin jälkeen (yhteensä −420 € 21 kuukaudessa), koska
+  päiväsynkka kirjoittaa summat uudelleen vain 7 päivän ajan. Muu ero on vika,
+  ei pyöristystä.
+- **Eron selitys:** `list_orders_pseudonymous` suodattimella `rejected_on=true`
+  listaa hylätyt, ja `scripts/backfill_order_status.js` vertaa kaikki kuukaudet.
 
 ### ePages-sudenkuopat
 
@@ -203,6 +250,7 @@ src/lib/i18n/translations/    — fi.json, sv.json käännökset
 api/cron/                     — Kaikki cron-jobit (Bearer ${CRON_SECRET})
 api/chat.js                   — Emma AI -chat-endpoint
 api/lib/slack.js              — Slack-webhookhelper
+api/lib/epagesOrderStatus.js  — Tilauksen tila ePagesin aikaleimoista (molemmat synkat)
 scripts/db.cjs                — Supabase-yhteys skripteille
 supabase/migrations/          — ~50+ SQL-migraatiota
 ```

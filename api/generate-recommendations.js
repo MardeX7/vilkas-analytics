@@ -51,6 +51,7 @@ async function fetchContextData(STORE_ID) {
     .from('orders')
     .select('id, grand_total, creation_date')
     .eq('store_id', STORE_ID)
+    .neq('status', 'cancelled')
     .gte('creation_date', startDate)
     .lte('creation_date', endDate + 'T23:59:59')
     .order('creation_date', { ascending: false })

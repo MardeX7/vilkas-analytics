@@ -5,6 +5,7 @@
  */
 
 import { createClient } from '@supabase/supabase-js'
+import { orderStatusColumns, refreshOrderStatuses } from '../lib/epagesOrderStatus.js'
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -12,6 +13,8 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 export const config = {
   maxDuration: 300, // 5 minutes max
 }
+
+const STATUS_REFRESH_DAYS = 2
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -128,18 +131,6 @@ export default async function handler(req, res) {
 
     for (const order of allOrders) {
       try {
-        // Map order status
-        const statusMap = {
-          'InProgress': 'pending',
-          'Pending': 'pending',
-          'ReadyForDispatch': 'paid',
-          'Dispatched': 'shipped',
-          'Delivered': 'delivered',
-          'Cancelled': 'cancelled',
-          'Returned': 'cancelled',
-          'Closed': 'delivered'
-        }
-
         // B2B detection: vatId = confirmed B2B, company only = soft B2B
         const hasVatId = order.billingAddress?.vatId && order.billingAddress.vatId.trim() !== ''
         const hasCompany = order.billingAddress?.company && order.billingAddress.company.trim() !== ''
@@ -153,12 +144,8 @@ export default async function handler(req, res) {
             store_id: store.id,
             epages_order_id: order.orderId,
             order_number: order.orderNumber,
-            status: statusMap[order.status] || 'pending',
+            ...orderStatusColumns(order),
             creation_date: order.creationDate,
-            paid_on: order.paymentData?.paidOn,
-            dispatched_on: order.shippingData?.dispatchedOn,
-            delivered_on: order.shippingData?.deliveredOn,
-            closed_on: order.closedOn,
             grand_total: typeof order.grandTotal === 'object' ? (order.grandTotal?.amount || 0) : parseFloat(order.grandTotal) || 0,
             total_before_tax: typeof order.totalBeforeTax === 'object' ? order.totalBeforeTax?.amount : parseFloat(order.totalBeforeTax) || null,
             total_tax: typeof order.totalTax === 'object' ? order.totalTax?.amount : parseFloat(order.totalTax) || null,
@@ -203,8 +190,9 @@ export default async function handler(req, res) {
         if (isB2B) b2bOrders++
         if (isB2BSoft) b2bSoftOrders++
 
-        // Create/update customer and link to order
-        if (order.billingAddress?.emailAddress || order.customerId) {
+        // Create/update customer and link to order. A rejected order is no
+        // purchase and must not add to the customer's totals.
+        if (!order.rejectedOn && (order.billingAddress?.emailAddress || order.customerId)) {
           try {
             const { data: customerResult } = await supabase.rpc('upsert_customer_from_order', {
               p_store_id: store.id,
@@ -276,6 +264,23 @@ export default async function handler(req, res) {
       }
     }
 
+    // Orders created before the window are rejected or dispatched later on.
+    // Two days covers one missed daily run and keeps sync-data inside its 300 s;
+    // a longer outage needs scripts/backfill_order_status.js.
+    let statusRefresh
+    try {
+      statusRefresh = await refreshOrderStatuses(supabase, {
+        apiUrl,
+        accessToken: store.access_token,
+        storeId: store.id,
+        updatedFrom: new Date(Date.now() - STATUS_REFRESH_DAYS * 864e5).toISOString()
+      })
+      console.log(`   🔄 Status refresh: ${statusRefresh.fetched} updated in ePages, ${statusRefresh.changed} changed`)
+    } catch (err) {
+      console.error('   ⚠️ Status refresh failed:', err.message)
+      statusRefresh = { error: err.message }
+    }
+
     console.log(`✅ ePages sync complete: ${insertedOrders} orders, ${insertedLineItems} line items`)
     console.log(`   B2B: ${b2bOrders} confirmed, ${b2bSoftOrders} soft | Customers: ${customersCreated}`)
 
@@ -288,6 +293,7 @@ export default async function handler(req, res) {
       b2b_orders: b2bOrders,
       b2b_soft_orders: b2bSoftOrders,
       customers_synced: customersCreated,
+      status_refresh: statusRefresh,
       period: {
         start: startDate.toISOString(),
         end: endDate.toISOString()

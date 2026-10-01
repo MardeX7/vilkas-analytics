@@ -144,6 +144,7 @@ export async function calculateKPIForStore(supabase, storeId, granularity, force
     .from('orders')
     .select('id, creation_date, grand_total, total_before_tax, total_tax, customer_id')
     .eq('store_id', storeId)
+    .neq('status', 'cancelled')
     .gte('creation_date', periodStart)
     .lte('creation_date', periodEnd + 'T23:59:59')
     .order('id', { ascending: true }))

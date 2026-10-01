@@ -25,6 +25,7 @@ export function useEntryProducts(dateRange) {
           .from('orders')
           .select('id, is_b2b, is_b2b_soft, grand_total, billing_email, creation_date')
           .eq('store_id', storeId)
+          .neq('status', 'cancelled')
           .order('creation_date', { ascending: true })
 
         if (dateRange?.startDate) {

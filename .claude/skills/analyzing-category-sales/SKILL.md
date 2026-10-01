@@ -44,7 +44,10 @@ category set to both years so the definition is identical on each side.
 ## Step 3 — Aggregate
 
 `order_line_items` has no `store_id`; join through `orders.id`.
-`orders.status` is `pending` on every row — do not filter on it.
+Exclude `orders.status = 'cancelled'`: those orders were rejected in ePages, and ePages'
+own sales figures leave them out, as every sales view here does. Before 2026-10-01
+every row was `pending`; if that is still so, the status backfill has not run
+(`node scripts/backfill_order_status.js`) and rejected orders are inside your totals.
 
 **Paginate on a sort key that determines row order uniquely.** PostgREST has no stable
 row order otherwise, so `.range()` pages silently overlap and skip: 518 of 13 149
@@ -78,6 +81,16 @@ see the field notes at the top of the fetch script (`sku` ≠ `product_number`; 
 
 SEK and EUR are **not** converted: compare via percentage changes and revenue shares,
 never sum across stores. Truncate the final month to the same day in both years.
+
+**Check the store totals against ePages before shipping.** Run Shop Conductor
+`get_sales` (`mcp__automaalit__get_sales`, `mcp__billackering__get_sales`) for each
+compared period, with the bounds in the store's local time (`+03:00`/`+02:00` Helsinki,
+one hour less Stockholm). Its `totalOrders` and `totalGrossRevenue` must equal the DB's
+non-cancelled `count(*)` and `sum(grand_total)` for the same window, give or take
+orders edited more than 7 days after they were placed, which the daily sync no longer
+rewrites (a few hundred euros a year). It has no unit
+counts, so it checks revenue and orders, not volume. Rules: CLAUDE.md § "Rahaluvut
+tarkistetaan get_salesilla".
 
 `report-kit.cjs` carries the charts, the validated palette, the A4 print CSS and the
 renderer. Build the body markup, then:
@@ -114,6 +127,7 @@ embed the PDF as base64; a plain `<a download>` link is inert in the viewer sand
 | A month's totals shift between two runs of the same query | The paginated sort key does not determine row order uniquely (no `.order()`, or a timestamp alone). Sort on `id`, or on a key you have verified unique; check against an exact count. |
 | Revenue matches exactly, quantities do not | Unit mismatch, not a bug: ePages gives the ordered amount with a unit (`0.5 l`), the DB stores `1`. Hits litre-priced mixed paint — base coats, acrylics. Report revenue; compare volume only within one source. |
 | "The DB has the orders" | Orders ≠ line items. Run Step 1. |
+| DB total ~1–2 % above `get_sales` | Rejected orders counted as sales: `status` filter missing, or the status backfill has not run |
 
 ## Real-world impact
 

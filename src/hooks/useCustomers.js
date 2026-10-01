@@ -42,6 +42,7 @@ export function useCustomers(dateRange) {
             .from('orders')
             .select('id, is_b2b, is_b2b_soft, grand_total, total_before_tax, total_tax, billing_email, billing_company, billing_country, billing_city, billing_first_name, billing_last_name, creation_date, customer_id, locale, note')
             .eq('store_id', storeId)
+            .neq('status', 'cancelled')
             .order('creation_date', { ascending: false })
             .order('id', { ascending: true })
 
