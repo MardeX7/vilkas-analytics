@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "automaalit": {
+      "type": "http",
+      "url": "https://shopconductor.eu/mcp"
+    },
+    "billackering": {
+      "type": "http",
+      "url": "https://shopconductor.eu/mcp"
+    }
+  }
+}

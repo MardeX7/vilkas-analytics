@@ -89,6 +89,76 @@ Summat itsessään ovat aina kaupan omassa valuutassa; vain leima on rikki.
 
 Käytä `useCurrentShop()` hookia — se palauttaa molemmat. Konfiguraatio: `src/config/storeConfig.js`.
 
+## Shop Conductor (MCP) — suora yhteys kauppoihin
+
+Vilkas Group Oy:n Shop Conductor antaa Claudelle luku- ja kirjoitusyhteyden
+ePages-kauppoihin. Se on Claude Coden istuntotyökalu, ei sovelluksen
+integraatio: OAuth tukee vain selainkirjautumista (authorization_code + PKCE),
+joten cronit ja `api/` käyttävät edelleen ePagesin REST-tokeneita.
+
+**Kummallakin kaupalla on oma Shop Conductor -tili ja oma sähköposti.** Siksi
+`.mcp.json`:ssa on kaksi palvelinta, ja kauppa näkyy työkalun nimessä:
+
+| MCP-palvelin | Kauppa | Shop Conductor `shop_id` | Työkalut |
+|---|---|---|---|
+| `automaalit` | Automaalit.net | `38c68222-2253-453a-96bc-188f10a70161` | `mcp__automaalit__*` |
+| `billackering` | Billackering.eu | `058d3c34-caad-4ed9-bf09-bbb24e522d38` | `mcp__billackering__*` |
+
+Todennettu 1.10.2026: kummankin palvelimen `list_shops` palautti vain oman
+kauppansa. Automaalien tili oli silloin Shop Conductorin perustasolla:
+kirjoitustyökalut ja *Full customer data* ovat lukossa ("needs a higher access
+level"), ja tasoa pyydettiin tuelta (support@shopconductor.eu). Jos
+`update_product` palauttaa `not_enabled`, syy on tämä eikä yhteys.
+`update_product` muuttaa myös hintaa ja saldoa, ei vain tekstejä.
+
+Sävytysvaraston erillinen ePages-instanssi ei kuulu näihin yhteyksiin.
+Automaalien tili on käytössä myös `~/dev/automaalit-support`-repossa
+palvelimella `automaalit-tuki`. Sen on tarkoitus olla oma yhteytensä, jolla on
+vain lukuoikeus; tila ja avoimet kohdat: `automaalit-support/docs/security.md`,
+lukko 6.
+Nationalflags.shop on eri tilillä ja eri repossa.
+
+- **Kolmas ID.** Shop Conductorin `shop_id` ei ole sama kuin Kaupat-taulukon
+  `store_id` tai `shop_id`. Älä käytä niitä ristiin.
+- **Jos yhteys kirjaudutaan uudelleen**, tarkista `list_shops`: palvelimen
+  pitää palauttaa vain oma kauppansa. Jos se palauttaa toisen, kirjautuminen
+  tehtiin väärällä sähköpostilla.
+- **Kirjoitukset kysyvät luvan.** Älä lisää kummankaan palvelimen
+  kirjoitustyökaluja allow-listaan. Lupakysely näyttää palvelimen nimen, ja se
+  on viimeinen kohta jossa väärä kauppa jää kiinni.
+- **Live-data voittaa Supabasen.** Shop Conductor lukee ePagesia suoraan;
+  Supabase on synkattu kopio, jossa on tunnettuja vikoja (ks. valuutta yllä).
+
+### ePages-sudenkuopat
+
+Opittu Nationalflags.shopissa elo–syyskuussa 2026
+(`~/dev/NationalflagsAnalytics`). Ne ovat alustan ominaisuuksia, mutta näissä
+kaupoissa niitä ei ole vielä todennettu.
+
+- **`update_category` korvaa koko kieliversion.** Työkalun kuvaus lupaa
+  päivittää vain annetut kentät, mutta pois jätetyt kentät putoavat kaupan
+  oletuslokaalin arvoihin. Lue kategoria ensin ja kirjoita aina koko setti:
+  `name`, `navigation_caption` (jos on), `page_title`, `description`. Oleta
+  `update_product`in toimivan samoin, kunnes toisin todistetaan. Lue tulos
+  takaisin jokaisella kielellä. Tarkista kummankin kaupan oletuslokaali ennen
+  ensimmäistä kirjoitusta.
+- **Kirjoitus ei tyhjennä kaupan välimuistia.** API-luku näyttää uuden arvon
+  heti, mutta julkinen sivu näyttää vanhaa, kunnes välimuisti tyhjennetään
+  ePagesin hallinnasta. Älä väitä muutosta näkyväksi ennen kuin olet
+  tarkistanut sivun HTML:n.
+- **Variaatiotuote on N+1 sivua.** Pääartikkelilla ja jokaisella variaatiolla
+  on oma otsikko, kuvaus ja URL. Hae ensin `list_product_variations` ja kirjoita
+  jokainen, jokaisella kielellä.
+- **Piilotetut alakategoriat.** `get_category` ja `list_categories` palauttavat
+  vain navigaatiossa näkyvät alakategoriat, eikä alias kelpaa hakuun (vaatii
+  UUID:n). Sivun UUID ja todellinen polku löytyvät julkisen sivun lähdekoodista:
+  `epConfig.objectGUID` ja `epConfig.objectPath`.
+- **`visible:false` ei poista sivua.** Piilotettu kategoria vastaa yhä 200:lla.
+  Poisto hakukoneista vaatii 301-ohjauksen tai noindexin ePagesin hallinnassa.
+- **Sisältösivut eivät näy Shop Conductorille.** Ohje- ja blogisivut ovat eri
+  objekteja kuin kategoriat, ja `get_category` palauttaa niille 404. Ne
+  muokataan käsin hallinnassa. `update_legal_page` ei muuta sivun otsikkoa.
+
 ## Auth ja multi-tenant-flow
 
 Frontend: Supabase Auth (Google OAuth) → `AuthContext.jsx` lataa käyttäjän kaupat `get_user_shops()` RPC:llä → `currentShop` (storeId, shopId, currency, domain) on saatavilla `useCurrentShop()`:n kautta jokaisessa hookissa ja sivussa. Backend (cron): iteroi `shops`-taulun palvelinpuolella service_role_keyllä, ei hardkoodattuja ID:itä.
