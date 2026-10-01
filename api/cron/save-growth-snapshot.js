@@ -59,7 +59,7 @@ function safeRound(val, decimals = 1) {
   return Math.round(val * multiplier) / multiplier
 }
 
-async function calculateGrowthEngine(supabase, storeId, startDate, endDate) {
+export async function calculateGrowthEngine(supabase, storeId, startDate, endDate) {
   const prevYearStart = new Date(startDate)
   prevYearStart.setFullYear(prevYearStart.getFullYear() - 1)
   const prevYearEnd = new Date(endDate)
