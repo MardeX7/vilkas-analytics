@@ -5,9 +5,12 @@
  * Writes NOTHING to Supabase — it only reads store credentials.
  *
  * Usage:
- *   node fetch-epages-orders.cjs <FI|SE> <afterISO> <beforeISO> <outFile.json>
+ *   node fetch-epages-orders.cjs <FI|SE> <afterISO> <beforeISO> <outFile.json> [--no-lines]
  * Example:
  *   node fetch-epages-orders.cjs SE 2025-05-01T00:00:00.000Z 2025-08-21T00:00:00.000Z se2025.json
+ *
+ * --no-lines skips the per-order detail call and returns the order list only
+ * (no lineItems). That is all a customer history needs, at 1/100 of the calls.
  *
  * Field notes (these bite if you guess):
  *   - line items live at  detail.lineItemContainer.productLineItems
@@ -48,9 +51,11 @@ async function pool(items, n, fn) {
 }
 
 async function main() {
-  const [key, after, before, outFile] = process.argv.slice(2)
+  const args = process.argv.slice(2)
+  const noLines = args.includes('--no-lines')
+  const [key, after, before, outFile] = args.filter(a => a !== '--no-lines')
   if (!key || !after || !before || !outFile) {
-    console.error('usage: fetch-epages-orders.cjs <FI|SE> <afterISO> <beforeISO> <outFile.json>')
+    console.error('usage: fetch-epages-orders.cjs <FI|SE> <afterISO> <beforeISO> <outFile.json> [--no-lines]')
     process.exit(1)
   }
   if (fs.existsSync(outFile)) { console.log(`cached: ${outFile} (delete to refetch)`); return }
@@ -77,15 +82,28 @@ async function main() {
   }
   console.log(`${store.name}: ${summaries.length} orders listed (rejected ones left out)`)
 
+  const head = o => ({
+    orderId: o.orderId,
+    orderNumber: o.orderNumber,
+    creationDate: o.creationDate,
+    grandTotal: parseFloat(o.grandTotal),
+    currency: o.currencyId,
+    customerId: o.customerId ?? null,
+    email: o.billingAddress?.emailAddress ?? null,
+  })
+
+  if (noLines) {
+    const orders = summaries.map(head)
+    fs.writeFileSync(outFile, JSON.stringify(orders))
+    console.log(`saved ${outFile}: ${orders.length} orders (no line items)`)
+    return
+  }
+
   const orders = await pool(summaries, CONCURRENCY, async (o, k) => {
     if (k % 100 === 0) process.stderr.write(`  ${k}/${summaries.length}\n`)
     const d = await get(`${api}/orders/${o.orderId}`, store.access_token)
     return {
-      orderId: o.orderId,
-      orderNumber: o.orderNumber,
-      creationDate: o.creationDate,
-      grandTotal: parseFloat(o.grandTotal),
-      currency: o.currencyId,
+      ...head(o),
       lineItems: (d.lineItemContainer?.productLineItems || []).map(li => ({
         sku: li.sku,
         productId: li.productId,

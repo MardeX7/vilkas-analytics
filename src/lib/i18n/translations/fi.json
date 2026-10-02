@@ -578,6 +578,30 @@
       "vsLastYear": "vs viime vuosi",
       "lastYearSamePeriod": "Viime vuosi sama periodi"
     },
+    "newPackageBuyers": {
+      "title": "Uudet pakettiostajat",
+      "subtitle": "Uusien asiakkaiden pakettitilaukset viikoittain verrattuna samaan viikkoon vuotta aiemmin",
+      "orders": "tilausta",
+      "metric": {
+        "orders": "Tilaukset",
+        "sales": "Myynti"
+      },
+      "thisYear": "Tänä vuonna",
+      "yearEarlier": "Vuotta aiemmin",
+      "noComparison": "Vuotta aiemmalta ajalta ei ole kattavaa vertailudataa",
+      "lastWeek": "Viikko",
+      "lastFourWeeks": "Viimeiset 4 viikkoa",
+      "currentWeek": "Kuluva viikko",
+      "currentWeekNote": "Kesken, verrataan samaan ajankohtaan vuotta aiemmin",
+      "weekShort": "Vk",
+      "week": "Viikko",
+      "inProgress": "kesken",
+      "changeSales": "Muutos (myynti)",
+      "showTable": "Näytä taulukko",
+      "hideTable": "Piilota taulukko",
+      "definition": "Uusi asiakas: ei tilausta 12 kuukauden aikana ennen tilausta (sähköpostin mukaan). Paketti: mikä tahansa tuote kaupan pakettikategoriassa. Summat sisältävät ALV:n, hylätyt tilaukset eivät ole mukana.",
+      "tableNote": "* Kuluva viikko. — = data ei kata viikkoa kokonaan (tilausrivit tai 12 kuukauden asiakashistoria puuttuvat)."
+    },
     "components": {
       "gross_profit": {
         "label": "Myyntikate",

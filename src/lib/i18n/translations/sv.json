@@ -572,6 +572,30 @@
       "vsLastYear": "vs förra året",
       "lastYearSamePeriod": "Förra året samma period"
     },
+    "newPackageBuyers": {
+      "title": "Nya paketköpare",
+      "subtitle": "Nya kunders paketbeställningar per vecka jämfört med samma vecka året innan",
+      "orders": "beställningar",
+      "metric": {
+        "orders": "Beställningar",
+        "sales": "Försäljning"
+      },
+      "thisYear": "I år",
+      "yearEarlier": "Året innan",
+      "noComparison": "Det finns ingen fullständig jämförelsedata från året innan",
+      "lastWeek": "Vecka",
+      "lastFourWeeks": "Senaste 4 veckorna",
+      "currentWeek": "Innevarande vecka",
+      "currentWeekNote": "Pågår, jämförs med samma tidpunkt året innan",
+      "weekShort": "v.",
+      "week": "Vecka",
+      "inProgress": "pågår",
+      "changeSales": "Förändring (försäljning)",
+      "showTable": "Visa tabell",
+      "hideTable": "Dölj tabell",
+      "definition": "Ny kund: ingen beställning under de 12 månaderna före beställningen (enligt e-postadress). Paket: valfri produkt i butikens paketkategori. Beloppen är inklusive moms, avvisade beställningar räknas inte med.",
+      "tableNote": "* Innevarande vecka. — = data täcker inte hela veckan (orderrader eller 12 månaders kundhistorik saknas)."
+    },
     "components": {
       "gross_profit": {
         "label": "Bruttomarginal",
