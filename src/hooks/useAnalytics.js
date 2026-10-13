@@ -73,7 +73,7 @@ async function fetchPeriodSummary(storeId, startDate, endDate) {
     const allOrders = await fetchAllRows(() => {
       let ordersQuery = supabase
         .from('orders')
-        .select('id, status, shipping_price, discount_amount, billing_email')
+        .select('id, status, shipping_price, grand_total, total_before_tax, discount_amount, billing_email')
         .eq('store_id', storeId)
 
       if (startDate) ordersQuery = ordersQuery.gte('creation_date', startDate)
@@ -88,7 +88,13 @@ async function fetchPeriodSummary(storeId, startDate, endDate) {
       cancelledCount = cancelledOrders.length
       cancelledPercent = allOrders.length > 0 ? (cancelledCount / allOrders.length) * 100 : 0
 
-      totalShipping = activeOrders.reduce((sum, o) => sum + (o.shipping_price || 0), 0)
+      // shipping_price is VAT-inclusive, totalRevenue is net: use the order's own split
+      totalShipping = activeOrders.reduce((sum, o) => {
+        const gross = parseFloat(o.grand_total) || 0
+        const net = parseFloat(o.total_before_tax)
+        const netFactor = gross > 0 && net > 0 && net <= gross ? net / gross : 1
+        return sum + (parseFloat(o.shipping_price) || 0) * netFactor
+      }, 0)
       shippingPercent = totalRevenue > 0 ? (totalShipping / totalRevenue) * 100 : 0
 
       totalDiscount = activeOrders.reduce((sum, o) => sum + (o.discount_amount || 0), 0)

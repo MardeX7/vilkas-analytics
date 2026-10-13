@@ -262,7 +262,7 @@
       "bounceRate": "Poistumis-%",
       "productsPerOrder": "Tuotteita/tilaus",
       "avgPerDay": "Keskiarvo/pv",
-      "shippingCost": "Toimituskulut",
+      "shippingCost": "Toimitusmaksut",
       "discounts": "Alennukset",
       "cancelled": "Peruutetut",
       "kitShare": "Paketit",
@@ -601,6 +601,36 @@
       "hideTable": "Piilota taulukko",
       "definition": "Uusi asiakas: ei tilausta 12 kuukauden aikana ennen tilausta (sähköpostin mukaan). Paketti: mikä tahansa tuote kaupan pakettikategoriassa. Summat sisältävät ALV:n, hylätyt tilaukset eivät ole mukana.",
       "tableNote": "* Kuluva viikko. — = data ei kata viikkoa kokonaan (tilausrivit tai 12 kuukauden asiakashistoria puuttuvat)."
+    },
+    "freeShippingLimit": {
+      "title": "Ilmaisen toimituksen raja",
+      "subtitle": "Rajaa alennettiin {{date}}: {{old}} → {{new}}. Vertailu samaan jaksoon vuotta aiemmin ilman ilmaistoimituskampanjoiden päiviä.",
+      "metric": {
+        "perOrder": "Kate + toimitusmaksut / tilaus",
+        "share": "Rajan ylittäneet"
+      },
+      "perOrder": "Kate + toimitusmaksut / tilaus",
+      "orders": "tilausta",
+      "ordersColumn": "Tilaukset",
+      "thisYear": "Tänä vuonna",
+      "yearEarlier": "Vuotta aiemmin",
+      "noComparison": "Vuotta aiemmalta ajalta ei ole kattavaa vertailudataa",
+      "share": "Rajan ylittäneet korit",
+      "shareSub": "Noutopistetilaukset, kori {{from}}–{{to}} · {{count}} tilausta",
+      "points": "%-yks.",
+      "feeGivenUp": "Muutoksen hinta",
+      "feeGivenUpSub": "{{date}} alkaen, veroton",
+      "freeOrders": "ilmaista toimitusta, kori {{newPlain}}–{{old}}",
+      "noData": "Rajan laskun jälkeiseltä ajalta ei ole vielä dataa.",
+      "weekShort": "Vk",
+      "week": "Viikko",
+      "changeWeek": "muutosviikko",
+      "inProgress": "kesken",
+      "campaignDays": "Kampanjapäiviä (nyt / vuotta aiemmin)",
+      "showTable": "Näytä taulukko",
+      "hideTable": "Piilota taulukko",
+      "definition": "Kate + toimitusmaksut: tilausten myyntikate ja asiakkaiden maksamat toimitusmaksut ilman ALV:a, jaettuna tilausten määrällä. Rajan ylittäneet: kuinka suuressa osassa noutopistetilauksista, joiden kori on {{from}}–{{to}}, kori on vähintään {{new}}. Muutoksen hinta: ilmaiseksi kulkeneet noutopistetilaukset, joiden kori on {{newPlain}}–{{old}}, kertaa toimitusmaksu. Vaikutus on viikkovaihtelua pienempi, joten lue otsikkolukuja äläkä yksittäistä viikkoa.",
+      "tableNote": "* Kuluva viikko. † Muutosviikko: mukana vain päivät muutoksesta alkaen. — = data ei kata viikkoa. Kampanjapäivät eivät ole luvuissa mukana."
     },
     "components": {
       "gross_profit": {

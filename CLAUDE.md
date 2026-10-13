@@ -251,6 +251,7 @@ api/cron/                     — Kaikki cron-jobit (Bearer ${CRON_SECRET})
 api/chat.js                   — Emma AI -chat-endpoint
 api/lib/slack.js              — Slack-webhookhelper
 api/lib/epagesOrderStatus.js  — Tilauksen tila ePagesin aikaleimoista (molemmat synkat)
+api/lib/epagesShipping.js     — Toimitusmaksu ePagesin shippingData.price-kentästä, verollisena (molemmat synkat)
 scripts/db.cjs                — Supabase-yhteys skripteille
 supabase/migrations/          — ~50+ SQL-migraatiota
 ```

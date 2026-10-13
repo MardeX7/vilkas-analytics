@@ -6,6 +6,7 @@
  */
 
 import { createClient } from '@supabase/supabase-js'
+import { shippingPriceGross } from '../api/lib/epagesShipping.js'
 import { config } from 'dotenv'
 
 config({ path: '.env.local' })
@@ -94,7 +95,7 @@ async function main() {
       const grandTotal = parseFloat(details.grandTotal) || parseFloat(details.grandTotal?.amount) || 0
       const totalBeforeTax = parseFloat(details.totalBeforeTax) || parseFloat(details.totalBeforeTax?.amount) || 0
       const totalTax = parseFloat(details.totalTax) || parseFloat(details.totalTax?.amount) || 0
-      const shippingPrice = parseFloat(details.shippingPrice) || parseFloat(details.shippingPrice?.amount) || 0
+      const shippingPrice = shippingPriceGross(details)
 
       // Update order in DB
       const { error: updateError, data: updateData } = await supabase

@@ -164,7 +164,6 @@ async function fetchHistoricalOrders() {
             grand_total: order.grandTotal?.amount || 0,
             total_before_tax: order.totalBeforeTax?.amount,
             total_tax: order.totalTax?.amount,
-            shipping_price: order.shippingPrice?.amount || 0,
             discount_amount: order.discountAmount?.amount || 0,
             currency: order.grandTotal?.currency || 'EUR',
             billing_company: order.billingAddress?.company,

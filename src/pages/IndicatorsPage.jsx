@@ -18,6 +18,7 @@ import { MerchantGoalsCard } from '@/components/MerchantGoalsCard'
 import { ContextNotesCard } from '@/components/ContextNotesCard'
 import { WeeklyAnalysisCard } from '@/components/WeeklyAnalysisCard'
 import { NewPackageBuyersCard } from '@/components/NewPackageBuyersCard'
+import { FreeShippingLimitCard } from '@/components/FreeShippingLimitCard'
 import { useGrowthEngine } from '@/hooks/useGrowthEngine'
 import { useGrowthEngineHistory } from '@/hooks/useGrowthEngineHistory'
 import { useTranslation } from '@/lib/i18n'
@@ -332,6 +333,9 @@ export function IndicatorsPage() {
 
             {/* New package buyers per week (hidden for shops without a package category) */}
             <NewPackageBuyersCard />
+
+            {/* Free delivery limit change (hidden for shops without one to follow) */}
+            <FreeShippingLimitCard />
 
             {/* Gross Profit Summary */}
             {profitSummary && (

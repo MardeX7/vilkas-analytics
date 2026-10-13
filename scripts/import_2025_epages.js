@@ -5,6 +5,7 @@
  */
 
 import { createClient } from '@supabase/supabase-js'
+import { shippingPriceGross } from '../api/lib/epagesShipping.js'
 import { config } from 'dotenv'
 
 // Load .env.local
@@ -188,7 +189,7 @@ async function syncHistoricalOrders(storeId) {
           grand_total: order.grandTotal?.amount || 0,
           total_before_tax: order.totalBeforeTax?.amount,
           total_tax: order.totalTax?.amount,
-          shipping_price: order.shippingPrice?.amount || 0,
+          shipping_price: shippingPriceGross(order),
           discount_amount: order.discountAmount?.amount || 0,
           currency: order.grandTotal?.currency || 'EUR',
           billing_company: order.billingAddress?.company,

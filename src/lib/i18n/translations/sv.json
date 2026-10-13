@@ -262,7 +262,7 @@
       "bounceRate": "Avvisningsfrekvens",
       "productsPerOrder": "Produkter/order",
       "avgPerDay": "Snitt/dag",
-      "shippingCost": "Fraktkostnad",
+      "shippingCost": "Fraktavgifter",
       "discounts": "Rabatter",
       "cancelled": "Avbeställda",
       "kitShare": "Paket",
@@ -595,6 +595,36 @@
       "hideTable": "Dölj tabell",
       "definition": "Ny kund: ingen beställning under de 12 månaderna före beställningen (enligt e-postadress). Paket: valfri produkt i butikens paketkategori. Beloppen är inklusive moms, avvisade beställningar räknas inte med.",
       "tableNote": "* Innevarande vecka. — = data täcker inte hela veckan (orderrader eller 12 månaders kundhistorik saknas)."
+    },
+    "freeShippingLimit": {
+      "title": "Gräns för fri frakt",
+      "subtitle": "Gränsen sänktes {{date}}: {{old}} → {{new}}. Jämförs med samma period året innan, utan dagar med fraktkampanj.",
+      "metric": {
+        "perOrder": "Bruttomarginal + fraktavgifter / beställning",
+        "share": "Över gränsen"
+      },
+      "perOrder": "Bruttomarginal + fraktavgifter / beställning",
+      "orders": "beställningar",
+      "ordersColumn": "Beställningar",
+      "thisYear": "I år",
+      "yearEarlier": "Året innan",
+      "noComparison": "Det finns ingen fullständig jämförelsedata från året innan",
+      "share": "Varukorgar över gränsen",
+      "shareSub": "Beställningar till utlämningsställe, varukorg {{from}}–{{to}} · {{count}} beställningar",
+      "points": "procentenheter",
+      "feeGivenUp": "Ändringens pris",
+      "feeGivenUpSub": "Sedan {{date}}, exkl. moms",
+      "freeOrders": "fria frakter, varukorg {{newPlain}}–{{old}}",
+      "noData": "Det finns ännu ingen data från tiden efter sänkningen.",
+      "weekShort": "v.",
+      "week": "Vecka",
+      "changeWeek": "ändringsveckan",
+      "inProgress": "pågår",
+      "campaignDays": "Kampanjdagar (nu / året innan)",
+      "showTable": "Visa tabell",
+      "hideTable": "Dölj tabell",
+      "definition": "Bruttomarginal + fraktavgifter: beställningarnas bruttomarginal och de fraktavgifter kunderna har betalat, exkl. moms, delat med antalet beställningar. Över gränsen: hur stor andel av beställningarna till utlämningsställe med en varukorg på {{from}}–{{to}} som har en varukorg på minst {{new}}. Ändringens pris: beställningar till utlämningsställe som fick fri frakt med en varukorg på {{newPlain}}–{{old}}, gånger fraktavgiften. Effekten är mindre än variationen från vecka till vecka, så läs rubriksiffrorna och inte enskilda veckor.",
+      "tableNote": "* Innevarande vecka. † Ändringsveckan: bara dagarna från och med ändringen. — = data täcker inte veckan. Kampanjdagar ingår inte i siffrorna."
     },
     "components": {
       "gross_profit": {

@@ -6,6 +6,7 @@
 
 import { createClient } from '@supabase/supabase-js'
 import { orderStatusColumns, refreshOrderStatuses } from '../lib/epagesOrderStatus.js'
+import { shippingPriceGross } from '../lib/epagesShipping.js'
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -149,7 +150,7 @@ export default async function handler(req, res) {
             grand_total: typeof order.grandTotal === 'object' ? (order.grandTotal?.amount || 0) : parseFloat(order.grandTotal) || 0,
             total_before_tax: typeof order.totalBeforeTax === 'object' ? order.totalBeforeTax?.amount : parseFloat(order.totalBeforeTax) || null,
             total_tax: typeof order.totalTax === 'object' ? order.totalTax?.amount : parseFloat(order.totalTax) || null,
-            shipping_price: typeof order.shippingPrice === 'object' ? (order.shippingPrice?.amount || 0) : parseFloat(order.shippingPrice) || 0,
+            shipping_price: shippingPriceGross(order),
             discount_amount: typeof order.discountAmount === 'object' ? (order.discountAmount?.amount || 0) : parseFloat(order.discountAmount) || 0,
             currency: typeof order.grandTotal === 'object' ? (order.grandTotal?.currency || 'SEK') : 'SEK',
             billing_company: order.billingAddress?.company,
