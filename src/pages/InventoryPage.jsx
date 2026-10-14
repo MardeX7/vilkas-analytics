@@ -22,6 +22,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useCurrentShop } from '@/config/storeConfig'
+import { supabase } from '@/lib/supabase'
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, LineChart, Line, XAxis, YAxis, CartesianGrid } from 'recharts'
 import { useState, useRef } from 'react'
 import { exportToCSV, INVENTORY_COLUMNS } from '@/lib/csvExport'
@@ -152,9 +153,13 @@ export function InventoryPage() {
       if (!costs.length) {
         throw new Error('Tiedostosta ei löytynyt ostohintoja. Varmista että vienti sisältää sarakkeet [Alias] ja [GBasePurchasePrice].')
       }
+      const { data: { session } } = await supabase.auth.getSession()
       const resp = await fetch('/api/cost-prices-import', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Authorization': `Bearer ${session?.access_token}`,
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify({ store_id: storeId, costs }),
       })
       const data = await resp.json()

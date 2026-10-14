@@ -5,8 +5,12 @@
  * updates products.cost_price for the CURRENT shop.
  *
  * Body: { store_id, costs: [{ product_number, cost }] }
+ * Authorization: Bearer <Supabase access token> of an admin of that shop.
  *
  * Safe by design:
+ * - only a signed-in admin of the store's shop may write (before 14.10.2026
+ *   the endpoint had no auth at all: anyone with the URL could overwrite cost
+ *   prices of either shop)
  * - updates ONLY real costs (> 0); never invents defaults
  * - skips unchanged rows
  * - wrong-file guard: if the file matches < 70% of the store's products it is
@@ -33,15 +37,29 @@ export default async function handler(req, res) {
 
   const { store_id, costs } = req.body || {}
 
-  if (!store_id) return res.status(400).json({ error: 'store_id puuttuu' })
-  if (!Array.isArray(costs) || costs.length === 0) {
-    return res.status(400).json({ error: 'Tiedostosta ei löytynyt ostohintoja.' })
-  }
   if (!supabaseUrl || !supabaseServiceKey) {
     return res.status(500).json({ error: 'Puuttuvat Supabase-tunnukset' })
   }
-
   const supabase = createClient(supabaseUrl, supabaseServiceKey)
+
+  const token = /^Bearer (.+)$/.exec(req.headers.authorization || '')?.[1]
+  if (!token) return res.status(401).json({ error: 'Kirjaudu sisään.' })
+  const { data: { user } = {}, error: authError } = await supabase.auth.getUser(token)
+  if (authError || !user) return res.status(401).json({ error: 'Kirjaudu sisään.' })
+
+  if (typeof store_id !== 'string' || !store_id) return res.status(400).json({ error: 'store_id puuttuu' })
+  // stores.id is shops.store_id; membership is per shops.id.
+  const { data: shop } = await supabase.from('shops').select('id').eq('store_id', store_id).maybeSingle()
+  const { data: membership } = shop
+    ? await supabase.from('shop_members').select('role').eq('shop_id', shop.id).eq('user_id', user.id).maybeSingle()
+    : { data: null }
+  if (membership?.role !== 'admin') {
+    return res.status(403).json({ error: 'Ei oikeutta muuttaa tämän kaupan ostohintoja.' })
+  }
+
+  if (!Array.isArray(costs) || costs.length === 0) {
+    return res.status(400).json({ error: 'Tiedostosta ei löytynyt ostohintoja.' })
+  }
 
   // Build incoming cost map (real costs only)
   const incoming = new Map()
