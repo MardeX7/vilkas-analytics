@@ -11,7 +11,7 @@
  * returned orders left out). Writes nothing.
  */
 import { createClient } from '@supabase/supabase-js'
-import { timingSafeEqual } from 'node:crypto'
+import { createHash, timingSafeEqual } from 'node:crypto'
 import { buildCandidates } from './lib/igProducts.js'
 
 const DOMAINS = { automaalit: 'automaalit.net', billackering: 'billackering.eu' }
@@ -19,14 +19,18 @@ const PAGE = 1000
 
 export const config = { maxDuration: 60 }
 
+const digest = s => createHash('sha256').update(s).digest()
+
+// Both sides hashed first: equal-length buffers whatever the header holds,
+// so timingSafeEqual cannot throw.
 function authorized(req) {
   const want = process.env.IG_PRODUCTS_TOKEN
-  const got = (req.headers.authorization || '').replace(/^Bearer /, '')
-  if (!want || got.length !== want.length) return false
-  return timingSafeEqual(Buffer.from(got), Buffer.from(want))
+  const got = /^Bearer (.+)$/.exec(req.headers.authorization || '')
+  if (!want || !got) return false
+  return timingSafeEqual(digest(got[1]), digest(want))
 }
 
-// Supabase returns at most 1000 rows per request.
+// Supabase returns at most 1000 rows per request (the project's default max-rows).
 async function all(query) {
   const rows = []
   for (let from = 0; ; from += PAGE) {
@@ -40,14 +44,17 @@ async function all(query) {
 export default async function handler(req, res) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' })
   if (!authorized(req)) return res.status(401).json({ error: 'Unauthorized' })
-  const domain = DOMAINS[req.query.store]
-  if (!domain) return res.status(400).json({ error: 'store must be automaalit or billackering' })
+  const { store: slug } = req.query
+  if (typeof slug !== 'string' || !Object.hasOwn(DOMAINS, slug)) {
+    return res.status(400).json({ error: 'store must be automaalit or billackering' })
+  }
+  const domain = DOMAINS[slug]
 
-  const supabase = createClient(
-    process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY,
-  )
   try {
+    const supabase = createClient(
+      process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY,
+    )
     const { data: store, error } = await supabase.from('stores').select('id').eq('domain', domain).single()
     if (error) throw new Error(`store ${domain}: ${error.message}`)
     const since = new Date(Date.now() - 90 * 864e5).toISOString()
@@ -67,11 +74,12 @@ export default async function handler(req, res) {
     ])
     res.setHeader('Cache-Control', 'no-store')
     return res.status(200).json({
-      store: req.query.store,
+      store: slug,
       generated_at: new Date().toISOString(),
       products: buildCandidates(products, links, lines),
     })
   } catch (e) {
-    return res.status(500).json({ error: e.message })
+    console.error('ig-products:', e)
+    return res.status(500).json({ error: 'Product data unavailable' })
   }
 }
