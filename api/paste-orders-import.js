@@ -74,33 +74,27 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  // Auth: require valid Supabase JWT
-  const authHeader = req.headers.authorization
-  const token = authHeader?.replace('Bearer ', '')
+  // Auth: a signed-in admin of the Automaalit shop. Before 14.10.2026 a
+  // request with no Authorization header passed whenever CRON_SECRET was unset
+  // (it is unset in production); the only caller is the inventory page.
+  const token = /^Bearer (.+)$/.exec(req.headers.authorization || '')?.[1]
+  if (!token) return res.status(401).json({ error: 'Unauthorized' })
 
   const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-  if (token) {
-    const { data: { user }, error } = await supabase.auth.getUser(token)
-    if (error || !user) {
-      return res.status(401).json({ error: 'Unauthorized' })
-    }
-    // Verify user has access to Automaalit shop
-    const { data: membership } = await supabase
-      .from('shop_members')
-      .select('role')
-      .eq('shop_id', AUTOMAALIT_SHOP_ID)
-      .eq('user_id', user.id)
-      .single()
+  const { data: { user } = {}, error: authError } = await supabase.auth.getUser(token)
+  if (authError || !user) {
+    return res.status(401).json({ error: 'Unauthorized' })
+  }
+  const { data: membership } = await supabase
+    .from('shop_members')
+    .select('role')
+    .eq('shop_id', AUTOMAALIT_SHOP_ID)
+    .eq('user_id', user.id)
+    .maybeSingle()
 
-    if (!membership) {
-      return res.status(403).json({ error: 'No access to this shop' })
-    }
-  } else {
-    // Also accept CRON_SECRET for script usage
-    if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-      return res.status(401).json({ error: 'Unauthorized' })
-    }
+  if (membership?.role !== 'admin') {
+    return res.status(403).json({ error: 'No access to this shop' })
   }
 
   console.log('📦 Starting paste orders XML import:', new Date().toISOString())
